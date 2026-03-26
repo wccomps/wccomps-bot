@@ -36,9 +36,9 @@ ROLE_GROUPS: dict[str, list[str]] = {
 # Different roles need different pages since no single page is accessible to all.
 ROLE_TEST_URL: dict[str, str] = {
     "blue_team": "/scoring/incident/list/",
-    "red_team": "/scoring/red/submit/",
+    "red_team": "/scoring/red-team/",
     "gold_team": "/leaderboard/",
-    "orange_team": "/orange/dashboard/",
+    "orange_team": "/orange-team/",
     "white_team": "/scoring/incidents/",
     "ticketing_support": "/tickets/",
     "ticketing_admin": "/tickets/",
@@ -145,9 +145,7 @@ class TestRenderedPrimaryNav:
         client.force_login(user)
 
         response = client.get(ROLE_TEST_URL[role])
-        assert response.status_code == 200, (
-            f"{role} got {response.status_code} on {ROLE_TEST_URL[role]}"
-        )
+        assert response.status_code == 200, f"{role} got {response.status_code} on {ROLE_TEST_URL[role]}"
 
         html = response.content.decode()
         visible = _extract_primary_nav_links(html)
@@ -171,9 +169,7 @@ class TestRenderedScoringSubnav:
         client.force_login(user)
 
         response = client.get(SCORING_TEST_URL)
-        assert response.status_code == 200, (
-            f"{role} got {response.status_code} on {SCORING_TEST_URL}"
-        )
+        assert response.status_code == 200, f"{role} got {response.status_code} on {SCORING_TEST_URL}"
 
         html = response.content.decode()
         visible = _extract_scoring_subnav_links(html)
