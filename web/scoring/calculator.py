@@ -164,15 +164,16 @@ def calculate_team_score_detailed(team: Team) -> DetailedScoreBreakdown:
     scaled_inject = inject_raw * inject_mod
     scaled_orange = orange_raw * orange_mod
 
+    two_places = Decimal("0.01")
     total_score = (
         scaled_service + scaled_inject + scaled_orange + sla_raw + point_adj + red_raw + recovery_raw
-    ).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    ).quantize(two_places, rounding=ROUND_HALF_UP)
 
     return {
         # Standard fields (same as calculate_team_score)
-        "service_points": scaled_service.quantize(Decimal("1"), rounding=ROUND_HALF_UP),
-        "inject_points": scaled_inject.quantize(Decimal("1"), rounding=ROUND_HALF_UP),
-        "orange_points": scaled_orange.quantize(Decimal("1"), rounding=ROUND_HALF_UP),
+        "service_points": scaled_service.quantize(two_places, rounding=ROUND_HALF_UP),
+        "inject_points": scaled_inject.quantize(two_places, rounding=ROUND_HALF_UP),
+        "orange_points": scaled_orange.quantize(two_places, rounding=ROUND_HALF_UP),
         "red_deductions": red_raw,
         "sla_penalties": sla_raw,
         "point_adjustments": point_adj,
