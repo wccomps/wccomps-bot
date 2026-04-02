@@ -71,3 +71,5 @@ backups/
 !package-lock.json
 .superpowers/
 docs/superpowers/
+approve_red_team.py
+match_incidents.py
