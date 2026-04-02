@@ -330,9 +330,10 @@ class Command(BaseCommand):
 
         The WRCCDC scales (service + sla + adj) * 0.4 as a unit, but the calculator
         applies the modifier only to service_points and adds sla/adj raw. To make the
-        calculator produce correct results, we store the pre-scaled net service value
-        (net * 0.4) as service_points with sla=adj=0.  The ScoringTemplate gives
-        service_mod=1.0, so scaled_service = net*0.4 * 1.0 = correct value.
+        calculator produce correct results, we pre-scale each component by 0.4.
+        The ScoringTemplate gives service_mod=1.0, so:
+            scaled_service + sla + adj = svc*0.4*1.0 + sla*0.4 + adj*0.4
+            = (svc + sla + adj) * 0.4    ✓
         """
         service_scale = Decimal("0.4")
         ws = sc["Total Service Points"]
@@ -348,19 +349,18 @@ class Command(BaseCommand):
             service_pts = Decimal(str(vals[1] or 0))
             sla = Decimal(str(vals[2] or 0))
             adj = Decimal(str(vals[3] or 0))
-            net_scaled = (service_pts + sla + adj) * service_scale
 
             ServiceScore.objects.update_or_create(
                 team=teams[team_num],
                 defaults={
-                    "service_points": net_scaled,
-                    "sla_violations": Decimal("0"),
-                    "point_adjustments": Decimal("0"),
+                    "service_points": service_pts * service_scale,
+                    "sla_violations": sla * service_scale,
+                    "point_adjustments": adj * service_scale,
                 },
             )
             created += 1
 
-        self.stdout.write(self.style.SUCCESS(f"ServiceScores: {created} imported (pre-scaled net * 0.4)"))
+        self.stdout.write(self.style.SUCCESS(f"ServiceScores: {created} imported (all components * 0.4)"))
 
     def _import_orange_scores(self, sc: openpyxl.Workbook, teams: dict[int, Team]) -> None:
         """Import orange team scores from WRCCDC Score Card."""
