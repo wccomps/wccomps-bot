@@ -26,17 +26,21 @@ from scoring.calculator import recalculate_all_scores
 from scoring.models import InjectScore, OrangeTeamScore, ScoringTemplate, ServiceScore
 from team.models import Team
 
-# ScoringTemplate values that produce the correct WRCCDC scaling modifiers.
-# The calculator formula: total_pool = max(raw_max / (weight/100)), mod = (weight/100) * total_pool / raw_max.
-# With these values, service is dominant (mod=1.0) and inject/orange get 8.03/50.63.
-# Service is stored pre-scaled as net*(0.4) so mod=1.0 gives the correct scaled value.
+# ScoringTemplate configuration for WRCCDC scoring.
+# Direct modifiers bypass the weight-based derivation formula entirely,
+# so modifiers are exact with zero rounding loss.
+# Service is stored pre-scaled (raw * 0.4) so service_modifier = 1.0.
 SCORING_WEIGHTS = {
-    "service_weight": Decimal("21.66"),
-    "inject_weight": Decimal("54.14"),
-    "orange_weight": Decimal("24.20"),
-    "service_max": Decimal("16172"),  # 40429 (max raw service total) * 0.4
+    "service_weight": Decimal("40"),
+    "inject_weight": Decimal("40"),
+    "orange_weight": Decimal("20"),
+    "service_max": Decimal("40429"),  # Max possible raw service points
     "inject_max": Decimal("5035"),  # Sum of all inject max scores
-    "orange_max": Decimal("357"),  # Max possible orange points
+    "orange_max": Decimal("357"),  # Max possible orange check points
+    # Direct scaling modifiers (exact WRCCDC values from score card)
+    "service_modifier": Decimal("1.0"),
+    "inject_modifier": Decimal("8.03"),
+    "orange_modifier": Decimal("50.63"),
 }
 
 # Team number -> school nickname (derived by matching inject totals * 8.03 scaling)
