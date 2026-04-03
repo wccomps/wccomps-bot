@@ -8,6 +8,7 @@ from scoring.models import (
     OrangeTeamScore,
     RedTeamScore,
     RedTeamScreenshot,
+    ServiceDetail,
     ServiceScore,
 )
 
@@ -47,6 +48,7 @@ def wipe_competition_data() -> dict[str, int]:
         "RedTeamScore": RedTeamScore.objects.all().delete()[0],
         "InjectScore": InjectScore.objects.all().delete()[0],
         "OrangeTeamScore": OrangeTeamScore.objects.all().delete()[0],
+        "ServiceDetail": ServiceDetail.objects.all().delete()[0],
         "ServiceScore": ServiceScore.objects.all().delete()[0],
         "FinalScore": FinalScore.objects.all().delete()[0],
         # Blue team Discord links only (staff/volunteer links preserved)
