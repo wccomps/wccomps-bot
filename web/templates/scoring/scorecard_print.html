@@ -314,6 +314,7 @@
                     <tr>
                         <th>Attack Type</th>
                         <th>Target</th>
+                        <th>Breakdown</th>
                         <th class="text-right">Deduction</th>
                     </tr>
                 </thead>
@@ -325,18 +326,15 @@
                                 {% if finding.affected_boxes_display %}{{ finding.affected_boxes_display }}{% endif %}
                                 {% if finding.affected_service %}({{ finding.affected_service }}){% endif %}
                             </td>
+                            <td>{{ finding.outcomes_display|join:", " }}</td>
                             <td class="text-right">
                                 <span class="score-negative">-{{ finding.points_per_team|floatformat:0 }}</span>
                             </td>
                         </tr>
-                        {% if finding.outcomes_display %}
-                            <tr>
-                                <td colspan="3" class="outcomes">{{ finding.outcomes_display|join:", " }}</td>
-                            </tr>
-                        {% endif %}
                     {% endfor %}
                     <tr class="row-total">
                         <td>Total</td>
+                        <td></td>
                         <td></td>
                         <td class="text-right">
                             <span class="score-negative">-{{ red_total|floatformat:0 }}</span>

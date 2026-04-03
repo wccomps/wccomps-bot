@@ -241,6 +241,7 @@
             <tr>
                 <c-table_header sortable="false">Attack Type</c-table_header>
                 <c-table_header sortable="false">Target</c-table_header>
+                <c-table_header sortable="false">Breakdown</c-table_header>
                 <c-table_header sortable="false" class="text-right">Deduction</c-table_header>
             </tr>
             </c-slot>
@@ -251,25 +252,17 @@
                         {% if finding.affected_boxes_display %}{{ finding.affected_boxes_display }}{% endif %}
                         {% if finding.affected_service %}({{ finding.affected_service }}){% endif %}
                     </td>
+                    <td>{{ finding.outcomes_display|join:", " }}</td>
                     <td class="text-right">
                         <span class="score-negative">-{{ finding.points_per_team|floatformat:0 }}</span>
                     </td>
                 </tr>
-                {% if finding.outcomes_display %}
-                    <tr class="feedback-row">
-                        <td colspan="3">
-                            <details>
-                                <summary>Point breakdown</summary>
-                                <p class="inject-feedback">{{ finding.outcomes_display|join:", " }}</p>
-                            </details>
-                        </td>
-                    </tr>
-                {% endif %}
             {% endfor %}
             <tr class="row-total">
                 <td>
                     <strong>Total</strong>
                 </td>
+                <td></td>
                 <td></td>
                 <td class="text-right">
                     <strong><span class="score-negative">-{{ red_total|floatformat:0 }}</span></strong>
