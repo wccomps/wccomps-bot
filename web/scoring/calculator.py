@@ -161,7 +161,7 @@ def calculate_team_score_detailed(team: Team) -> DetailedScoreBreakdown:
         sla_raw = Decimal("0")
         point_adj = Decimal("0")
 
-    inject_raw = get_approved_inject_total(team)
+    inject_raw = get_approved_inject_total(team).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     orange_raw = get_approved_orange_total(team)
     red_raw = get_approved_red_deductions(team)
     recovery_raw = IncidentReport.objects.filter(
