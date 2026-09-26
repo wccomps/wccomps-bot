@@ -35,6 +35,19 @@ CSRF_TRUSTED_ORIGINS = [
     "https://portal.wccomps.org",
 ]
 
+# Requests on LEGACY_HOSTS are permanently redirected to CANONICAL_HOST (path and query preserved).
+# Set CANONICAL_HOST= (empty) in .env to disable the redirects without a deploy.
+# Legacy hosts must stay in ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, and the Traefik rule to be redirected.
+CANONICAL_HOST = os.environ.get("CANONICAL_HOST", "portal.wccomps.org")
+LEGACY_HOSTS = [
+    "bot.wccomps.org",
+    "register.wccomps.org",
+    "team.wccomps.org",
+    "teams.wccomps.org",
+    "ticket.wccomps.org",
+    "tickets.wccomps.org",
+]
+
 
 # Application definition
 

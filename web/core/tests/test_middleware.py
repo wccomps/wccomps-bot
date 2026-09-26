@@ -31,8 +31,9 @@ class TestSubdomainRedirectMiddleware:
 
     @pytest.fixture(autouse=True)
     def _allow_all_hosts(self, settings):
-        """Allow any host header in subdomain redirect tests."""
+        """Allow any host header; canonical redirect off to test the subdomain mapping alone."""
         settings.ALLOWED_HOSTS = ["*"]
+        settings.CANONICAL_HOST = ""
 
     @pytest.fixture
     def middleware(self):
@@ -92,6 +93,111 @@ class TestSubdomainRedirectMiddleware:
 
         assert response.status_code == 200
         assert response.content == b"OK"
+
+
+class TestCanonicalHostRedirect:
+    """Legacy hosts permanently redirect to the canonical host, preserving path and query."""
+
+    LEGACY_HOSTS = [
+        "bot.wccomps.org",
+        "register.wccomps.org",
+        "team.wccomps.org",
+        "teams.wccomps.org",
+        "ticket.wccomps.org",
+        "tickets.wccomps.org",
+    ]
+
+    @pytest.fixture(autouse=True)
+    def _canonical_settings(self, settings):
+        settings.ALLOWED_HOSTS = ["*"]
+        settings.CANONICAL_HOST = "portal.wccomps.org"
+        settings.LEGACY_HOSTS = self.LEGACY_HOSTS
+
+    @pytest.fixture
+    def middleware(self):
+        return SubdomainRedirectMiddleware(lambda request: HttpResponse("OK"))
+
+    @pytest.mark.parametrize("host", LEGACY_HOSTS)
+    def test_legacy_host_redirects_permanently(self, middleware, host):
+        request = RequestFactory().get("/tickets/42/", HTTP_HOST=host)
+
+        response = middleware(request)
+
+        assert response.status_code == 301
+        assert response.url == "https://portal.wccomps.org/tickets/42/"
+
+    def test_query_string_preserved(self, middleware):
+        request = RequestFactory().get("/auth/link", {"token": "abc123"}, HTTP_HOST="bot.wccomps.org")
+
+        response = middleware(request)
+
+        assert response.url == "https://portal.wccomps.org/auth/link?token=abc123"
+
+    def test_port_is_ignored_when_matching(self, middleware):
+        request = RequestFactory().get("/ops/", HTTP_HOST="team.wccomps.org:443")
+
+        response = middleware(request)
+
+        assert response.url == "https://portal.wccomps.org/ops/"
+
+    def test_register_root_goes_to_register_on_canonical_host(self, middleware):
+        request = RequestFactory().get("/", HTTP_HOST="register.wccomps.org")
+
+        response = middleware(request)
+
+        assert response.status_code == 301
+        assert response.url == "https://portal.wccomps.org/register/"
+
+    def test_legacy_root_without_mapping_keeps_root(self, middleware):
+        request = RequestFactory().get("/", HTTP_HOST="bot.wccomps.org")
+
+        response = middleware(request)
+
+        assert response.url == "https://portal.wccomps.org/"
+
+    def test_post_uses_308_to_preserve_method(self, middleware):
+        request = RequestFactory().post("/tickets/create/", {"title": "x"}, HTTP_HOST="ticket.wccomps.org")
+
+        response = middleware(request)
+
+        assert response.status_code == 308
+        assert response.url == "https://portal.wccomps.org/tickets/create/"
+
+    def test_oauth_callback_not_redirected(self, middleware):
+        """In-flight logins must finish on the host Authentik issued the code for."""
+        request = RequestFactory().get("/auth/callback/", {"code": "c", "state": "s"}, HTTP_HOST="bot.wccomps.org")
+
+        response = middleware(request)
+
+        assert response.status_code == 200
+        assert response.content == b"OK"
+
+    @pytest.mark.parametrize("host", ["portal.wccomps.org", "localhost", "127.0.0.1", "unknown.wccomps.org"])
+    def test_non_legacy_hosts_pass_through(self, middleware, host):
+        request = RequestFactory().get("/tickets/", HTTP_HOST=host)
+
+        response = middleware(request)
+
+        assert response.status_code == 200
+        assert response.content == b"OK"
+
+    def test_empty_canonical_host_disables_redirect(self, settings):
+        settings.CANONICAL_HOST = ""
+        middleware = SubdomainRedirectMiddleware(lambda request: HttpResponse("OK"))
+        request = RequestFactory().get("/tickets/", HTTP_HOST="bot.wccomps.org")
+
+        response = middleware(request)
+
+        assert response.status_code == 200
+
+    def test_settings_legacy_hosts_are_trusted_and_routed(self):
+        """Every legacy host must stay in CSRF_TRUSTED_ORIGINS while redirects are active."""
+        from django.conf import settings as real_settings
+
+        trusted = set(real_settings.CSRF_TRUSTED_ORIGINS)
+        for host in real_settings.LEGACY_HOSTS:
+            assert f"https://{host}" in trusted
+        assert f"https://{real_settings.CANONICAL_HOST}" in trusted
 
 
 class TestAuthentikRequiredMiddleware:

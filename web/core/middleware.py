@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.db import connection
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponsePermanentRedirect
 from django.shortcuts import redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -44,16 +44,33 @@ class SecurityHeadersMiddleware:
 
 
 class SubdomainRedirectMiddleware:
-    """Redirect subdomain root paths to their corresponding app paths."""
+    """Redirect legacy hosts to the canonical host, and subdomain root paths to their app paths."""
+
+    # OAuth callbacks must complete on the host whose redirect_uri Authentik issued the code for,
+    # otherwise the token exchange fails for logins that were in flight on a legacy host.
+    CANONICAL_EXEMPT_PATHS = frozenset({"/auth/callback/"})
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         self.get_response = get_response
         self.subdomain_redirects: dict[str, str] = getattr(
             settings, "SUBDOMAIN_REDIRECTS", {"register.wccomps.org": "/register/"}
         )
+        self.canonical_host: str = getattr(settings, "CANONICAL_HOST", "")
+        self.legacy_hosts: frozenset[str] = frozenset(getattr(settings, "LEGACY_HOSTS", []))
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         host = request.get_host().split(":")[0]
+
+        if self.canonical_host and host in self.legacy_hosts and request.path not in self.CANONICAL_EXEMPT_PATHS:
+            if request.path == "/" and host in self.subdomain_redirects:
+                query = request.META.get("QUERY_STRING", "")
+                target = self.subdomain_redirects[host] + (f"?{query}" if query else "")
+            else:
+                target = request.get_full_path()
+            # 301 for GET/HEAD; 308 for everything else so the method and body survive
+            preserve = request.method not in ("GET", "HEAD")
+            return HttpResponsePermanentRedirect(f"https://{self.canonical_host}{target}", preserve_request=preserve)
+
         if request.path == "/" and host in self.subdomain_redirects:
             return redirect(self.subdomain_redirects[host])
         return self.get_response(request)
