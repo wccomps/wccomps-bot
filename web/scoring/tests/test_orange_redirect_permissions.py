@@ -12,7 +12,7 @@ from django.urls import reverse
 from core.models import UserGroups
 
 
-class OrangeTeamPortalRedirectTests(TestCase):
+class OrangeTeamRedirectRedirectTests(TestCase):
     """Test that old Orange Team portal redirects to orange_team dashboard."""
 
     def setUp(self) -> None:
@@ -27,10 +27,10 @@ class OrangeTeamPortalRedirectTests(TestCase):
 
         self.client = Client()
 
-    def test_orange_team_portal_redirects(self) -> None:
+    def test_orange_team_redirect_goes_to_dashboard(self) -> None:
         """Orange Team portal redirects to orange_team dashboard."""
         self.client.login(username="orange1", password="test123")
-        response = self.client.get(reverse("scoring:orange_team_portal"))
+        response = self.client.get(reverse("scoring:orange_team_redirect"))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("orange_team:dashboard"))
 
@@ -41,9 +41,9 @@ class OrangeTeamPortalRedirectTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("orange_team:dashboard"))
 
-    def test_gold_team_portal_redirects(self) -> None:
+    def test_gold_team_redirects(self) -> None:
         """Gold Team accessing old portal also redirects."""
         self.client.login(username="gold1", password="test123")
-        response = self.client.get(reverse("scoring:orange_team_portal"))
+        response = self.client.get(reverse("scoring:orange_team_redirect"))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("orange_team:dashboard"))

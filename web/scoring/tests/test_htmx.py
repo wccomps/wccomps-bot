@@ -64,15 +64,15 @@ class TestInjectGradingHtmx:
         assert "Inject Grading" in content
 
 
-class TestRedTeamPortalHtmx:
-    """Tests for red_team_portal htmx partial responses."""
+class TestRedTeamFindingsHtmx:
+    """Tests for red_team_findings htmx partial responses."""
 
     def test_htmx_request_returns_partial(self, gold_team_user):
         """htmx request returns only the findings table partial."""
         client = Client()
         client.force_login(gold_team_user)
         response = client.get(
-            reverse("scoring:red_team_portal") + "?status=pending",
+            reverse("scoring:red_team_findings") + "?status=pending",
             HTTP_HX_REQUEST="true",
         )
         assert response.status_code == 200
@@ -87,7 +87,7 @@ class TestRedTeamPortalHtmx:
         """Regular request returns full page with filter toolbar."""
         client = Client()
         client.force_login(gold_team_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 200
         content = response.content.decode()
         # Full page should contain filter toolbar

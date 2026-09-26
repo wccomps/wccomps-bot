@@ -20,7 +20,7 @@
     <c-page_header title="Review Red Team Findings" />
     <c-module filtered="true" id="changelist">
         <c-filter_toolbar form_id="changelist-filter"
-                          hx_get="{% url 'scoring:red_team_portal' %}"
+                          hx_get="{% url 'scoring:red_team_findings' %}"
                           hx_target="#red-findings-content"
                           hx_swap="outerHTML"
                           hx_push_url="true">

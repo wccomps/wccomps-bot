@@ -48,7 +48,7 @@ from .leaderboard import (
 )
 from .orange import (
     bulk_approve_orange_adjustments,
-    orange_team_portal,
+    orange_team_redirect,
     review_orange,
     submit_orange_check,
 )
@@ -63,7 +63,7 @@ from .red_team import (
     ip_pool_list,
     leave_red_score,
     red_screenshot_download,
-    red_team_portal,
+    red_team_findings,
     red_team_scores,
     submit_red_score,
     view_red_score,
@@ -82,7 +82,7 @@ __all__ = [
     "_ScorecardStats",
     # red_team
     "_normalize_red_score_post",
-    "red_team_portal",
+    "red_team_findings",
     "red_team_scores",
     "bulk_approve_red_scores",
     "submit_red_score",
@@ -96,7 +96,7 @@ __all__ = [
     "ip_pool_delete",
     "api_user_ip_pools",
     # orange
-    "orange_team_portal",
+    "orange_team_redirect",
     "review_orange",
     "submit_orange_check",
     "bulk_approve_orange_adjustments",

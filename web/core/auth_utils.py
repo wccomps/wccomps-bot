@@ -73,7 +73,7 @@ def get_user_team_number(user: User) -> int | None:
 def get_role_based_landing_url(groups: list[str]) -> str:
     """Determine the landing page URL based on a user's Authentik groups.
 
-    Checks roles in priority order: admin/ops first, then team-specific portals.
+    Checks roles in priority order: admin/ops first, then team-specific landing pages.
     Returns a URL path string. Falls back to "/" if no role matches.
     """
     from django.urls import reverse

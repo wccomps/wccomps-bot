@@ -102,7 +102,7 @@ class TestBulkApproveRedFindingsView:
 
         response = client.post(reverse("scoring:bulk_approve_red_scores"), {"finding_ids": [finding.id]})
 
-        # Should redirect to red team portal on success
+        # Should redirect to red team findings page on success
         assert response.status_code == 302
         assert isinstance(response, HttpResponseRedirect)
         assert "red" in response.url
@@ -196,7 +196,7 @@ class TestBulkApproveRedFindingsView:
 
         response = client.post(reverse("scoring:bulk_approve_red_scores"), {"finding_ids": []})
 
-        # Should redirect back to portal
+        # Should redirect back to the findings page
         assert response.status_code == 302
         assert isinstance(response, HttpResponseRedirect)
         assert "red" in response.url
@@ -310,7 +310,7 @@ class TestBulkApproveRedFindingsView:
 class TestBulkApproveUIElements:
     """Test UI elements for bulk approve functionality."""
 
-    def test_gold_team_sees_checkboxes_in_portal(self, create_user_with_groups: Callable[..., User]) -> None:
+    def test_gold_team_sees_checkboxes_in_findings(self, create_user_with_groups: Callable[..., User]) -> None:
         """Gold Team should see checkboxes next to findings."""
         gold_user = create_user_with_groups("gold_user", ["WCComps_GoldTeam"])
         red_user = create_user_with_groups("red_user", ["WCComps_RedTeam"])
@@ -325,7 +325,7 @@ class TestBulkApproveUIElements:
         client = Client()
         client.force_login(gold_user)
 
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
 
         assert response.status_code == 200
         # Should have checkbox inputs for selecting findings
@@ -333,14 +333,14 @@ class TestBulkApproveUIElements:
         # Should have bulk approve button
         assert b"Bulk Approve" in response.content or b"bulk-approve" in response.content
 
-    def test_red_team_can_access_red_team_portal(self, create_user_with_groups: Callable[..., User]) -> None:
+    def test_red_team_can_access_red_team_findings(self, create_user_with_groups: Callable[..., User]) -> None:
         """Red Team should be able to access the review page."""
         red_user = create_user_with_groups("red_user", ["WCComps_RedTeam"])
 
         client = Client()
         client.force_login(red_user)
 
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
 
         # Red team users can access the review page
         assert response.status_code == 200

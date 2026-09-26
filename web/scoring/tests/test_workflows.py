@@ -58,7 +58,7 @@ class TestIncidentReportFlow:
 
 
 class TestRedTeamFindingFlow:
-    """Red team submits finding -> gold team sees in portal."""
+    """Red team submits finding -> gold team sees in findings page."""
 
     def test_red_team_can_access_findings_view(self, red_team_user, mock_quotient_client):
         client = Client()
@@ -66,16 +66,16 @@ class TestRedTeamFindingFlow:
         response = client.get(reverse("scoring:red_team_scores"))
         assert response.status_code == 200
 
-    def test_gold_team_can_access_red_team_portal(self, gold_team_user, mock_quotient_client):
+    def test_gold_team_can_access_red_team_findings(self, gold_team_user, mock_quotient_client):
         client = Client()
         client.force_login(gold_team_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 200
 
-    def test_blue_team_cannot_access_red_portal(self, blue_team_user, mock_quotient_client):
+    def test_blue_team_cannot_access_red_findings(self, blue_team_user, mock_quotient_client):
         client = Client()
         client.force_login(blue_team_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 302
 
 

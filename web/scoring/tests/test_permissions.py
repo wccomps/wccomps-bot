@@ -73,27 +73,27 @@ class TestLeaderboardPermissions:
         assert response.status_code == 200
 
 
-class TestRedTeamPortalPermissions:
-    """Test permissions for Red Team Portal (/scoring/red-team/)."""
+class TestRedTeamFindingsPermissions:
+    """Test permissions for Red Team findings page (/scoring/red-team/)."""
 
     def test_unauthenticated_redirects_to_login(self, unauthenticated_client):
         """Unauthenticated users should be redirected to login."""
-        response = unauthenticated_client.get(reverse("scoring:red_team_portal"))
+        response = unauthenticated_client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 302
         assert "/accounts/" in response.url or "login" in response.url
 
     def test_blue_team_denied(self, blue_team_user):
-        """Blue Team should not access Red Team Portal."""
+        """Blue Team should not access Red Team findings page."""
         client = Client()
         client.force_login(blue_team_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 302
 
     def test_red_team_allowed(self, red_team_user):
-        """Red Team should access Red Team Portal for review."""
+        """Red Team should access Red Team findings page for review."""
         client = Client()
         client.force_login(red_team_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 200
 
     def test_red_team_uses_findings_view(self, red_team_user):
@@ -104,45 +104,45 @@ class TestRedTeamPortalPermissions:
         assert response.status_code == 200
 
     def test_gold_team_allowed(self, gold_team_user):
-        """Gold Team should access Red Team Portal."""
+        """Gold Team should access Red Team findings page."""
         client = Client()
         client.force_login(gold_team_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 200
 
     def test_white_team_denied(self, white_team_user):
-        """White Team should not access Red Team Portal."""
+        """White Team should not access Red Team findings page."""
         client = Client()
         client.force_login(white_team_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 302
 
     def test_orange_team_denied(self, orange_team_user):
-        """Orange Team should not access Red Team Portal."""
+        """Orange Team should not access Red Team findings page."""
         client = Client()
         client.force_login(orange_team_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 302
 
     def test_ticketing_support_denied(self, ticketing_support_user):
-        """Ticketing Support should not access Red Team Portal."""
+        """Ticketing Support should not access Red Team findings page."""
         client = Client()
         client.force_login(ticketing_support_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 302
 
     def test_ticketing_admin_denied(self, ticketing_admin_user):
-        """Ticketing Admin should not access Red Team Portal."""
+        """Ticketing Admin should not access Red Team findings page."""
         client = Client()
         client.force_login(ticketing_admin_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 302
 
     def test_admin_allowed(self, admin_user):
-        """Admin (Gold Team) should access Red Team Portal."""
+        """Admin (Gold Team) should access Red Team findings page."""
         client = Client()
         client.force_login(admin_user)
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 200
 
 
@@ -199,12 +199,12 @@ class TestIncidentSubmissionPermissions:
         assert response.status_code == 200
 
 
-class TestOrangeTeamPortalPermissions:
+class TestOrangeTeamRedirectPermissions:
     """Test that old Orange Team Portal redirects to orange_team dashboard."""
 
     def test_unauthenticated_redirects_to_login(self, unauthenticated_client):
         """Unauthenticated users should be redirected to login."""
-        response = unauthenticated_client.get(reverse("scoring:orange_team_portal"))
+        response = unauthenticated_client.get(reverse("scoring:orange_team_redirect"))
         assert response.status_code == 302
         assert "/accounts/" in response.url or "login" in response.url
 
@@ -212,7 +212,7 @@ class TestOrangeTeamPortalPermissions:
         """Authenticated users are redirected to orange_team dashboard."""
         client = Client()
         client.force_login(gold_team_user)
-        response = client.get(reverse("scoring:orange_team_portal"))
+        response = client.get(reverse("scoring:orange_team_redirect"))
         assert response.status_code == 302
         assert response.url == reverse("orange_team:dashboard")
 

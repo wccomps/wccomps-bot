@@ -16,7 +16,7 @@ urlpatterns = [
     path("red-team/scores/", views.red_team_scores, name="red_team_scores"),
     path("red-team/score/<int:finding_id>/", views.view_red_score, name="view_red_score"),
     # Red Team Review
-    path("red/", views.red_team_portal, name="red_team_portal"),
+    path("red/", views.red_team_findings, name="red_team_findings"),
     path("red-team/<int:finding_id>/delete/", views.delete_red_score, name="delete_red_score"),
     path("red-team/<int:finding_id>/leave/", views.leave_red_score, name="leave_red_score"),
     path("red-team/bulk-approve/", views.bulk_approve_red_scores, name="bulk_approve_red_scores"),
@@ -34,7 +34,7 @@ urlpatterns = [
     path("incident/<int:incident_id>/delete/", views.delete_incident_report, name="delete_incident_report"),
     path("incident/screenshot/<int:screenshot_id>/", views.incident_screenshot_download, name="incident_screenshot"),
     # Orange Team
-    path("orange-team/", views.orange_team_portal, name="orange_team_portal"),
+    path("orange-team/", views.orange_team_redirect, name="orange_team_redirect"),
     path("orange-team/submit/", views.submit_orange_check, name="submit_orange_check"),
     path("orange-team/bulk-approve/", views.bulk_approve_orange_adjustments, name="bulk_approve_orange_adjustments"),
     # Inject Grading (White/Gold Team)

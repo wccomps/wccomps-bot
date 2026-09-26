@@ -15,7 +15,7 @@ from core.auth_utils import require_permission
 from ..models import OrangeTeamScore
 
 
-def orange_team_portal(request: HttpRequest) -> HttpResponse:
+def orange_team_redirect(request: HttpRequest) -> HttpResponse:
     """Redirect to new orange team dashboard."""
     return redirect("orange_team:dashboard")
 

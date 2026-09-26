@@ -556,7 +556,7 @@ Sub-navigation.
 <c-nav current="leaderboard">
   <c-nav_item name="leaderboard" href="{% url 'scoring:leaderboard' %}">Leaderboard</c-nav_item>
   {% if user.is_gold_team %}
-  <c-nav_item name="red_team" href="{% url 'scoring:red_team_portal' %}">Review Red Team</c-nav_item>
+  <c-nav_item name="red_team" href="{% url 'scoring:red_team_findings' %}">Review Red Team</c-nav_item>
   {% endif %}
 </c-nav>
 ```
@@ -963,7 +963,7 @@ Uses `<c-nav>` and `<c-nav_item>` components. Used in:
 <c-nav current="leaderboard">
   <c-nav_item name="leaderboard" href="{% url 'scoring:leaderboard' %}">Leaderboard</c-nav_item>
   {% if user.is_gold_team %}
-  <c-nav_item name="red_team" href="{% url 'scoring:red_team_portal' %}">Review Red Team</c-nav_item>
+  <c-nav_item name="red_team" href="{% url 'scoring:red_team_findings' %}">Review Red Team</c-nav_item>
   {% endif %}
 </c-nav>
 ```

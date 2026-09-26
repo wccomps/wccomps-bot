@@ -54,7 +54,7 @@ def _normalize_red_score_post(post_data: QueryDict) -> QueryDict:
     "gold_team",
     error_message="Only Red Team or Gold Team members can review findings",
 )
-def red_team_portal(request: HttpRequest) -> HttpResponse:
+def red_team_findings(request: HttpRequest) -> HttpResponse:
     """Gold team review page for red team findings."""
     from core.utils import filter_sort_paginate
 
@@ -220,7 +220,7 @@ def red_team_scores(request: HttpRequest) -> HttpResponse:
     if request.headers.get("HX-Request"):
         return render(request, "cotton/red_findings_table.html", context)
 
-    return render(request, "scoring/red_team_portal.html", context)
+    return render(request, "scoring/red_team_findings.html", context)
 
 
 @require_permission(
@@ -247,7 +247,7 @@ def bulk_approve_red_scores(request: HttpRequest) -> HttpResponse:
         request,
         field_name="finding_ids",
         queryset=RedTeamScore.objects.filter(is_approved=False),
-        redirect_url="scoring:red_team_portal",
+        redirect_url="scoring:red_team_findings",
         item_label="finding",
         on_item=approve,
     )

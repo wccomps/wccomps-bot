@@ -15,7 +15,7 @@ from team.models import Team
 
 
 @pytest.mark.django_db
-class TestRedTeamPortalFiltering:
+class TestRedTeamFindingsFiltering:
     """Test filtering capabilities in Red Team findings view."""
 
     def test_filter_by_target_team(self, create_user_with_groups: Callable[..., User]) -> None:
@@ -257,7 +257,7 @@ class TestRedTeamPortalFiltering:
     def test_gold_team_sees_all_findings_including_approval_status(
         self, create_user_with_groups: Callable[..., User]
     ) -> None:
-        """Gold Team can access red team portal and see approval status."""
+        """Gold Team can access red team findings page and see approval status."""
         gold_user = create_user_with_groups("gold_user", ["WCComps_GoldTeam"])
         team = Team.objects.create(team_number=1, team_name="Team 1")
 
@@ -273,7 +273,7 @@ class TestRedTeamPortalFiltering:
         client = Client()
         client.force_login(gold_user)
 
-        response = client.get(reverse("scoring:red_team_portal"))
+        response = client.get(reverse("scoring:red_team_findings"))
         assert response.status_code == 200
 
         # Gold Team should see points per team in reviewed findings
@@ -311,7 +311,7 @@ class TestRedTeamSortCycle:
 
         client = Client()
         client.force_login(gold_user)
-        response = client.get(reverse("scoring:red_team_portal"), {"sort": "created_at", "status": "all"})
+        response = client.get(reverse("scoring:red_team_findings"), {"sort": "created_at", "status": "all"})
         assert response.status_code == 200
 
         ids = [f.id for f in response.context["page_obj"]]
@@ -325,7 +325,7 @@ class TestRedTeamSortCycle:
 
         client = Client()
         client.force_login(gold_user)
-        response = client.get(reverse("scoring:red_team_portal"), {"sort": "-created_at", "status": "all"})
+        response = client.get(reverse("scoring:red_team_findings"), {"sort": "-created_at", "status": "all"})
         assert response.status_code == 200
 
         ids = [f.id for f in response.context["page_obj"]]
@@ -344,7 +344,7 @@ class TestRedTeamSortCycle:
 
         client = Client()
         client.force_login(gold_user)
-        response = client.get(reverse("scoring:red_team_portal"), {"sort": "default", "status": "all"})
+        response = client.get(reverse("scoring:red_team_findings"), {"sort": "default", "status": "all"})
         assert response.status_code == 200
         # sort_by must be empty so no column header shows an arrow
         assert response.context["sort_by"] == ""
@@ -356,7 +356,7 @@ class TestRedTeamSortCycle:
 
         client = Client()
         client.force_login(gold_user)
-        response = client.get(reverse("scoring:red_team_portal"), {"sort": "default", "status": "all"})
+        response = client.get(reverse("scoring:red_team_findings"), {"sort": "default", "status": "all"})
         content = response.content.decode()
         # The sort indicators should NOT appear in any table header
         # (they only appear when current_sort matches a sort_field)
@@ -370,7 +370,7 @@ class TestRedTeamSortCycle:
 
         client = Client()
         client.force_login(gold_user)
-        response = client.get(reverse("scoring:red_team_portal"), {"status": "all"})
+        response = client.get(reverse("scoring:red_team_findings"), {"status": "all"})
         assert response.status_code == 200
 
         # Default is -created_at (newest first)

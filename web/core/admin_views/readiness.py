@@ -234,7 +234,7 @@ def _check_no_red_scores() -> CheckResult:
         return (
             "warn",
             f"{count} finding{'s' if count != 1 else ''} already exist",
-            {"type": "link", "url": reverse("scoring:red_team_portal"), "label": "View Findings"},
+            {"type": "link", "url": reverse("scoring:red_team_findings"), "label": "View Findings"},
         )
     return ("pass", "No existing findings", None)
 
