@@ -42,7 +42,8 @@ uv run djlint web/templates --reformat --quiet &
 PID_DJFMT=$!
 uv run ruff format . --quiet
 uv run ruff check --fix --quiet . || true
-wait $PID_DJFMT
+# djlint --reformat exits 1 when it changed files; that's expected here (auto-committed below)
+wait $PID_DJFMT || true
 
 # Auto-commit any formatting changes so deployed code matches a commit
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
