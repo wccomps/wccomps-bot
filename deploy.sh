@@ -2,7 +2,7 @@
 set -e
 
 REMOTE_HOST="root@10.0.0.10"
-REMOTE_PATH="/opt/stacks/wccomps-bot/"
+REMOTE_PATH="/opt/stacks/wccomps-portal/"
 SECONDS=0
 
 fail() {

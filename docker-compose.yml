@@ -1,6 +1,5 @@
-# Pinned so container, network, and volume names don't depend on the deploy directory name.
-# Changing this orphans the postgres_data volume (the database would come back empty).
-name: wccomps-bot
+# Pinned so container and network names don't depend on the deploy directory name.
+name: wccomps-portal
 
 services:
   postgres:
@@ -93,8 +92,12 @@ services:
       - wccomps-net
 
 volumes:
+  # Explicit names: these volumes predate the wccomps-portal project name. Without them Compose
+  # would create new, empty volumes and the database would come back empty.
   postgres_data:
+    name: wccomps-bot_postgres_data
   static_files:
+    name: wccomps-bot_static_files
 
 networks:
   wccomps-net:
