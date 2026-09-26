@@ -172,9 +172,11 @@ fi
 echo ""
 echo "Deploy"
 
-# Dry-run rsync to see what files changed — determines deploy strategy
-CHANGES=$(rsync -az --delete --exclude-from=.rsyncignore -e ssh . "$REMOTE_HOST:$REMOTE_PATH" \
-    --dry-run --itemize-changes || echo "first-deploy")
+# Dry-run rsync to see what files changed — determines deploy strategy.
+# --checksum + dropping '.'-prefixed (attribute-only) lines: `uv lock` rewrites uv.lock every deploy,
+# and a new mtime alone must not force a full rebuild.
+CHANGES=$({ rsync -az --checksum --delete --exclude-from=.rsyncignore -e ssh . "$REMOTE_HOST:$REMOTE_PATH" \
+    --dry-run --itemize-changes || echo "first-deploy"; } | grep -v '^\.' || true)
 
 # Actual sync
 rsync -az --delete --exclude-from=.rsyncignore -e ssh . "$REMOTE_HOST:$REMOTE_PATH" --quiet \
