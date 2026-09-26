@@ -12,6 +12,28 @@ from django.core.cache import cache
 logger = logging.getLogger(__name__)
 
 
+def _is_unavailable(exc: BaseException | None) -> bool:
+    """True if Quotient is down or unreachable (expected between competitions), not misconfigured."""
+    while exc is not None:
+        if isinstance(exc, httpx.TransportError):
+            return True
+        if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code >= 500:
+            return True
+        exc = exc.__cause__
+    return False
+
+
+def _log_failure(message: str, exc: Exception) -> None:
+    """Log a request failure: one line if Quotient is just down, full traceback otherwise."""
+    if not _is_unavailable(exc):
+        logger.exception(f"{message}: {exc}")
+    elif isinstance(exc, QuotientAPIError):
+        # Login already logged the unavailability; don't repeat it for every request
+        logger.debug(f"{message}: {exc}")
+    else:
+        logger.warning(f"{message}: Quotient unavailable ({str(exc).splitlines()[0]})")
+
+
 @dataclass
 class QuotientService:
     """Represents a service on a box."""
@@ -145,7 +167,10 @@ class QuotientClient:
                 logger.info(f"Authenticated with Quotient as {username}")
                 return self.client
             except httpx.HTTPError as e:
-                logger.exception(f"Failed to authenticate with Quotient: {e}")
+                if _is_unavailable(e):
+                    logger.warning(f"Quotient unavailable: login failed ({str(e).splitlines()[0]})")
+                else:
+                    logger.exception(f"Failed to authenticate with Quotient: {e}")
                 raise QuotientAPIError(f"Authentication failed: {e}") from e
 
         return self.client
@@ -229,7 +254,7 @@ class QuotientClient:
             return infrastructure
 
         except (httpx.HTTPError, QuotientAPIError) as e:
-            logger.exception(f"Failed to fetch infrastructure from Quotient: {e}")
+            _log_failure("Failed to fetch infrastructure from Quotient", e)
             return None
         except (KeyError, ValueError) as e:
             logger.exception(f"Failed to parse infrastructure response: {e}")
@@ -279,7 +304,7 @@ class QuotientClient:
             return scores
 
         except (httpx.HTTPError, QuotientAPIError) as e:
-            logger.exception(f"Failed to fetch scores from Quotient: {e}")
+            _log_failure("Failed to fetch scores from Quotient", e)
             return None
         except (KeyError, ValueError) as e:
             logger.exception(f"Failed to parse scores response: {e}")
@@ -333,7 +358,7 @@ class QuotientClient:
             return injects
 
         except (httpx.HTTPError, QuotientAPIError) as e:
-            logger.exception(f"Failed to fetch injects from Quotient: {e}")
+            _log_failure("Failed to fetch injects from Quotient", e)
             return None
         except (KeyError, ValueError) as e:
             logger.exception(f"Failed to parse injects response: {e}")
@@ -385,7 +410,7 @@ class QuotientClient:
             return exports
 
         except (httpx.HTTPError, QuotientAPIError) as e:
-            logger.exception(f"Failed to fetch service export: {e}")
+            _log_failure("Failed to fetch service export", e)
             return None
         except (KeyError, ValueError) as e:
             logger.exception(f"Failed to parse service export: {e}")
@@ -428,7 +453,7 @@ class QuotientClient:
             return result
 
         except (httpx.HTTPError, QuotientAPIError) as e:
-            logger.exception(f"Failed to fetch uptimes: {e}")
+            _log_failure("Failed to fetch uptimes", e)
             return None
         except (KeyError, ValueError) as e:
             logger.exception(f"Failed to parse uptimes: {e}")
