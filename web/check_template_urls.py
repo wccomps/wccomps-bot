@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "wccomps.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "portal.settings")
 
 import django
 

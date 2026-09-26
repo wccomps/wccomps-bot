@@ -30,7 +30,7 @@ RUN mkdir -p /app/logs
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/web
-ENV DJANGO_SETTINGS_MODULE=wccomps.settings
+ENV DJANGO_SETTINGS_MODULE=portal.settings
 
 WORKDIR /app
 

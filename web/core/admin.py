@@ -22,8 +22,8 @@ from .models import (
 class AuthentikAdminSite(admin.AdminSite):
     """Admin site that checks Authentik groups for access."""
 
-    site_header = "WCComps Administration"
-    site_title = "WCComps Admin"
+    site_header = "WCComps Portal Administration"
+    site_title = "WCComps Portal Admin"
     index_title = "Competition Management"
     site_url = "/ops/tickets/"
 

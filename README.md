@@ -1,4 +1,4 @@
-# WCComps
+# WCComps Portal
 
 Competition management platform for WRCCDC: Discord bot, Django web app, and Authentik SSO integration.
 

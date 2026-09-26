@@ -37,10 +37,10 @@ RUN mkdir -p /app/web/staticfiles
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV DJANGO_SETTINGS_MODULE=wccomps.settings
+ENV DJANGO_SETTINGS_MODULE=portal.settings
 
 WORKDIR /app/web
 
 ENTRYPOINT ["/entrypoint.sh"]
 # Use environment variable for workers (default 4, max recommended: 10 to stay under 50 connection limit)
-CMD ["sh", "-c", "uv run --no-sync gunicorn wccomps.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-4} --timeout 90 --access-logfile - --error-logfile - --log-level info"]
+CMD ["sh", "-c", "uv run --no-sync gunicorn portal.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-4} --timeout 90 --access-logfile - --error-logfile - --log-level info"]

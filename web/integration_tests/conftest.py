@@ -27,7 +27,7 @@ if env_test_path.exists():
 os.environ.setdefault("DJANGO_ALLOW_ASYNC_UNSAFE", "true")
 
 # Set Django settings module before django.setup()
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "wccomps.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "portal.settings")
 os.environ["DB_HOST"] = os.getenv("TEST_DB_HOST", "localhost")
 os.environ["DB_PORT"] = os.getenv("TEST_DB_PORT", "5433")
 os.environ["DB_NAME"] = os.getenv("TEST_DB_NAME", "wccomps_test")

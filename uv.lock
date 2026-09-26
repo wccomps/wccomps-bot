@@ -1969,7 +1969,7 @@ wheels = [
 ]
 
 [[package]]
-name = "wccomps-bot"
+name = "wccomps-portal"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [

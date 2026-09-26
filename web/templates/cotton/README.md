@@ -1,6 +1,6 @@
 # Cotton Component Library
 
-Reusable UI components for wccomps-bot templates using Django Cotton.
+Reusable UI components for WCComps Portal templates using Django Cotton.
 
 ## Components
 

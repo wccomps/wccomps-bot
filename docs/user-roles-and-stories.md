@@ -2,7 +2,7 @@
 
 ## Overview
 
-WCComps is a cybersecurity competition management platform that works alongside Quotient (the real-time scoring engine). WCComps handles score adjustments, incident/finding tracking, and administrative functions while Quotient handles live uptime monitoring and service checks.
+WCComps Portal is a cybersecurity competition management platform that works alongside Quotient (the real-time scoring engine). WCComps Portal handles score adjustments, incident/finding tracking, and administrative functions while Quotient handles live uptime monitoring and service checks.
 
 ---
 

@@ -11,7 +11,7 @@ import discord
 import django
 from discord.ext import commands
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "wccomps.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "portal.settings")
 django.setup()
 
 from bot.competition_timer import CompetitionTimer
@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class WCCompsBot(commands.Bot):
+class PortalBot(commands.Bot):
     """WCComps Discord Bot."""
 
     def __init__(self) -> None:
@@ -278,7 +278,7 @@ def main() -> None:
         sys.exit(1)
 
     # Create and run bot
-    bot = WCCompsBot()
+    bot = PortalBot()
 
     try:
         bot.run(token)

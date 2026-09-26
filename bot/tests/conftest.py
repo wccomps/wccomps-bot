@@ -276,7 +276,7 @@ def setup_django() -> None:
 
     import django
 
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "wccomps.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "portal.settings")
     django.setup()
 
 

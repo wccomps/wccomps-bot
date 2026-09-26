@@ -67,7 +67,7 @@ RUFF_RC=0 DJLINT_RC=0 MYPY_RC=0
 uv run ruff check . --quiet > /tmp/deploy_ruff 2>&1 || RUFF_RC=$?
 { uv run djlint web/templates --lint --quiet > /tmp/deploy_djlint 2>&1; } &
 PID_DJLINT=$!
-{ DJANGO_SETTINGS_MODULE=wccomps.settings uv run mypy > /tmp/deploy_mypy 2>&1; } &
+{ DJANGO_SETTINGS_MODULE=portal.settings uv run mypy > /tmp/deploy_mypy 2>&1; } &
 PID_MYPY=$!
 
 # wait returns the subshell's exit status (|| prevents set -e from killing the script)
@@ -98,17 +98,17 @@ if [ "$PID_TESTDB" -ne 0 ]; then
     # (makemigrations --check doesn't need DB; collectstatic doesn't need DB)
     MIGRATE_RC=0 MAKEMIG_RC=0 STATIC_RC=0
 
-    { cd web && DJANGO_SETTINGS_MODULE=wccomps.settings \
+    { cd web && DJANGO_SETTINGS_MODULE=portal.settings \
         uv run python manage.py migrate --noinput --verbosity 0 \
         > /tmp/deploy_migrate 2>&1; } &
     PID_MIGRATE=$!
 
-    { cd web && DJANGO_SETTINGS_MODULE=wccomps.settings \
+    { cd web && DJANGO_SETTINGS_MODULE=portal.settings \
         uv run python manage.py makemigrations --check --dry-run --verbosity 0 \
         > /tmp/deploy_makemig 2>&1; } &
     PID_MAKEMIG=$!
 
-    { cd web && DJANGO_SETTINGS_MODULE=wccomps.settings \
+    { cd web && DJANGO_SETTINGS_MODULE=portal.settings \
         uv run python manage.py collectstatic --noinput --verbosity 0 \
         > /tmp/deploy_static 2>&1; } &
     PID_STATIC=$!

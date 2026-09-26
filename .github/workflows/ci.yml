@@ -57,15 +57,15 @@ jobs:
 
       - name: Run type checking
         run: |
-          DJANGO_SETTINGS_MODULE=wccomps.settings uv run mypy
+          DJANGO_SETTINGS_MODULE=portal.settings uv run mypy
 
       - name: Check for unapplied migrations
         run: |
-          cd web && DJANGO_SETTINGS_MODULE=wccomps.settings uv run python manage.py makemigrations --check --dry-run
+          cd web && DJANGO_SETTINGS_MODULE=portal.settings uv run python manage.py makemigrations --check --dry-run
 
       - name: Collect static files
         run: |
-          cd web && DJANGO_SETTINGS_MODULE=wccomps.settings uv run python manage.py collectstatic --noinput
+          cd web && DJANGO_SETTINGS_MODULE=portal.settings uv run python manage.py collectstatic --noinput
         env:
           SECRET_KEY: test-secret-key-for-ci
 
@@ -73,6 +73,6 @@ jobs:
         run: |
           uv run pytest -m "not browser"
         env:
-          DJANGO_SETTINGS_MODULE: wccomps.settings
+          DJANGO_SETTINGS_MODULE: portal.settings
           PYTHONPATH: ${{ github.workspace }}/web:${{ github.workspace }}
           SECRET_KEY: test-secret-key-for-ci

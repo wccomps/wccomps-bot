@@ -85,7 +85,7 @@ MIDDLEWARE = [
     "core.middleware.AccessLoggingMiddleware",
 ]
 
-ROOT_URLCONF = "wccomps.urls"
+ROOT_URLCONF = "portal.urls"
 
 TEMPLATES = [
     {
@@ -107,7 +107,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "wccomps.wsgi.application"
+WSGI_APPLICATION = "portal.wsgi.application"
 
 
 # Database

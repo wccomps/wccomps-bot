@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-WCComps is a competition management platform for WRCCDC. Three components:
+WCComps Portal is a competition management platform for WRCCDC. Three components:
 - **Discord Bot** (`main.py` + `bot/`) — Team ticketing, role sync, competition commands
 - **Django Web** (`web/`) — Scoring portal, inject grading, packet distribution, ops dashboard
 - **Authentik Integration** — SSO, team provisioning, permission sync via `core/authentik_manager.py`

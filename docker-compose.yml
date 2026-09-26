@@ -46,7 +46,7 @@ services:
     logging:
       driver: journald
       options:
-        tag: wccomps-web
+        tag: wccomps-portal-web
     networks:
       - wccomps-net
       - dockge_default
@@ -88,7 +88,7 @@ services:
     logging:
       driver: journald
       options:
-        tag: wccomps-bot
+        tag: wccomps-portal-bot
     networks:
       - wccomps-net
 
