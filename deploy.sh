@@ -192,7 +192,9 @@ echo "$CHANGES" | grep -q 'bot/' && BOT_CHANGED=true
 echo "$CHANGES" | grep -q 'web/static/' && STATIC_CHANGED=true
 
 # Only take the fast path if web is running AND healthy
-WEB_HEALTHY=$(remote "docker compose ps web --format json | grep -c '\"healthy\"'" || echo "0")
+# grep -c prints 0 AND exits 1 when web isn't running; `|| echo 0` would make this "0\n0"
+WEB_HEALTHY=$(remote "docker compose ps web --format json | grep -c '\"healthy\"'" || true)
+WEB_HEALTHY=${WEB_HEALTHY:-0}
 
 if $INFRA_CHANGED || [ "$WEB_HEALTHY" = "0" ]; then
     # Full rebuild: infra changed, container not running, or container unhealthy
