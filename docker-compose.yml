@@ -1,3 +1,7 @@
+# Pinned so container, network, and volume names don't depend on the deploy directory name.
+# Changing this orphans the postgres_data volume (the database would come back empty).
+name: wccomps-bot
+
 services:
   postgres:
     image: postgres:16-alpine
