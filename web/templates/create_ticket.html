@@ -17,126 +17,136 @@
 {% endblock extrastyle %}
 {% block content %}
     <div id="content-main">
-        <c-page_header title="Create Support Ticket" subtitle="Team {{ team.team_number }}" parent_url="{% url 'ticket_list' %}" parent_label="Tickets" />
+        <c-page_header title="Create Support Ticket"
+                       subtitle="Team {{ team.team_number }}"
+                       parent_url="{% url 'ticket_list' %}"
+                       parent_label="Tickets" />
         <form method="post"
               id="ticketForm"
               x-data="ticketForm"
               @submit="validateForm">
             {% csrf_token %}
             <c-module>
-            {% if error %}<c-alert variant="error">{{ error }}</c-alert>{% endif %}
-            <c-fieldset heading="Ticket Details">
-            {% if teams %}
-                <c-form_field label="Team" required="true" id="team_id">
-                <select name="team_id" id="team_id" required>
-                    <option value="">Select a team...</option>
-                    {% for t in teams %}
-                        <option value="{{ t.id }}"
-                                {% if form_data.team_id == t.id|stringformat:"s" %}selected{% endif %}>
-                            Team {{ t.team_number }}
-                        </option>
-                    {% endfor %}
-                </select>
-                </c-form_field>
-            {% endif %}
-            <c-form_field label="Category" required="true" id="category">
-            <select name="category"
-                    id="category"
-                    required
-                    :value="selectedCategory"
-                    @change="onCategoryChange">
-                <option value="">Select a category...</option>
-                {% for cat_key, cat_info in categories.items %}
-                    <option value="{{ cat_key }}"
-                            data-points="{{ cat_info.points }}"
-                            {% if form_data.category == cat_key|stringformat:"i" %}selected{% endif %}>
-                        {{ cat_info.display_name }} (
-                        {% if cat_info.variable_points %}
-                            Variable
-                        {% elif cat_info.points %}
-                            {{ cat_info.points }}pt
-                        {% else %}
-                            Free
-                        {% endif %}
-                        )
-                    </option>
-                {% endfor %}
-            </select>
-            </c-form_field>
-            <c-form_field label="Title" required="true" id="title" help_text="Brief summary of the issue">
-            <input type="text"
-                   name="title"
-                   id="title"
-                   class="vTextField"
-                   required
-                   maxlength="200"
-                   value="{{ form_data.title }}"
-                   placeholder="Brief summary of the issue">
-            </c-form_field>
-            <!-- Hostname with quick-add buttons -->
-            <div class="dynamic-field" :class="showHostname" id="field-hostname">
-                <c-form_field label="Hostname" id="hostname">
-                <div class="d-flex flex-wrap gap-10">
-                    {% for box_name in box_names %}
-                        <button type="button"
-                                class="button box-toggle"
-                                @click="selectHostname"
-                                data-hostname="{{ box_name }}">{{ box_name }}</button>
-                    {% endfor %}
-                </div>
-                <input type="hidden"
-                       name="hostname"
-                       id="hostname"
-                       :value="selectedHostname"
-                       :required="hostnameRequired">
-                </c-form_field>
-            </div>
-            <!-- IP Address (auto-filled) -->
-            <div class="dynamic-field" :class="showIpAddress" id="field-ip_address">
-                <c-form_field label="IP Address" id="ip_address" help_text="Auto-filled from hostname selection">
-                <input type="text"
-                       name="ip_address"
-                       id="ip_address"
-                       class="vTextField"
-                       :value="ipAddress"
-                       @input="setField"
-                       data-field="ipAddress"
-                       :required="ipRequired"
-                       maxlength="45"
-                       placeholder="Select a hostname above">
-                </c-form_field>
-            </div>
-            <!-- Service -->
-            <div class="dynamic-field"
-                 :class="showServiceName"
-                 id="field-service_name">
-                <c-form_field label="Service" id="service_name">
-                <select name="service_name"
-                        id="service_name"
-                        x-ref="serviceSelect"
-                        :value="selectedService"
-                        @change="onServiceChange"
-                        :required="serviceRequired">
-                    <option value="">Select a service...</option>
-                </select>
-                </c-form_field>
-            </div>
-            <!-- Description -->
-            <div class="dynamic-field" :class="showDescription" id="field-description">
-                <c-form_field label="Description" id="description">
-                <textarea name="description"
-                          id="description"
-                          class="vTextField"
-                          rows="8"
-                          :required="descriptionRequired"
-                          placeholder="Detailed description of the issue...">{{ form_data.description }}</textarea>
-                </c-form_field>
-            </div>
-            </c-fieldset>
-            <c-button_row class="justify-end">
-            <c-link href="{% url 'ticket_list' %}" variant="cancel">Cancel</c-link>
-            <c-button type="submit" variant="primary" ::disabled="submitting">Create Ticket</c-button>
-            </c-button_row>
+                {% if error %}<c-alert variant="error">{{ error }}</c-alert>{% endif %}
+                <c-fieldset heading="Ticket Details">
+                    {% if teams %}
+                        <c-form_field label="Team" required="true" id="team_id">
+                            <select name="team_id" id="team_id" required>
+                                <option value="">Select a team...</option>
+                                {% for t in teams %}
+                                    <option value="{{ t.id }}"
+                                            {% if form_data.team_id == t.id|stringformat:"s" %}selected{% endif %}>
+                                        Team {{ t.team_number }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </c-form_field>
+                    {% endif %}
+                    <c-form_field label="Category" required="true" id="category">
+                        <select name="category"
+                                id="category"
+                                required
+                                :value="selectedCategory"
+                                @change="onCategoryChange">
+                            <option value="">Select a category...</option>
+                            {% for cat_key, cat_info in categories.items %}
+                                <option value="{{ cat_key }}"
+                                        data-points="{{ cat_info.points }}"
+                                        {% if form_data.category == cat_key|stringformat:"i" %}selected{% endif %}>
+                                    {{ cat_info.display_name }} (
+                                    {% if cat_info.variable_points %}
+                                        Variable
+                                    {% elif cat_info.points %}
+                                        {{ cat_info.points }}pt
+                                    {% else %}
+                                        Free
+                                    {% endif %}
+                                    )
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </c-form_field>
+                    <c-form_field label="Title"
+                                  required="true"
+                                  id="title"
+                                  help_text="Brief summary of the issue">
+                        <input type="text"
+                               name="title"
+                               id="title"
+                               class="vTextField"
+                               required
+                               maxlength="200"
+                               value="{{ form_data.title }}"
+                               placeholder="Brief summary of the issue">
+                    </c-form_field>
+                    <!-- Hostname with quick-add buttons -->
+                    <div class="dynamic-field" :class="showHostname" id="field-hostname">
+                        <c-form_field label="Hostname" id="hostname">
+                            <div class="d-flex flex-wrap gap-10">
+                                {% for box_name in box_names %}
+                                    <button type="button"
+                                            class="button box-toggle"
+                                            @click="selectHostname"
+                                            data-hostname="{{ box_name }}">{{ box_name }}</button>
+                                {% endfor %}
+                            </div>
+                            <input type="hidden"
+                                   name="hostname"
+                                   id="hostname"
+                                   :value="selectedHostname"
+                                   :required="hostnameRequired">
+                        </c-form_field>
+                    </div>
+                    <!-- IP Address (auto-filled) -->
+                    <div class="dynamic-field" :class="showIpAddress" id="field-ip_address">
+                        <c-form_field label="IP Address"
+                                      id="ip_address"
+                                      help_text="Auto-filled from hostname selection">
+                            <input type="text"
+                                   name="ip_address"
+                                   id="ip_address"
+                                   class="vTextField"
+                                   :value="ipAddress"
+                                   @input="setField"
+                                   data-field="ipAddress"
+                                   :required="ipRequired"
+                                   maxlength="45"
+                                   placeholder="Select a hostname above">
+                        </c-form_field>
+                    </div>
+                    <!-- Service -->
+                    <div class="dynamic-field"
+                         :class="showServiceName"
+                         id="field-service_name">
+                        <c-form_field label="Service" id="service_name">
+                            <select name="service_name"
+                                    id="service_name"
+                                    x-ref="serviceSelect"
+                                    :value="selectedService"
+                                    @change="onServiceChange"
+                                    :required="serviceRequired">
+                                <option value="">Select a service...</option>
+                            </select>
+                        </c-form_field>
+                    </div>
+                    <!-- Description -->
+                    <div class="dynamic-field" :class="showDescription" id="field-description">
+                        <c-form_field label="Description" id="description">
+                            <textarea name="description"
+                                      id="description"
+                                      class="vTextField"
+                                      rows="8"
+                                      :required="descriptionRequired"
+                                      placeholder="Detailed description of the issue...">{{ form_data.description }}</textarea>
+                        </c-form_field>
+                    </div>
+                </c-fieldset>
+                <c-button_row class="justify-end">
+                    <c-link href="{% url 'ticket_list' %}" variant="cancel">Cancel</c-link>
+                    <c-button type="submit" variant="primary" ::disabled="submitting">
+                        Create Ticket
+                    </c-button>
+                </c-button_row>
             </c-module>
         </form>
     </div>

@@ -7,67 +7,79 @@
     <div id="content-main">
         <c-page_header title="School Information" />
         <c-module id="changelist">
-        <c-slot name="toolbar">
-        <c-link href="{% url 'school_info_export' %}">Export CSV</c-link>
-        <c-link href="{% url 'school_info_import' %}" variant="add">Import from CSV</c-link>
-        </c-slot>
-        <c-table id="result_list" class="w-full" aria_label="School information for all teams">
-        <c-slot name="headers">
-        <tr>
-            <c-table_header sortable="false">Team</c-table_header>
-            <c-table_header sortable="false">School Name</c-table_header>
-            <c-table_header sortable="false">Contact Email</c-table_header>
-            <c-table_header sortable="false">Secondary Email</c-table_header>
-            <c-table_header sortable="false">Last Updated</c-table_header>
-        </tr>
-        </c-slot>
-        {% for item in teams %}
-            <tr class="{% cycle 'row1' 'row2' %}">
-                <th class="field-team">
-                    <a href="{% url 'school_info_edit' item.team.team_number %}">Team {{ item.team.team_number }}</a>
-                    <div>{{ item.team.team_name }}</div>
-                </th>
-                <td class="field-school_name">
-                    {% if item.school_info %}
-                        {{ item.school_info.school_name }}
-                    {% else %}
-                        Not set
-                    {% endif %}
-                </td>
-                <td class="field-contact_email">
-                    {% if item.school_info %}
-                        {{ item.school_info.contact_email }}
-                    {% else %}
-                        Not set
-                    {% endif %}
-                </td>
-                <td class="field-secondary_email">
-                    {% if item.school_info %}
-                        {{ item.school_info.secondary_contact_email|default:"—" }}
-                    {% else %}
-                        Not set
-                    {% endif %}
-                </td>
-                <td class="field-updated">
-                    {% if item.school_info %}
-                        {{ item.school_info.updated_at|timesince }} ago
-                    {% else %}
-                        —
-                    {% endif %}
-                </td>
-            </tr>
-        {% empty %}
-            <tr>
-                <td colspan="5">
-                    <c-empty_state title="No teams" description="No teams have been configured yet." />
-                </td>
-            </tr>
-        {% endfor %}
-        </c-table>
-        <p class="paginator">{{ teams|length }} team(s)</p>
-        <c-button_row class="mt-20 justify-end">
-        <c-link href="{% url 'school_info_clear' %}">Clear All</c-link>
-        </c-button_row>
+            <c-slot name="toolbar">
+                <c-link href="{% url 'school_info_export' %}">Export CSV</c-link>
+                <c-link href="{% url 'school_info_import' %}" variant="add">Import from CSV</c-link>
+            </c-slot>
+            <c-table id="result_list"
+                     class="w-full"
+                     aria_label="School information for all teams">
+                <c-slot name="headers">
+                    <tr>
+                        <c-table_header sortable="false">
+                            Team
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            School Name
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Contact Email
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Secondary Email
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Last Updated
+                        </c-table_header>
+                    </tr>
+                </c-slot>
+                {% for item in teams %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <th class="field-team">
+                            <a href="{% url 'school_info_edit' item.team.team_number %}">Team {{ item.team.team_number }}</a>
+                            <div>{{ item.team.team_name }}</div>
+                        </th>
+                        <td class="field-school_name">
+                            {% if item.school_info %}
+                                {{ item.school_info.school_name }}
+                            {% else %}
+                                Not set
+                            {% endif %}
+                        </td>
+                        <td class="field-contact_email">
+                            {% if item.school_info %}
+                                {{ item.school_info.contact_email }}
+                            {% else %}
+                                Not set
+                            {% endif %}
+                        </td>
+                        <td class="field-secondary_email">
+                            {% if item.school_info %}
+                                {{ item.school_info.secondary_contact_email|default:"—" }}
+                            {% else %}
+                                Not set
+                            {% endif %}
+                        </td>
+                        <td class="field-updated">
+                            {% if item.school_info %}
+                                {{ item.school_info.updated_at|timesince }} ago
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5">
+                            <c-empty_state title="No teams" description="No teams have been configured yet." />
+                        </td>
+                    </tr>
+                {% endfor %}
+            </c-table>
+            <p class="paginator">{{ teams|length }} team(s)</p>
+            <c-button_row class="mt-20 justify-end">
+                <c-link href="{% url 'school_info_clear' %}">Clear All</c-link>
+            </c-button_row>
         </c-module>
     </div>
 {% endblock admin_content %}

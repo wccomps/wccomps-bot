@@ -5,8 +5,8 @@
 {% endblock title %}
 {% block content %}
     <c-nav current="{{ subnav_active }}">
-    <c-nav_item name="registrations" href="{% url 'registration_review_list' %}">Registrations</c-nav_item>
-    <c-nav_item name="seasons" href="{% url 'registration_season_list' %}">Seasons</c-nav_item>
+        <c-nav_item name="registrations" href="{% url 'registration_review_list' %}">Registrations</c-nav_item>
+        <c-nav_item name="seasons" href="{% url 'registration_season_list' %}">Seasons</c-nav_item>
     </c-nav>
     {% block registration_content %}
     {% endblock registration_content %}

@@ -5,9 +5,9 @@
 {% block content %}
     {% load cotton %}
     <c-nav>
-    <c-nav_item name="submit" href="{% url 'scoring:submit_red_score' %}">Submit Finding</c-nav_item>
-    <c-nav_item name="findings" href="{% url 'scoring:red_team_scores' %}">All Findings</c-nav_item>
-    <c-nav_item name="pools" href="{% url 'scoring:ip_pool_list' %}">IP Pools</c-nav_item>
+        <c-nav_item name="submit" href="{% url 'scoring:submit_red_score' %}">Submit Finding</c-nav_item>
+        <c-nav_item name="findings" href="{% url 'scoring:red_team_scores' %}">All Findings</c-nav_item>
+        <c-nav_item name="pools" href="{% url 'scoring:ip_pool_list' %}">IP Pools</c-nav_item>
     </c-nav>
     {% block red_content %}
     {% endblock red_content %}

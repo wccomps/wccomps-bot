@@ -4,20 +4,24 @@
     Delete Category - WCComps
 {% endblock title %}
 {% block admin_content %}
-    <c-page_header title="Delete Category" parent_url="{% url 'admin_categories' %}" parent_label="Categories" />
+    <c-page_header title="Delete Category"
+                   parent_url="{% url 'admin_categories' %}"
+                   parent_label="Categories" />
     <c-module>
-    <c-alert variant="warning">
-    Are you sure you want to delete the category "{{ category.display_name }}"?
-    {% if ticket_count %}
-        This category has {{ ticket_count }} ticket(s). Deleting it will set their category to null.
-    {% endif %}
-    </c-alert>
-    <form method="post">
-        {% csrf_token %}
-        <c-button_row class="mt-20 justify-end">
-        <c-link href="{% url 'admin_categories' %}" variant="cancel">Cancel</c-link>
-        <c-button type="submit" variant="danger">Delete Category</c-button>
-        </c-button_row>
-    </form>
+        <c-alert variant="warning">
+            Are you sure you want to delete the category "{{ category.display_name }}"?
+            {% if ticket_count %}
+                This category has {{ ticket_count }} ticket(s). Deleting it will set their category to null.
+            {% endif %}
+        </c-alert>
+        <form method="post">
+            {% csrf_token %}
+            <c-button_row class="mt-20 justify-end">
+                <c-link href="{% url 'admin_categories' %}" variant="cancel">Cancel</c-link>
+                <c-button type="submit" variant="danger">
+                    Delete Category
+                </c-button>
+            </c-button_row>
+        </form>
     </c-module>
 {% endblock admin_content %}

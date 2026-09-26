@@ -5,12 +5,17 @@
 {% endblock title %}
 {% block admin_content %}
     <div x-data="packetAdmin">
-        <c-page_header title="Packet" subtitle="{{ packet.title }}" parent_url="{% url 'ops_packets_list' %}" parent_label="Packets" />
+        <c-page_header title="Packet"
+                       subtitle="{{ packet.title }}"
+                       parent_url="{% url 'ops_packets_list' %}"
+                       parent_label="Packets" />
         <!-- Status bar -->
         <div class="status-bar">
             <div class="d-flex justify-between items-center flex-wrap gap-10">
                 <div class="d-flex items-center gap-10 flex-wrap">
-                    <c-badge variant="{{ packet.status }}">{{ packet.get_status_display }}</c-badge>
+                    <c-badge variant="{{ packet.status }}">
+                        {{ packet.get_status_display }}
+                    </c-badge>
                     <span>{{ packet.filename }} ({{ packet.file_size|filesizeformat }})</span>
                     <span class="text-muted">|</span>
                     <span>{{ stats.total }} teams</span>
@@ -30,22 +35,22 @@
                 <div class="d-flex gap-10">
                     {% if packet.status == "draft" %}
                         <c-button variant="primary" @click="distributePacket" ::disabled="loading">
-                        Distribute
+                            Distribute
                         </c-button>
                     {% endif %}
                     {% if stats.pending > 0 and packet.status == "distributing" %}
                         <c-button variant="warning" @click="retryPending" ::disabled="loading">
-                        Retry Pending
+                            Retry Pending
                         </c-button>
                     {% endif %}
                     {% if stats.failed > 0 %}
                         <c-button variant="warning" @click="resendFailed" ::disabled="loading">
-                        Resend Failed
+                            Resend Failed
                         </c-button>
                     {% endif %}
                     {% if packet.status not in "cancelled" %}
                         <c-button variant="danger" @click="cancelPacket" ::disabled="loading">
-                        Cancel
+                            Cancel
                         </c-button>
                     {% endif %}
                 </div>
@@ -56,103 +61,130 @@
         <template x-if="message">
             <div x-transition class="mb-10">
                 <c-alert :variant="messageType">
-                <span x-text="message"></span>
+                    <span x-text="message"></span>
                 </c-alert>
             </div>
         </template>
         <!-- Distribution table -->
         <c-fieldset heading="Distribution Status">
-        {% if distributions %}
-            <c-table aria_label="Distribution status by team">
-            <c-slot name="headers">
-            <tr>
-                <c-table_header sortable="false">Team</c-table_header>
-                <c-table_header sortable="false">Status</c-table_header>
-                <c-table_header sortable="false">Primary Email</c-table_header>
-                <c-table_header sortable="false">Secondary Email</c-table_header>
-                <c-table_header sortable="false">Sent</c-table_header>
-                <c-table_header sortable="false">Downloaded</c-table_header>
-                <c-table_header sortable="false">Action</c-table_header>
-            </tr>
-            </c-slot>
-            {% for dist in distributions %}
-                <tr>
-                    <form method="post"
-                          action="{% url 'packet_resend_team' packet.id dist.team.id %}"
-                          x-data="submitGuard"
-                          @submit="onSubmit"
-                          class="m-0">
-                        {% csrf_token %}
-                        <td>Team {{ dist.team.team_number }}</td>
-                        <td>
-                            <c-badge variant="{{ dist.email_status }}">{{ dist.get_email_status_display }}</c-badge>
-                        </td>
-                        <td>
-                            <input type="email"
-                                   name="primary_email"
-                                   value="{{ dist.team.school_info.contact_email|default:'' }}"
-                                   aria-label="Primary email for Team {{ dist.team.team_number }}"
-                                   required>
-                        </td>
-                        <td>
-                            <input type="email"
-                                   name="secondary_email"
-                                   value="{{ dist.team.school_info.secondary_email|default:'' }}"
-                                   aria-label="Secondary email for Team {{ dist.team.team_number }}">
-                        </td>
-                        <td>{{ dist.email_sent_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                        <td>
-                            {% if dist.downloaded_at %}
-                                <c-badge variant="success">{{ dist.download_count }}x</c-badge>
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <c-button type="submit" variant="default" ::disabled="submitting">Resend</c-button>
-                        </td>
-                    </form>
-                </tr>
-            {% endfor %}
-            </c-table>
-        {% else %}
-            <c-empty_state title="No distribution records" description="Distribution records will appear here once the packet is distributed" />
-        {% endif %}
+            {% if distributions %}
+                <c-table aria_label="Distribution status by team">
+                    <c-slot name="headers">
+                        <tr>
+                            <c-table_header sortable="false">
+                                Team
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Status
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Primary Email
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Secondary Email
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Sent
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Downloaded
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Action
+                            </c-table_header>
+                        </tr>
+                    </c-slot>
+                    {% for dist in distributions %}
+                        <tr>
+                            <form method="post"
+                                  action="{% url 'packet_resend_team' packet.id dist.team.id %}"
+                                  x-data="submitGuard"
+                                  @submit="onSubmit"
+                                  class="m-0">
+                                {% csrf_token %}
+                                <td>Team {{ dist.team.team_number }}</td>
+                                <td>
+                                    <c-badge variant="{{ dist.email_status }}">
+                                        {{ dist.get_email_status_display }}
+                                    </c-badge>
+                                </td>
+                                <td>
+                                    <input type="email"
+                                           name="primary_email"
+                                           value="{{ dist.team.school_info.contact_email|default:'' }}"
+                                           aria-label="Primary email for Team {{ dist.team.team_number }}"
+                                           required>
+                                </td>
+                                <td>
+                                    <input type="email"
+                                           name="secondary_email"
+                                           value="{{ dist.team.school_info.secondary_email|default:'' }}"
+                                           aria-label="Secondary email for Team {{ dist.team.team_number }}">
+                                </td>
+                                <td>{{ dist.email_sent_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                                <td>
+                                    {% if dist.downloaded_at %}
+                                        <c-badge variant="success">
+                                            {{ dist.download_count }}x
+                                        </c-badge>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <c-button type="submit" variant="default" ::disabled="submitting">
+                                        Resend
+                                    </c-button>
+                                </td>
+                            </form>
+                        </tr>
+                    {% endfor %}
+                </c-table>
+            {% else %}
+                <c-empty_state title="No distribution records"
+                               description="Distribution records will appear here once the packet is distributed" />
+            {% endif %}
         </c-fieldset>
         <!-- Test Email -->
         <c-fieldset heading="Test Email">
-        <div class="d-flex gap-10 items-end flex-wrap">
-            <c-form_field label="Team" id="test-team">
-            <select id="test-team" x-ref="testTeam" class="vTextField">
-                {% for team in teams %}<option value="{{ team.id }}">Team {{ team.team_number }}</option>{% endfor %}
-            </select>
-            </c-form_field>
-            <c-form_field label="Email" id="test-email">
-            <input type="email"
-                   id="test-email"
-                   x-ref="testEmail"
-                   placeholder="test@example.com"
-                   class="vTextField">
-            </c-form_field>
-            <c-button variant="default" @click="doTestEmail" ::disabled="loading">
-            Send Test
-            </c-button>
-        </div>
+            <div class="d-flex gap-10 items-end flex-wrap">
+                <c-form_field label="Team" id="test-team">
+                    <select id="test-team" x-ref="testTeam" class="vTextField">
+                        {% for team in teams %}<option value="{{ team.id }}">Team {{ team.team_number }}</option>{% endfor %}
+                    </select>
+                </c-form_field>
+                <c-form_field label="Email" id="test-email">
+                    <input type="email"
+                           id="test-email"
+                           x-ref="testEmail"
+                           placeholder="test@example.com"
+                           class="vTextField">
+                </c-form_field>
+                <c-button variant="default" @click="doTestEmail" ::disabled="loading">
+                    Send Test
+                </c-button>
+            </div>
         </c-fieldset>
         <!-- Packet Details -->
         <c-fieldset heading="Packet Details">
-        <c-detail_grid>
-        <c-detail_row label="Uploaded By">{{ packet.uploaded_by }}</c-detail_row>
-        <c-detail_row label="Created">{{ packet.created_at }}</c-detail_row>
-        <c-detail_row label="Methods">
-        {% if packet.send_via_email %}Email{% endif %}
-        {% if packet.web_access_enabled %}Web{% endif %}
-        </c-detail_row>
-        {% if packet.actual_distribution_time %}
-            <c-detail_row label="Distributed">{{ packet.actual_distribution_time }}</c-detail_row>
-        {% endif %}
-        {% if packet.notes %}<c-detail_row label="Notes">{{ packet.notes }}</c-detail_row>{% endif %}
-        </c-detail_grid>
+            <c-detail_grid>
+                <c-detail_row label="Uploaded By">
+                    {{ packet.uploaded_by }}
+                </c-detail_row>
+                <c-detail_row label="Created">
+                    {{ packet.created_at }}
+                </c-detail_row>
+                <c-detail_row label="Methods">
+                    {% if packet.send_via_email %}Email{% endif %}
+                    {% if packet.web_access_enabled %}Web{% endif %}
+                </c-detail_row>
+                {% if packet.actual_distribution_time %}
+                    <c-detail_row label="Distributed">
+                        {{ packet.actual_distribution_time }}
+                    </c-detail_row>
+                {% endif %}
+                {% if packet.notes %}<c-detail_row label="Notes">{{ packet.notes }}</c-detail_row>{% endif %}
+            </c-detail_grid>
         </c-fieldset>
     </div>
     <script>

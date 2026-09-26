@@ -1,7 +1,14 @@
 {# Button component - styled action buttons #}
 {# Usage: <c-button variant="primary" type="submit">Save</c-button> #}
 {# Props: variant (default|primary|danger|warning|cancel), type (button|submit), class (additional classes), id, name, value, onclick #}
-<c-vars variant="default" type="button" class id name="" value="" onclick="" form="" />
+<c-vars variant="default"
+        type="button"
+        class
+        id
+        name=""
+        value=""
+        onclick=""
+        form="" />
 <button type="{{ type }}"
         {% if id %}id="{{ id }}"{% endif %}
         {% if name %}name="{{ name }}"{% endif %}

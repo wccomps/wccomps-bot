@@ -5,119 +5,147 @@
 {% endblock title %}
 {% block admin_content %}
     <div id="content-main">
-        <c-page_header title="Import School Information from CSV" parent_url="{% url 'school_info' %}" parent_label="Schools" />
+        <c-page_header title="Import School Information from CSV"
+                       parent_url="{% url 'school_info' %}"
+                       parent_label="Schools" />
         <c-module>
-        {% if import_results %}
-            {# Step 3: Show success message #}
-            <c-alert variant="success">
-            <strong>Import completed successfully!</strong>
-            <br>
-            Created: {{ import_results.created }} school info record(s)
-            {% if import_results.assigned %}
-                <br>
-                Assigned: {{ import_results.assigned }} team(s) to active event
-            {% endif %}
-            </c-alert>
-            <c-button_row class="justify-end">
-            <c-link href="{% url 'school_info_import' %}">Import Another File</c-link>
-            <c-link href="{% url 'school_info' %}" variant="default">View School Information</c-link>
-            </c-button_row>
-        {% elif preview_data %}
-            {# Step 2: Show preview and confirmation #}
-            {% if preview_data.errors %}
-                <c-alert variant="error">
-                <strong>Validation Errors:</strong>
-                <ul class="mt-10 ml-20">
-                    {% for error in preview_data.errors %}<li>{{ error }}</li>{% endfor %}
-                </ul>
+            {% if import_results %}
+                {# Step 3: Show success message #}
+                <c-alert variant="success">
+                    <strong>Import completed successfully!</strong>
+                    <br>
+                    Created: {{ import_results.created }} school info record(s)
+                    {% if import_results.assigned %}
+                        <br>
+                        Assigned: {{ import_results.assigned }} team(s) to active event
+                    {% endif %}
                 </c-alert>
-            {% endif %}
-            {% if preview_data.warnings %}
-                <c-alert variant="warning">
-                <strong>Warnings:</strong>
-                <ul class="mt-10 ml-20">
-                    {% for warning in preview_data.warnings %}<li>{{ warning }}</li>{% endfor %}
-                </ul>
-                </c-alert>
-            {% endif %}
-            {% if preview_data.can_import %}
-                <h2>Preview Changes</h2>
-                {% if preview_data.teams_to_create %}
-                    <h3 class="mt-20">New School Information ({{ preview_data.teams_to_create|length }})</h3>
-                    <c-table id="result_list" aria_label="New school information to import">
-                    <c-slot name="headers">
-                    <tr>
-                        <c-table_header sortable="false">Team</c-table_header>
-                        <c-table_header sortable="false">School Name</c-table_header>
-                        <c-table_header sortable="false">Contact Email</c-table_header>
-                        <c-table_header sortable="false">Secondary Email</c-table_header>
-                        <c-table_header sortable="false">Notes</c-table_header>
-                    </tr>
-                    </c-slot>
-                    {% for row in preview_data.teams_to_create %}
-                        <tr class="{% cycle 'row1' 'row2' %}">
-                            <td>Team {{ row.team_number }}</td>
-                            <td>{{ row.school_name }}</td>
-                            <td>{{ row.contact_email }}</td>
-                            <td>{{ row.secondary_email|default:"—" }}</td>
-                            <td>{{ row.notes|default:"—" }}</td>
-                        </tr>
-                    {% endfor %}
-                    </c-table>
-                {% endif %}
-                <c-form>
-                {% csrf_token %}
-                <c-button_row class="mt-20 justify-end">
-                <c-link href="{% url 'school_info_import' %}">Cancel</c-link>
-                <c-button type="submit" name="confirm" value="true" variant="primary" ::disabled="submitting">Confirm and Import</c-button>
-                </c-button_row>
-                </c-form>
-            {% else %}
                 <c-button_row class="justify-end">
-                <c-link href="{% url 'school_info_import' %}" variant="default">Try Again</c-link>
+                    <c-link href="{% url 'school_info_import' %}">Import Another File</c-link>
+                    <c-link href="{% url 'school_info' %}" variant="default">View School Information</c-link>
                 </c-button_row>
-            {% endif %}
-        {% else %}
-            {# Step 1: Upload form #}
-            <div class="max-w-800">
-                <p>Upload a CSV file to bulk import school information for teams. Team numbers are assigned randomly.</p>
-                <h3 class="mt-20">CSV Format Requirements</h3>
-                <p>Your CSV file must include the following columns:</p>
-                <ul class="ml-20">
-                    <li>
-                        <strong>school_name</strong> (required) - Name of the school or organization
-                    </li>
-                    <li>
-                        <strong>contact_email</strong> (required) - Primary contact email address
-                    </li>
-                    <li>
-                        <strong>secondary_email</strong> (optional) - Secondary contact email address
-                    </li>
-                    <li>
-                        <strong>notes</strong> (optional) - Additional notes about the team
-                    </li>
-                </ul>
-                <h3 class="mt-20">Example CSV File</h3>
-                <pre class="code-block">school_name,contact_email,secondary_email,notes
+            {% elif preview_data %}
+                {# Step 2: Show preview and confirmation #}
+                {% if preview_data.errors %}
+                    <c-alert variant="error">
+                        <strong>Validation Errors:</strong>
+                        <ul class="mt-10 ml-20">
+                            {% for error in preview_data.errors %}<li>{{ error }}</li>{% endfor %}
+                        </ul>
+                    </c-alert>
+                {% endif %}
+                {% if preview_data.warnings %}
+                    <c-alert variant="warning">
+                        <strong>Warnings:</strong>
+                        <ul class="mt-10 ml-20">
+                            {% for warning in preview_data.warnings %}<li>{{ warning }}</li>{% endfor %}
+                        </ul>
+                    </c-alert>
+                {% endif %}
+                {% if preview_data.can_import %}
+                    <h2>Preview Changes</h2>
+                    {% if preview_data.teams_to_create %}
+                        <h3 class="mt-20">New School Information ({{ preview_data.teams_to_create|length }})</h3>
+                        <c-table id="result_list" aria_label="New school information to import">
+                            <c-slot name="headers">
+                                <tr>
+                                    <c-table_header sortable="false">
+                                        Team
+                                    </c-table_header>
+                                    <c-table_header sortable="false">
+                                        School Name
+                                    </c-table_header>
+                                    <c-table_header sortable="false">
+                                        Contact Email
+                                    </c-table_header>
+                                    <c-table_header sortable="false">
+                                        Secondary Email
+                                    </c-table_header>
+                                    <c-table_header sortable="false">
+                                        Notes
+                                    </c-table_header>
+                                </tr>
+                            </c-slot>
+                            {% for row in preview_data.teams_to_create %}
+                                <tr class="{% cycle 'row1' 'row2' %}">
+                                    <td>Team {{ row.team_number }}</td>
+                                    <td>{{ row.school_name }}</td>
+                                    <td>{{ row.contact_email }}</td>
+                                    <td>{{ row.secondary_email|default:"—" }}</td>
+                                    <td>{{ row.notes|default:"—" }}</td>
+                                </tr>
+                            {% endfor %}
+                        </c-table>
+                    {% endif %}
+                    <c-form>
+                        {% csrf_token %}
+                        <c-button_row class="mt-20 justify-end">
+                            <c-link href="{% url 'school_info_import' %}">Cancel</c-link>
+                            <c-button type="submit"
+                                      name="confirm"
+                                      value="true"
+                                      variant="primary"
+                                      ::disabled="submitting">
+                                Confirm and Import
+                            </c-button>
+                        </c-button_row>
+                    </c-form>
+                {% else %}
+                    <c-button_row class="justify-end">
+                        <c-link href="{% url 'school_info_import' %}" variant="default">Try Again</c-link>
+                    </c-button_row>
+                {% endif %}
+            {% else %}
+                {# Step 1: Upload form #}
+                <div class="max-w-800">
+                    <p>Upload a CSV file to bulk import school information for teams. Team numbers are assigned randomly.</p>
+                    <h3 class="mt-20">CSV Format Requirements</h3>
+                    <p>Your CSV file must include the following columns:</p>
+                    <ul class="ml-20">
+                        <li>
+                            <strong>school_name</strong> (required) - Name of the school or organization
+                        </li>
+                        <li>
+                            <strong>contact_email</strong> (required) - Primary contact email address
+                        </li>
+                        <li>
+                            <strong>secondary_email</strong> (optional) - Secondary contact email address
+                        </li>
+                        <li>
+                            <strong>notes</strong> (optional) - Additional notes about the team
+                        </li>
+                    </ul>
+                    <h3 class="mt-20">Example CSV File</h3>
+                    <pre class="code-block">school_name,contact_email,secondary_email,notes
 University of Example,coach@example.edu,assistant@example.edu,Main campus team
 Community College,contact@college.edu,,Remote team
 Tech Institute,admin@techinst.edu,,</pre>
-                <c-form enctype="multipart/form-data" class="mt-20">
-                {% csrf_token %}
-                <c-fieldset aligned="true">
-                <c-form_field label="CSV File" required="true" id="id_csv_file" help_text="{{ form.csv_file.help_text }}" error="
+                    <c-form enctype="multipart/form-data" class="mt-20">
+                        {% csrf_token %}
+                        <c-fieldset aligned="true">
+                            <c-form_field label="CSV File"
+                                          required="true"
+                                          id="id_csv_file"
+                                          help_text="{{ form.csv_file.help_text }}"
+                                          error="
                 {% for error in form.csv_file.errors %}{{ error }}{% endfor %}
                 ">
-                {{ form.csv_file }}
-                </c-form_field>
-                </c-fieldset>
-                <c-button_row class="justify-end">
-                <c-link href="{% url 'school_info' %}">Cancel</c-link>
-                <c-button type="submit" name="upload" value="true" variant="primary" ::disabled="submitting">Upload and Preview</c-button>
-                </c-button_row>
-                </c-form>
-            </div>
-        {% endif %}
+                                {{ form.csv_file }}
+                            </c-form_field>
+                        </c-fieldset>
+                        <c-button_row class="justify-end">
+                            <c-link href="{% url 'school_info' %}">Cancel</c-link>
+                            <c-button type="submit"
+                                      name="upload"
+                                      value="true"
+                                      variant="primary"
+                                      ::disabled="submitting">
+                                Upload and Preview
+                            </c-button>
+                        </c-button_row>
+                    </c-form>
+                </div>
+            {% endif %}
         </c-module>
     </div>
 {% endblock admin_content %}

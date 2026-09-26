@@ -5,58 +5,68 @@
 {% endblock title %}
 {% block content %}
     <div id="content-main" x-data="emailScorecards">
-        <c-page_header title="Email All Scorecards" parent_url="{% url 'leaderboard_page' %}" parent_label="Leaderboard" />
+        <c-page_header title="Email All Scorecards"
+                       parent_url="{% url 'leaderboard_page' %}"
+                       parent_label="Leaderboard" />
         <c-module>
-        <div x-show="showWarning">
-            <c-alert variant="warning">
-            This will email scorecard PDFs to {{ teams_with_email }} team(s).
-            {% if teams_without_email %}{{ teams_without_email }} team(s) will be skipped (no contact email).{% endif %}
-            </c-alert>
-        </div>
-        <div x-show="loading" x-cloak>
-            <c-progress_bar class="mt-10 mb-10" />
-        </div>
-        <!-- Result message -->
-        <div x-show="done" x-cloak x-transition class="mb-10">
-            <div class="alert" :class="alertClass" role="alert">
-                <span x-text="message"></span>
+            <div x-show="showWarning">
+                <c-alert variant="warning">
+                    This will email scorecard PDFs to {{ teams_with_email }} team(s).
+                    {% if teams_without_email %}{{ teams_without_email }} team(s) will be skipped (no contact email).{% endif %}
+                </c-alert>
             </div>
-        </div>
-        <c-table id="email_preview" aria_label="Teams to email">
-        <c-slot name="headers">
-        <tr>
-            <c-table_header sortable="false">Team</c-table_header>
-            <c-table_header sortable="false">School</c-table_header>
-            <c-table_header sortable="false">Email(s)</c-table_header>
-            <c-table_header sortable="false" class="text-right">Score</c-table_header>
-        </tr>
-        </c-slot>
-        {% for row in team_rows %}
-            <tr {% if not row.has_email %}class="row-below-avg"{% endif %}>
-                <td>Team {{ row.team.team_number }}</td>
-                <td>{{ row.school_name|default:"—" }}</td>
-                <td>
-                    {% if row.has_email %}
-                        {{ row.emails|join:", " }}
-                    {% else %}
-                        <em>No email</em>
-                    {% endif %}
-                </td>
-                <td class="text-right">{{ row.score.total_score|floatformat:0 }}</td>
-            </tr>
-        {% endfor %}
-        </c-table>
-        <c-button_row class="mt-20 justify-end">
-        <div x-show="showForm" class="d-flex gap-10 items-center">
-            <c-link href="{% url 'leaderboard_page' %}">Cancel</c-link>
-            <c-button variant="primary" @click="sendEmails" ::disabled="loading">
-            Send {{ teams_with_email }} Email(s)
-            </c-button>
-        </div>
-        <div x-show="done" x-cloak>
-            <c-link href="{% url 'leaderboard_page' %}">Back to Leaderboard</c-link>
-        </div>
-        </c-button_row>
+            <div x-show="loading" x-cloak>
+                <c-progress_bar class="mt-10 mb-10" />
+            </div>
+            <!-- Result message -->
+            <div x-show="done" x-cloak x-transition class="mb-10">
+                <div class="alert" :class="alertClass" role="alert">
+                    <span x-text="message"></span>
+                </div>
+            </div>
+            <c-table id="email_preview" aria_label="Teams to email">
+                <c-slot name="headers">
+                    <tr>
+                        <c-table_header sortable="false">
+                            Team
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            School
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Email(s)
+                        </c-table_header>
+                        <c-table_header sortable="false" class="text-right">
+                            Score
+                        </c-table_header>
+                    </tr>
+                </c-slot>
+                {% for row in team_rows %}
+                    <tr {% if not row.has_email %}class="row-below-avg"{% endif %}>
+                        <td>Team {{ row.team.team_number }}</td>
+                        <td>{{ row.school_name|default:"—" }}</td>
+                        <td>
+                            {% if row.has_email %}
+                                {{ row.emails|join:", " }}
+                            {% else %}
+                                <em>No email</em>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">{{ row.score.total_score|floatformat:0 }}</td>
+                    </tr>
+                {% endfor %}
+            </c-table>
+            <c-button_row class="mt-20 justify-end">
+                <div x-show="showForm" class="d-flex gap-10 items-center">
+                    <c-link href="{% url 'leaderboard_page' %}">Cancel</c-link>
+                    <c-button variant="primary" @click="sendEmails" ::disabled="loading">
+                        Send {{ teams_with_email }} Email(s)
+                    </c-button>
+                </div>
+                <div x-show="done" x-cloak>
+                    <c-link href="{% url 'leaderboard_page' %}">Back to Leaderboard</c-link>
+                </div>
+            </c-button_row>
         </c-module>
     </div>
     <script>

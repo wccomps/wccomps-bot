@@ -8,8 +8,9 @@
     {% load cotton %}
     {% if is_white_team or is_gold_team or is_admin %}
         <c-nav>
-        <c-nav_item name="inject_grading" href="{% url 'scoring:inject_grading' %}">Inject Grading</c-nav_item>
-        <c-nav_item name="inject_feedback" href="{% url 'scoring:review_inject_feedback' %}">Inject Feedback</c-nav_item>
+            <c-nav_item name="inject_grading" href="{% url 'scoring:inject_grading' %}">Inject Grading</c-nav_item>
+            <c-nav_item name="inject_feedback"
+                        href="{% url 'scoring:review_inject_feedback' %}">Inject Feedback</c-nav_item>
         </c-nav>
     {% endif %}
     {% block white_team_content %}

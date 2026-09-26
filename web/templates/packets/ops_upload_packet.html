@@ -4,57 +4,75 @@
     Upload Packet - WCComps
 {% endblock title %}
 {% block admin_content %}
-    <c-page_header title="Upload Packet" parent_url="{% url 'ops_packets_list' %}" parent_label="Packets" />
+    <c-page_header title="Upload Packet"
+                   parent_url="{% url 'ops_packets_list' %}"
+                   parent_label="Packets" />
     {% if messages %}
         {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
     {% endif %}
     <c-form enctype="multipart/form-data">
-    {% csrf_token %}
-    <c-fieldset heading="Packet Information">
-    <c-form_field label="Title" required="true" id="id_title" help_text="Brief description of the packet (e.g., '2026 Qualifier Packet')">
-    <input type="text"
-           name="title"
-           id="id_title"
-           class="vTextField"
-           required
-           maxlength="255">
-    </c-form_field>
-    <c-form_field label="Event" id="id_event" help_text="Link to an event for team credential lookup">
-    <select name="event" id="id_event">
-        <option value="">---------</option>
-        {% for event in events %}<option value="{{ event.id }}">{{ event.name }}</option>{% endfor %}
-    </select>
-    </c-form_field>
-    <c-form_field label="File" required="true" id="id_packet_file" help_text="Maximum file size: 25 MB. All file types supported.">
-    <input type="file" name="packet_file" id="id_packet_file" required>
-    </c-form_field>
-    <c-form_field label="Notes (optional)" id="id_notes" help_text="Internal notes about this packet (visible to GoldTeam only)">
-    <textarea name="notes" id="id_notes" class="vLargeTextField" rows="4"></textarea>
-    </c-form_field>
-    </c-fieldset>
-    <c-fieldset heading="Per-Team Email Data (optional)">
-    <c-form_field label="Team data CSV" id="id_team_extras" help_text="Paste CSV with a 'team' column header (e.g. Team01). Extra columns are included in each team's notification email. Teams without a row receive no extra data.">
-    <textarea name="team_extras"
-              id="id_team_extras"
-              class="vLargeTextField"
-              rows="6"
-              placeholder="team,api_key,max_spend_usd&#10;Team01,sk-abc123,100&#10;Team02,sk-def456,100"></textarea>
-    </c-form_field>
-    </c-fieldset>
-    <c-fieldset heading="Distribution Settings">
-    <c-form_field label="Send via email" help_text="Send packet to team contact emails from SchoolInfo">
-    <input type="checkbox" name="send_via_email" id="id_send_via_email" checked>
-    </c-form_field>
-    <c-form_field label="Enable web access" help_text="Allow teams to download from web interface">
-    <input type="checkbox"
-           name="web_access_enabled"
-           id="id_web_access_enabled"
-           checked>
-    </c-form_field>
-    </c-fieldset>
-    <c-button_row class="justify-end">
-    <c-link href="{% url 'packets_list' %}">Cancel</c-link>
-    <c-button type="submit" variant="primary" ::disabled="submitting">Upload Packet</c-button>
-    </c-button_row>
+        {% csrf_token %}
+        <c-fieldset heading="Packet Information">
+            <c-form_field label="Title"
+                          required="true"
+                          id="id_title"
+                          help_text="Brief description of the packet (e.g., '2026 Qualifier Packet')">
+                <input type="text"
+                       name="title"
+                       id="id_title"
+                       class="vTextField"
+                       required
+                       maxlength="255">
+            </c-form_field>
+            <c-form_field label="Event"
+                          id="id_event"
+                          help_text="Link to an event for team credential lookup">
+                <select name="event" id="id_event">
+                    <option value="">---------</option>
+                    {% for event in events %}<option value="{{ event.id }}">{{ event.name }}</option>{% endfor %}
+                </select>
+            </c-form_field>
+            <c-form_field label="File"
+                          required="true"
+                          id="id_packet_file"
+                          help_text="Maximum file size: 25 MB. All file types supported.">
+                <input type="file" name="packet_file" id="id_packet_file" required>
+            </c-form_field>
+            <c-form_field label="Notes (optional)"
+                          id="id_notes"
+                          help_text="Internal notes about this packet (visible to GoldTeam only)">
+                <textarea name="notes" id="id_notes" class="vLargeTextField" rows="4"></textarea>
+            </c-form_field>
+        </c-fieldset>
+        <c-fieldset heading="Per-Team Email Data (optional)">
+            <c-form_field label="Team data CSV"
+                          id="id_team_extras"
+                          help_text="Paste CSV with a 'team' column header (e.g. Team01). Extra columns are included in each team's notification email. Teams without a row receive no extra data.">
+                <textarea name="team_extras"
+                          id="id_team_extras"
+                          class="vLargeTextField"
+                          rows="6"
+                          placeholder="team,api_key,max_spend_usd&#10;Team01,sk-abc123,100&#10;Team02,sk-def456,100"></textarea>
+            </c-form_field>
+        </c-fieldset>
+        <c-fieldset heading="Distribution Settings">
+            <c-form_field label="Send via email"
+                          help_text="Send packet to team contact emails from SchoolInfo">
+                <input type="checkbox" name="send_via_email" id="id_send_via_email" checked>
+            </c-form_field>
+            <c-form_field label="Enable web access"
+                          help_text="Allow teams to download from web interface">
+                <input type="checkbox"
+                       name="web_access_enabled"
+                       id="id_web_access_enabled"
+                       checked>
+            </c-form_field>
+        </c-fieldset>
+        <c-button_row class="justify-end">
+            <c-link href="{% url 'packets_list' %}">Cancel</c-link>
+            <c-button type="submit" variant="primary" ::disabled="submitting">
+                Upload Packet
+            </c-button>
+        </c-button_row>
     </c-form>
 {% endblock admin_content %}

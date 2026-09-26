@@ -19,13 +19,35 @@
                                    @click="toggleAll"
                                    title="Select all">
                         </th>
-                        <c-table_header sortable="false">Ticket</c-table_header>
-                        <c-table_header sort_field="team__team_number" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">Team</c-table_header>
-                        <c-table_header sort_field="category" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">Category</c-table_header>
-                        <c-table_header sortable="false">Resolved By</c-table_header>
-                        <c-table_header sort_field="points_charged" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">Points</c-table_header>
-                        <c-table_header sort_field="resolved_at" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">Resolved</c-table_header>
-                        <c-table_header sortable="false">Status</c-table_header>
+                        <c-table_header sortable="false">
+                            Ticket
+                        </c-table_header>
+                        <c-table_header sort_field="team__team_number"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">
+                            Team
+                        </c-table_header>
+                        <c-table_header sort_field="category"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">
+                            Category
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Resolved By
+                        </c-table_header>
+                        <c-table_header sort_field="points_charged"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">
+                            Points
+                        </c-table_header>
+                        <c-table_header sort_field="resolved_at"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">
+                            Resolved
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Status
+                        </c-table_header>
                     </tr>
                 </thead>
                 <tbody>
@@ -55,23 +77,28 @@
                             <td class="field-points">
                                 {{ item.ticket.points_charged }}
                                 {% if item.ticket.points_charged != item.expected_points %}
-                                    <span title="Expected: {{ item.expected_points }}" class="text-warning"><span aria-hidden="true">⚠️</span></span>
+                                    <span title="Expected: {{ item.expected_points }}"
+                                          class="text-warning"><span aria-hidden="true">⚠️</span></span>
                                 {% endif %}
                             </td>
                             <td class="field-resolved">{{ item.ticket.resolved_at|timesince }} ago</td>
                             <td class="field-status">
                                 {% if item.ticket.is_approved %}
-                                    <c-badge variant="resolved"><span aria-hidden="true">✓</span> Approved</c-badge>
+                                    <c-badge variant="resolved">
+                                        <span aria-hidden="true">✓</span> Approved
+                                    </c-badge>
                                     <div class="text-sm text-muted">by {{ item.ticket.approved_by.username }}</div>
                                 {% else %}
-                                    <c-badge variant="claimed"><span aria-hidden="true">⏳</span> Pending</c-badge>
+                                    <c-badge variant="claimed">
+                                        <span aria-hidden="true">⏳</span> Pending
+                                    </c-badge>
                                 {% endif %}
                             </td>
                         </tr>
                     {% empty %}
                         <tr>
                             <td colspan="8">
-                                {% if search_query or status_filter != 'pending' or team_filter or category_filter %}
+                                {% if search_query or status_filter != "pending" or team_filter or category_filter %}
                                     No tickets match your filters. Try <a href="{% url 'ops_review_tickets' %}">clearing all filters</a>
                                 {% else %}
                                     No pending tickets. All resolved tickets have been approved.
@@ -83,5 +110,6 @@
             </table>
         </div>
     </form>
-    <c-pagination :page_obj="page_obj" query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}&sort={{ sort_by }}" />
+    <c-pagination :page_obj="page_obj"
+                  query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}&sort={{ sort_by }}" />
 </div>

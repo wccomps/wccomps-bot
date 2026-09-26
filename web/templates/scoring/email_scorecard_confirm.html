@@ -5,19 +5,23 @@
 {% endblock title %}
 {% block content %}
     <div id="content-main">
-        <c-page_header title="Email Scorecard" parent_url="{% url 'leaderboard_page' %}" parent_label="Leaderboard" />
+        <c-page_header title="Email Scorecard"
+                       parent_url="{% url 'leaderboard_page' %}"
+                       parent_label="Leaderboard" />
         <c-module>
-        <c-alert variant="warning">
-        Email the scorecard PDF for Team {{ team.team_number }} ({{ school_name }}) to:
-        <strong>{{ emails|join:", " }}</strong>
-        </c-alert>
-        <c-form>
-        {% csrf_token %}
-        <c-button_row class="mt-20 justify-end">
-        <c-link href="{% url 'leaderboard_scorecard' team.team_number %}">Cancel</c-link>
-        <c-button type="submit" variant="primary" ::disabled="submitting">Send Email</c-button>
-        </c-button_row>
-        </c-form>
+            <c-alert variant="warning">
+                Email the scorecard PDF for Team {{ team.team_number }} ({{ school_name }}) to:
+                <strong>{{ emails|join:", " }}</strong>
+            </c-alert>
+            <c-form>
+                {% csrf_token %}
+                <c-button_row class="mt-20 justify-end">
+                    <c-link href="{% url 'leaderboard_scorecard' team.team_number %}">Cancel</c-link>
+                    <c-button type="submit" variant="primary" ::disabled="submitting">
+                        Send Email
+                    </c-button>
+                </c-button_row>
+            </c-form>
         </c-module>
     </div>
 {% endblock content %}

@@ -7,19 +7,23 @@
     <div id="content-main">
         <c-page_header title="Successfully Linked" />
         <c-module>
-        <c-detail_grid>
-        <c-detail_row label="Discord Account">{{ discord_username }}</c-detail_row>
-        <c-detail_row label="Authentik Username">{{ authentik_username }}</c-detail_row>
-        {% if is_team_account %}<c-detail_row label="Team">{{ team_name }} (#{{ team_number }})</c-detail_row>{% endif %}
-        </c-detail_grid>
-        {% if is_team_account %}
-            <p class="mt-20">Your team role will be assigned shortly. You can now close this window and return to Discord.</p>
-            <p class="mt-10 text-muted">
-                If you don't see your role appear within a few minutes, please contact an administrator.
-            </p>
-        {% else %}
-            <p class="mt-20">You can now close this window and return to Discord.</p>
-        {% endif %}
+            <c-detail_grid>
+                <c-detail_row label="Discord Account">
+                    {{ discord_username }}
+                </c-detail_row>
+                <c-detail_row label="Authentik Username">
+                    {{ authentik_username }}
+                </c-detail_row>
+                {% if is_team_account %}<c-detail_row label="Team">{{ team_name }} (#{{ team_number }})</c-detail_row>{% endif %}
+            </c-detail_grid>
+            {% if is_team_account %}
+                <p class="mt-20">Your team role will be assigned shortly. You can now close this window and return to Discord.</p>
+                <p class="mt-10 text-muted">
+                    If you don't see your role appear within a few minutes, please contact an administrator.
+                </p>
+            {% else %}
+                <p class="mt-20">You can now close this window and return to Discord.</p>
+            {% endif %}
         </c-module>
     </div>
 {% endblock content %}

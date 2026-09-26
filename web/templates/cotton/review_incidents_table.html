@@ -9,88 +9,116 @@
           x-ref="bulkForm">
         {% csrf_token %}
         <c-table id="result_list" aria_label="Incident reports list">
-        <c-slot name="headers">
-        <tr role="row">
-            <th scope="col" class="w-40">
-                <input type="checkbox"
-                       :checked="allSelected"
-                       :indeterminate="someSelected"
-                       @click="toggleAll"
-                       title="Select all">
-            </th>
-            <c-table_header sortable="false">ID</c-table_header>
-            <c-table_header sort_field="team__team_number" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ selected_team }}&box={{ selected_box }}&search={{ search_query }}">Team</c-table_header>
-            <c-table_header sortable="false">Box/Service</c-table_header>
-            <c-table_header sortable="false">Description</c-table_header>
-            <c-table_header sort_field="attack_detected_at" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ selected_team }}&box={{ selected_box }}&search={{ search_query }}">Detected</c-table_header>
-            <c-table_header sortable="false">Evidence</c-table_header>
-            <c-table_header sortable="false">Status</c-table_header>
-            <c-table_header sortable="false">Actions</c-table_header>
-        </tr>
-        </c-slot>
-        {% for incident in page_obj %}
-            <tr class="{% cycle 'row1' 'row2' %}" role="row">
-                <td>
-                    {% if not incident.is_approved %}
+            <c-slot name="headers">
+                <tr role="row">
+                    <th scope="col" class="w-40">
                         <input type="checkbox"
-                               name="incident_ids"
-                               value="{{ incident.id }}"
-                               data-incident-id="{{ incident.id }}"
-                               @change="toggleItem">
-                    {% endif %}
-                </td>
-                <th class="field-id">
-                    <c-link href="{% url 'scoring:view_incident_report' incident.id %}">#{{ incident.id }}</c-link>
-                </th>
-                <td class="field-team">Team {{ incident.team.team_number }}</td>
-                <td class="field-box">
-                    {{ incident.affected_boxes_display|default:"—" }}
-                    <div class="text-sm text-muted">{{ incident.affected_service }}</div>
-                </td>
-                <td class="field-attack_description">{{ incident.attack_description|truncatechars:50 }}</td>
-                <td class="field-detected">
-                    {{ incident.attack_detected_at|timesince }} ago
-                    <div class="text-sm text-muted">Submitted: {{ incident.created_at|date:"m/d H:i" }}</div>
-                </td>
-                <td class="field-evidence">
-                    {% if incident.screenshots.exists %}
-                        <c-badge variant="success">{{ incident.screenshots.count }} files</c-badge>
-                    {% else %}
-                        <span class="text-muted">None</span>
-                    {% endif %}
-                </td>
-                <td class="field-status">
-                    {% if incident.is_approved %}
-                        <c-badge variant="resolved"><span aria-hidden="true">✓</span> Approved</c-badge>
-                        {% if incident.points_returned %}
-                            <div class="text-sm">
-                                <c-score_value :value="incident.points_returned" format="signed" />
-                            </div>
+                               :checked="allSelected"
+                               :indeterminate="someSelected"
+                               @click="toggleAll"
+                               title="Select all">
+                    </th>
+                    <c-table_header sortable="false">
+                        ID
+                    </c-table_header>
+                    <c-table_header sort_field="team__team_number"
+                                    current_sort="sort_by"
+                                    query_params="&status={{ status_filter }}&team={{ selected_team }}&box={{ selected_box }}&search={{ search_query }}">
+                        Team
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Box/Service
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Description
+                    </c-table_header>
+                    <c-table_header sort_field="attack_detected_at"
+                                    current_sort="sort_by"
+                                    query_params="&status={{ status_filter }}&team={{ selected_team }}&box={{ selected_box }}&search={{ search_query }}">
+                        Detected
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Evidence
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Status
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Actions
+                    </c-table_header>
+                </tr>
+            </c-slot>
+            {% for incident in page_obj %}
+                <tr class="{% cycle 'row1' 'row2' %}" role="row">
+                    <td>
+                        {% if not incident.is_approved %}
+                            <input type="checkbox"
+                                   name="incident_ids"
+                                   value="{{ incident.id }}"
+                                   data-incident-id="{{ incident.id }}"
+                                   @change="toggleItem">
                         {% endif %}
-                    {% else %}
-                        <c-badge variant="claimed"><span aria-hidden="true">⏳</span> Pending</c-badge>
-                    {% endif %}
-                </td>
-                <td class="field-actions">
-                    {% if not incident.is_approved %}
-                        <c-link href="{% url 'scoring:match_incident' incident.id %}" variant="primary">Review</c-link>
-                    {% else %}
-                        <span class="text-muted">Approved</span>
-                    {% endif %}
-                </td>
-            </tr>
-        {% empty %}
-            <tr>
-                <td colspan="9">
-                    {% if selected_team or selected_box or search_query or status_filter != 'pending' %}
-                        No incidents match your filters. Try <a href="{% url 'scoring:review_incidents' %}">clearing all filters</a>
-                    {% else %}
-                        No pending incidents. All incident reports have been approved.
-                    {% endif %}
-                </td>
-            </tr>
-        {% endfor %}
+                    </td>
+                    <th class="field-id">
+                        <c-link href="{% url 'scoring:view_incident_report' incident.id %}">#{{ incident.id }}</c-link>
+                    </th>
+                    <td class="field-team">Team {{ incident.team.team_number }}</td>
+                    <td class="field-box">
+                        {{ incident.affected_boxes_display|default:"—" }}
+                        <div class="text-sm text-muted">{{ incident.affected_service }}</div>
+                    </td>
+                    <td class="field-attack_description">{{ incident.attack_description|truncatechars:50 }}</td>
+                    <td class="field-detected">
+                        {{ incident.attack_detected_at|timesince }} ago
+                        <div class="text-sm text-muted">Submitted: {{ incident.created_at|date:"m/d H:i" }}</div>
+                    </td>
+                    <td class="field-evidence">
+                        {% if incident.screenshots.exists %}
+                            <c-badge variant="success">
+                                {{ incident.screenshots.count }} files
+                            </c-badge>
+                        {% else %}
+                            <span class="text-muted">None</span>
+                        {% endif %}
+                    </td>
+                    <td class="field-status">
+                        {% if incident.is_approved %}
+                            <c-badge variant="resolved">
+                                <span aria-hidden="true">✓</span> Approved
+                            </c-badge>
+                            {% if incident.points_returned %}
+                                <div class="text-sm">
+                                    <c-score_value :value="incident.points_returned" format="signed" />
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <c-badge variant="claimed">
+                                <span aria-hidden="true">⏳</span> Pending
+                            </c-badge>
+                        {% endif %}
+                    </td>
+                    <td class="field-actions">
+                        {% if not incident.is_approved %}
+                            <c-link href="{% url 'scoring:match_incident' incident.id %}"
+                                    variant="primary">Review</c-link>
+                        {% else %}
+                            <span class="text-muted">Approved</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="9">
+                        {% if selected_team or selected_box or search_query or status_filter != "pending" %}
+                            No incidents match your filters. Try <a href="{% url 'scoring:review_incidents' %}">clearing all filters</a>
+                        {% else %}
+                            No pending incidents. All incident reports have been approved.
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
         </c-table>
     </form>
-    <c-pagination :page_obj="page_obj" query_params="&status={{ status_filter }}&team={{ selected_team }}&box={{ selected_box }}&search={{ search_query }}&sort={{ sort_by }}" />
+    <c-pagination :page_obj="page_obj"
+                  query_params="&status={{ status_filter }}&team={{ selected_team }}&box={{ selected_box }}&search={{ search_query }}&sort={{ sort_by }}" />
 </div>

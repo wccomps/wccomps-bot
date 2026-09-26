@@ -6,81 +6,99 @@
 {% block admin_content %}
     <c-page_header title="Export Data" />
     <c-module>
-    <c-slot name="toolbar">
-    <c-link href="{% url 'scoring:export_all' %}" variant="primary">Download All Data (ZIP)</c-link>
-    </c-slot>
-    <p>Download scoring data in CSV or JSON format for analysis and archival purposes.</p>
-    <c-table aria_label="Available exports">
-    <c-slot name="headers">
-    <tr>
-        <c-table_header sortable="false" class="text-left">Data Type</c-table_header>
-        <c-table_header sortable="false" class="text-left">Description</c-table_header>
-        <c-table_header sortable="false" class="text-center">Export</c-table_header>
-    </tr>
-    </c-slot>
-    <tr>
-        <td>
-            <strong>Red Team Findings</strong>
-        </td>
-        <td>All red team vulnerability findings with affected teams and points</td>
-        <td class="text-center">
-            <c-link href="{% url 'scoring:export_red_scores' %}?format=csv" variant="default">CSV</c-link>
-            <c-link href="{% url 'scoring:export_red_scores' %}?format=json" variant="default">JSON</c-link>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <strong>Incident Reports</strong>
-        </td>
-        <td>Blue team incident submissions with review status and points returned</td>
-        <td class="text-center">
-            <c-link href="{% url 'scoring:export_incidents' %}?format=csv" variant="default">CSV</c-link>
-            <c-link href="{% url 'scoring:export_incidents' %}?format=json" variant="default">JSON</c-link>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <strong>Orange Team Checks</strong>
-        </td>
-        <td>Orange team check scores</td>
-        <td class="text-center">
-            <c-link href="{% url 'scoring:export_orange_adjustments' %}?format=csv" variant="default">CSV</c-link>
-            <c-link href="{% url 'scoring:export_orange_adjustments' %}?format=json" variant="default">JSON</c-link>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <strong>Inject Grades</strong>
-        </td>
-        <td>All inject submissions with grades and approval status</td>
-        <td class="text-center">
-            <c-link href="{% url 'scoring:export_inject_grades' %}?format=csv" variant="default">CSV</c-link>
-            <c-link href="{% url 'scoring:export_inject_grades' %}?format=json" variant="default">JSON</c-link>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <strong>Tickets</strong>
-        </td>
-        <td>All team tickets with status, assignments, and resolution details</td>
-        <td class="text-center">
-            <c-link href="{% url 'scoring:export_tickets' %}?format=csv" variant="default">CSV</c-link>
-            <c-link href="{% url 'scoring:export_tickets' %}?format=json" variant="default">JSON</c-link>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <strong>Final Scores</strong>
-        </td>
-        <td>Calculated final scores with all component breakdowns</td>
-        <td class="text-center">
-            <c-link href="{% url 'scoring:export_final_scores' %}?format=csv" variant="default">CSV</c-link>
-            <c-link href="{% url 'scoring:export_final_scores' %}?format=json" variant="default">JSON</c-link>
-        </td>
-    </tr>
-    </c-table>
-    <p class="text-muted mt-20">
-        <strong>CSV</strong> — Excel, Google Sheets, spreadsheets. <strong>JSON</strong> — programmatic analysis, data integration.
-    </p>
+        <c-slot name="toolbar">
+            <c-link href="{% url 'scoring:export_all' %}" variant="primary">Download All Data (ZIP)</c-link>
+        </c-slot>
+        <p>Download scoring data in CSV or JSON format for analysis and archival purposes.</p>
+        <c-table aria_label="Available exports">
+            <c-slot name="headers">
+                <tr>
+                    <c-table_header sortable="false" class="text-left">
+                        Data Type
+                    </c-table_header>
+                    <c-table_header sortable="false" class="text-left">
+                        Description
+                    </c-table_header>
+                    <c-table_header sortable="false" class="text-center">
+                        Export
+                    </c-table_header>
+                </tr>
+            </c-slot>
+            <tr>
+                <td>
+                    <strong>Red Team Findings</strong>
+                </td>
+                <td>All red team vulnerability findings with affected teams and points</td>
+                <td class="text-center">
+                    <c-link href="{% url 'scoring:export_red_scores' %}?format=csv"
+                            variant="default">CSV</c-link>
+                    <c-link href="{% url 'scoring:export_red_scores' %}?format=json"
+                            variant="default">JSON</c-link>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>Incident Reports</strong>
+                </td>
+                <td>Blue team incident submissions with review status and points returned</td>
+                <td class="text-center">
+                    <c-link href="{% url 'scoring:export_incidents' %}?format=csv"
+                            variant="default">CSV</c-link>
+                    <c-link href="{% url 'scoring:export_incidents' %}?format=json"
+                            variant="default">JSON</c-link>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>Orange Team Checks</strong>
+                </td>
+                <td>Orange team check scores</td>
+                <td class="text-center">
+                    <c-link href="{% url 'scoring:export_orange_adjustments' %}?format=csv"
+                            variant="default">CSV</c-link>
+                    <c-link href="{% url 'scoring:export_orange_adjustments' %}?format=json"
+                            variant="default">JSON</c-link>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>Inject Grades</strong>
+                </td>
+                <td>All inject submissions with grades and approval status</td>
+                <td class="text-center">
+                    <c-link href="{% url 'scoring:export_inject_grades' %}?format=csv"
+                            variant="default">CSV</c-link>
+                    <c-link href="{% url 'scoring:export_inject_grades' %}?format=json"
+                            variant="default">JSON</c-link>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>Tickets</strong>
+                </td>
+                <td>All team tickets with status, assignments, and resolution details</td>
+                <td class="text-center">
+                    <c-link href="{% url 'scoring:export_tickets' %}?format=csv"
+                            variant="default">CSV</c-link>
+                    <c-link href="{% url 'scoring:export_tickets' %}?format=json"
+                            variant="default">JSON</c-link>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <strong>Final Scores</strong>
+                </td>
+                <td>Calculated final scores with all component breakdowns</td>
+                <td class="text-center">
+                    <c-link href="{% url 'scoring:export_final_scores' %}?format=csv"
+                            variant="default">CSV</c-link>
+                    <c-link href="{% url 'scoring:export_final_scores' %}?format=json"
+                            variant="default">JSON</c-link>
+                </td>
+            </tr>
+        </c-table>
+        <p class="text-muted mt-20">
+            <strong>CSV</strong> — Excel, Google Sheets, spreadsheets. <strong>JSON</strong> — programmatic analysis, data integration.
+        </p>
     </c-module>
 {% endblock admin_content %}

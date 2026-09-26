@@ -5,80 +5,130 @@
 {% endblock title %}
 {% block admin_content %}
     <div x-data="teamDetail">
-        <c-page_header title="Team {{ team.team_number }}" parent_url="{% url 'admin_teams' %}" parent_label="Teams" />
+        <c-page_header title="Team {{ team.team_number }}"
+                       parent_url="{% url 'admin_teams' %}"
+                       parent_label="Teams" />
         <div class="grid-2">
             <c-module>
-            <c-slot name="title">Team Information</c-slot>
-            <c-detail_grid>
-            <c-detail_row label="Team Number">{{ team.team_number }}</c-detail_row>
-            <c-detail_row label="Status">
-            {% if team.is_active %}
-                <c-badge variant="success">Active</c-badge>
-            {% else %}
-                <c-badge variant="danger">Inactive</c-badge>
-            {% endif %}
-            </c-detail_row>
-            <c-detail_row label="Max Members">{{ team.max_members }}</c-detail_row>
-            <c-detail_row label="Current Members">{{ members|length }}/{{ team.max_members }}</c-detail_row>
-            <c-detail_row label="Discord Category">{{ team.discord_category_id|default:"Not set" }}</c-detail_row>
-            <c-detail_row label="Discord Role">{{ team.discord_role_id|default:"Not set" }}</c-detail_row>
-            <c-detail_row label="Authentik Group">WCComps_BlueTeam{{ team.team_number|stringformat:"02d" }}</c-detail_row>
-            </c-detail_grid>
+                <c-slot name="title">
+                    Team Information
+                </c-slot>
+                <c-detail_grid>
+                    <c-detail_row label="Team Number">
+                        {{ team.team_number }}
+                    </c-detail_row>
+                    <c-detail_row label="Status">
+                        {% if team.is_active %}
+                            <c-badge variant="success">
+                                Active
+                            </c-badge>
+                        {% else %}
+                            <c-badge variant="danger">
+                                Inactive
+                            </c-badge>
+                        {% endif %}
+                    </c-detail_row>
+                    <c-detail_row label="Max Members">
+                        {{ team.max_members }}
+                    </c-detail_row>
+                    <c-detail_row label="Current Members">
+                        {{ members|length }}/{{ team.max_members }}
+                    </c-detail_row>
+                    <c-detail_row label="Discord Category">
+                        {{ team.discord_category_id|default:"Not set" }}
+                    </c-detail_row>
+                    <c-detail_row label="Discord Role">
+                        {{ team.discord_role_id|default:"Not set" }}
+                    </c-detail_row>
+                    <c-detail_row label="Authentik Group">
+                        WCComps_BlueTeam{{ team.team_number|stringformat:"02d" }}
+                    </c-detail_row>
+                </c-detail_grid>
             </c-module>
             <c-module>
-            <c-slot name="title">Actions</c-slot>
-            <c-button_row class="flex-wrap">
-            {% if team.is_active %}
-                <c-button variant="default" @click="teamAction" data-action="deactivate" ::disabled="loading">
-                Deactivate Team
-                </c-button>
-            {% else %}
-                <c-button variant="primary" @click="teamAction" data-action="activate" ::disabled="loading">
-                Activate Team
-                </c-button>
-            {% endif %}
-            <c-button variant="danger" @click="resetTeam" ::disabled="loading">
-            Reset Team
-            </c-button>
-            <c-button variant="default" @click="teamAction" data-action="recreate_channels" ::disabled="loading">
-            Recreate Discord Channels
-            </c-button>
-            </c-button_row>
-            <template x-if="newPassword">
-                <c-action_box heading="New Password" variant="warning" class="mt-20">
-                <code class="text-lg" x-text="newPassword"></code>
-                </c-action_box>
-            </template>
+                <c-slot name="title">
+                    Actions
+                </c-slot>
+                <c-button_row class="flex-wrap">
+                    {% if team.is_active %}
+                        <c-button variant="default"
+                                  @click="teamAction"
+                                  data-action="deactivate"
+                                  ::disabled="loading">
+                            Deactivate Team
+                        </c-button>
+                    {% else %}
+                        <c-button variant="primary"
+                                  @click="teamAction"
+                                  data-action="activate"
+                                  ::disabled="loading">
+                            Activate Team
+                        </c-button>
+                    {% endif %}
+                    <c-button variant="danger" @click="resetTeam" ::disabled="loading">
+                        Reset Team
+                    </c-button>
+                    <c-button variant="default"
+                              @click="teamAction"
+                              data-action="recreate_channels"
+                              ::disabled="loading">
+                        Recreate Discord Channels
+                    </c-button>
+                </c-button_row>
+                <template x-if="newPassword">
+                    <c-action_box heading="New Password" variant="warning" class="mt-20">
+                        <code class="text-lg" x-text="newPassword"></code>
+                    </c-action_box>
+                </template>
             </c-module>
         </div>
         <c-module class="mt-20">
-        <c-slot name="title">Linked Members ({{ members|length }})</c-slot>
-        {% if members %}
-            <c-table id="members_list" class="w-full" aria_label="Team members">
-            <c-slot name="headers">
-            <tr>
-                <c-table_header sortable="false">Discord Username</c-table_header>
-                <c-table_header sortable="false">Authentik Username</c-table_header>
-                <c-table_header sortable="false">Discord ID</c-table_header>
-                <c-table_header sortable="false">Linked At</c-table_header>
-                <c-table_header sortable="false">Action</c-table_header>
-            </tr>
+            <c-slot name="title">
+                Linked Members ({{ members|length }})
             </c-slot>
-            {% for member in members %}
-                <tr class="{% cycle 'row1' 'row2' %}">
-                    <td class="field-discord_username">{{ member.discord_username }}</td>
-                    <td class="field-authentik_username">{{ member.user.username }}</td>
-                    <td class="field-discord_id">{{ member.discord_id }}</td>
-                    <td class="field-linked_at">{{ member.linked_at|timesince }} ago</td>
-                    <td class="field-action">
-                        <c-button variant="danger" @click="unlinkUser" data-discord-id="{{ member.discord_id }}" data-username="{{ member.discord_username }}" :disabled="loading">Unlink</c-button>
-                    </td>
-                </tr>
-            {% endfor %}
-            </c-table>
-        {% else %}
-            <c-empty_state title="No members linked" description="Members will appear here when they link their Discord accounts." />
-        {% endif %}
+            {% if members %}
+                <c-table id="members_list" class="w-full" aria_label="Team members">
+                    <c-slot name="headers">
+                        <tr>
+                            <c-table_header sortable="false">
+                                Discord Username
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Authentik Username
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Discord ID
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Linked At
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Action
+                            </c-table_header>
+                        </tr>
+                    </c-slot>
+                    {% for member in members %}
+                        <tr class="{% cycle 'row1' 'row2' %}">
+                            <td class="field-discord_username">{{ member.discord_username }}</td>
+                            <td class="field-authentik_username">{{ member.user.username }}</td>
+                            <td class="field-discord_id">{{ member.discord_id }}</td>
+                            <td class="field-linked_at">{{ member.linked_at|timesince }} ago</td>
+                            <td class="field-action">
+                                <c-button variant="danger"
+                                          @click="unlinkUser"
+                                          data-discord-id="{{ member.discord_id }}"
+                                          data-username="{{ member.discord_username }}"
+                                          :disabled="loading">
+                                    Unlink
+                                </c-button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </c-table>
+            {% else %}
+                <c-empty_state title="No members linked"
+                               description="Members will appear here when they link their Discord accounts." />
+            {% endif %}
         </c-module>
         <c-toast />
     </div>

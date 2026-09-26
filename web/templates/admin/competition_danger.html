@@ -5,24 +5,32 @@
 {% endblock title %}
 {% block admin_content %}
     <div x-data="competitionDanger">
-        <c-page_header title="Competition Danger Zone" parent_url="{% url 'admin_competition' %}" parent_label="Competition" />
+        <c-page_header title="Competition Danger Zone"
+                       parent_url="{% url 'admin_competition' %}"
+                       parent_label="Competition" />
         <!-- Cleanup -->
         <c-fieldset heading="Cleanup" class="mb-20">
-        <p class="help-text mb-10">
-            Deactivates Discord links and clears queued announcements. Competition must be stopped first.
-        </p>
-        <c-link href="#" variant="danger" @click.prevent="guardedCleanup" ::class="disabledClass">
-        <span x-show="notLoading">Cleanup Competition</span>
-        <span x-show="loading" x-cloak>Processing...</span>
-        </c-link>
+            <p class="help-text mb-10">
+                Deactivates Discord links and clears queued announcements. Competition must be stopped first.
+            </p>
+            <c-link href="#"
+                    variant="danger"
+                    @click.prevent="guardedCleanup"
+                    ::class="disabledClass">
+                <span x-show="notLoading">Cleanup Competition</span>
+                <span x-show="loading" x-cloak>Processing...</span>
+            </c-link>
         </c-fieldset>
         <!-- Wipe All Data -->
         <c-action_box variant="warning" heading="Wipe All Data">
-        <p class="mb-15">Permanently delete all competition data (scores, tickets, links). This cannot be undone.</p>
-        <c-link href="#" variant="danger" @click.prevent="guardedWipe" ::class="disabledClass">
-        <span x-show="notLoading">Wipe All Data</span>
-        <span x-show="loading" x-cloak>Processing...</span>
-        </c-link>
+            <p class="mb-15">Permanently delete all competition data (scores, tickets, links). This cannot be undone.</p>
+            <c-link href="#"
+                    variant="danger"
+                    @click.prevent="guardedWipe"
+                    ::class="disabledClass">
+                <span x-show="notLoading">Wipe All Data</span>
+                <span x-show="loading" x-cloak>Processing...</span>
+            </c-link>
         </c-action_box>
         <c-toast />
     </div>

@@ -7,28 +7,38 @@
     <div id="content-main">
         <c-page_header title="{{ title }}" />
         <c-module>
-        <c-form>
-        {% csrf_token %}
-        <c-fieldset heading="Season Details" aligned="true">
-        <c-form_field label="{{ form.name.label }}" required="true" id="{{ form.name.id_for_label }}" error="
+            <c-form>
+                {% csrf_token %}
+                <c-fieldset heading="Season Details" aligned="true">
+                    <c-form_field label="{{ form.name.label }}"
+                                  required="true"
+                                  id="{{ form.name.id_for_label }}"
+                                  error="
         {% for e in form.name.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.name }}
-        </c-form_field>
-        <c-form_field label="{{ form.year.label }}" required="true" id="{{ form.year.id_for_label }}" error="
+                        {{ form.name }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.year.label }}"
+                                  required="true"
+                                  id="{{ form.year.id_for_label }}"
+                                  error="
         {% for e in form.year.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.year }}
-        </c-form_field>
-        <c-form_field label="{{ form.is_active.label }}" id="{{ form.is_active.id_for_label }}" help_text="{{ form.is_active.help_text }}">
-        {{ form.is_active }}
-        </c-form_field>
-        </c-fieldset>
-        <c-button_row class="mt-20 justify-end">
-        <a href="{% url 'registration_season_list' %}" class="btn btn-secondary">Cancel</a>
-        <c-button type="submit" variant="primary" ::disabled="submitting">Save</c-button>
-        </c-button_row>
-        </c-form>
+                        {{ form.year }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.is_active.label }}"
+                                  id="{{ form.is_active.id_for_label }}"
+                                  help_text="{{ form.is_active.help_text }}">
+                        {{ form.is_active }}
+                    </c-form_field>
+                </c-fieldset>
+                <c-button_row class="mt-20 justify-end">
+                    <a href="{% url 'registration_season_list' %}" class="btn btn-secondary">Cancel</a>
+                    <c-button type="submit" variant="primary" ::disabled="submitting">
+                        Save
+                    </c-button>
+                </c-button_row>
+            </c-form>
         </c-module>
     </div>
 {% endblock registration_content %}

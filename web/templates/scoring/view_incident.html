@@ -5,106 +5,146 @@
 {% endblock title %}
 {% block content %}
     <div id="content-main">
-        <c-page_header title="Incident Report #{{ incident.id }}" parent_url="{% url 'scoring:incident_list' %}" parent_label="Incidents" />
+        <c-page_header title="Incident Report #{{ incident.id }}"
+                       parent_url="{% url 'scoring:incident_list' %}"
+                       parent_label="Incidents" />
         <c-module>
-        <c-slot name="toolbar">
-        {% if incident.is_approved %}
-            <c-badge variant="resolved">Reviewed</c-badge>
-        {% else %}
-            <c-badge variant="claimed">Pending Review</c-badge>
-        {% endif %}
-        </c-slot>
-        <div class="grid-2 gap-20">
-            <div>
-                <h3>Report Details</h3>
-                <c-detail_grid>
-                <c-detail_row label="Team">Team {{ incident.team.team_number }}</c-detail_row>
-                <c-detail_row label="Submitted By">{{ incident.submitted_by.username }}</c-detail_row>
-                <c-detail_row label="Submitted At">{{ incident.created_at|date:"Y-m-d H:i:s" }}</c-detail_row>
-                <c-detail_row label="Attack Detected">{{ incident.attack_detected_at|date:"Y-m-d H:i:s" }}</c-detail_row>
-                </c-detail_grid>
-            </div>
-            <div>
-                <h3>Attack Information</h3>
-                <c-detail_grid>
-                <c-detail_row label="Affected Boxes">{{ incident.affected_boxes_display|default:"—" }}</c-detail_row>
-                <c-detail_row label="Affected Service">{{ incident.affected_service|default:"—" }}</c-detail_row>
-                <c-detail_row label="Source IP"><code>{{ incident.source_ip }}</code></c-detail_row>
-                {% if incident.destination_ip %}
-                    <c-detail_row label="Destination IP"><code>{{ incident.destination_ip }}</code></c-detail_row>
-                {% endif %}
-                <c-detail_row label="Attack Mitigated">
-                {% if incident.attack_mitigated %}
-                    Yes
+            <c-slot name="toolbar">
+                {% if incident.is_approved %}
+                    <c-badge variant="resolved">
+                        Reviewed
+                    </c-badge>
                 {% else %}
-                    No
+                    <c-badge variant="claimed">
+                        Pending Review
+                    </c-badge>
                 {% endif %}
-                </c-detail_row>
-                </c-detail_grid>
+            </c-slot>
+            <div class="grid-2 gap-20">
+                <div>
+                    <h3>Report Details</h3>
+                    <c-detail_grid>
+                        <c-detail_row label="Team">
+                            Team {{ incident.team.team_number }}
+                        </c-detail_row>
+                        <c-detail_row label="Submitted By">
+                            {{ incident.submitted_by.username }}
+                        </c-detail_row>
+                        <c-detail_row label="Submitted At">
+                            {{ incident.created_at|date:"Y-m-d H:i:s" }}
+                        </c-detail_row>
+                        <c-detail_row label="Attack Detected">
+                            {{ incident.attack_detected_at|date:"Y-m-d H:i:s" }}
+                        </c-detail_row>
+                    </c-detail_grid>
+                </div>
+                <div>
+                    <h3>Attack Information</h3>
+                    <c-detail_grid>
+                        <c-detail_row label="Affected Boxes">
+                            {{ incident.affected_boxes_display|default:"—" }}
+                        </c-detail_row>
+                        <c-detail_row label="Affected Service">
+                            {{ incident.affected_service|default:"—" }}
+                        </c-detail_row>
+                        <c-detail_row label="Source IP">
+                            <code>{{ incident.source_ip }}</code>
+                        </c-detail_row>
+                        {% if incident.destination_ip %}
+                            <c-detail_row label="Destination IP">
+                                <code>{{ incident.destination_ip }}</code>
+                            </c-detail_row>
+                        {% endif %}
+                        <c-detail_row label="Attack Mitigated">
+                            {% if incident.attack_mitigated %}
+                                Yes
+                            {% else %}
+                                No
+                            {% endif %}
+                        </c-detail_row>
+                    </c-detail_grid>
+                </div>
             </div>
-        </div>
-        <c-fieldset heading="Attack Description">
-        <c-info_box>
-        {{ incident.attack_description|linebreaks }}
-        </c-info_box>
-        </c-fieldset>
-        {% if incident.evidence_notes %}
-            <c-fieldset heading="Evidence Notes">
-            <c-info_box>
-            {{ incident.evidence_notes|linebreaks }}
-            </c-info_box>
+            <c-fieldset heading="Attack Description">
+                <c-info_box>
+                    {{ incident.attack_description|linebreaks }}
+                </c-info_box>
             </c-fieldset>
-        {% endif %}
-        <c-fieldset heading="Evidence Screenshots">
-        {% if incident.screenshots.exists %}
-            <c-image_grid>
-            {% for screenshot in incident.screenshots.all %}
-                {% if screenshot.has_data %}
-                    <a href="{% url 'scoring:incident_screenshot' screenshot.id %}"
-                       target="_blank">
-                        <img src="{% url 'scoring:incident_screenshot' screenshot.id %}"
-                             alt="{{ screenshot.filename }}"
-                             width="200"
-                             height="150">
-                    </a>
-                {% else %}
-                    <div class="screenshot-lost">
-                        <span class="text-muted">{{ screenshot.filename|cut:"scoring/incidents/" }}</span>
-                        <small class="text-danger d-block">(file lost)</small>
-                    </div>
-                {% endif %}
-            {% endfor %}
-            </c-image_grid>
-        {% else %}
-            <c-empty_state title="No screenshots" description="No screenshots were attached to this report" />
-        {% endif %}
-        </c-fieldset>
-        {% if incident.is_approved %}
-            <c-fieldset heading="Review Status">
-            <c-detail_grid>
-            <c-detail_row label="Reviewed By">{{ incident.approved_by.username }}</c-detail_row>
-            <c-detail_row label="Reviewed At">{{ incident.approved_at|date:"Y-m-d H:i:s" }}</c-detail_row>
-            {% if incident.matched_to_red_score %}
-                <c-detail_row label="Matched To">Red Team Finding #{{ incident.matched_to_red_score.id }}</c-detail_row>
+            {% if incident.evidence_notes %}
+                <c-fieldset heading="Evidence Notes">
+                    <c-info_box>
+                        {{ incident.evidence_notes|linebreaks }}
+                    </c-info_box>
+                </c-fieldset>
             {% endif %}
-            <c-detail_row label="Points Returned"><strong><c-score_value :value="incident.points_returned" format="signed" /></strong></c-detail_row>
-            </c-detail_grid>
+            <c-fieldset heading="Evidence Screenshots">
+                {% if incident.screenshots.exists %}
+                    <c-image_grid>
+                        {% for screenshot in incident.screenshots.all %}
+                            {% if screenshot.has_data %}
+                                <a href="{% url 'scoring:incident_screenshot' screenshot.id %}"
+                                   target="_blank">
+                                    <img src="{% url 'scoring:incident_screenshot' screenshot.id %}"
+                                         alt="{{ screenshot.filename }}"
+                                         width="200"
+                                         height="150">
+                                </a>
+                            {% else %}
+                                <div class="screenshot-lost">
+                                    <span class="text-muted">{{ screenshot.filename|cut:"scoring/incidents/" }}</span>
+                                    <small class="text-danger d-block">(file lost)</small>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </c-image_grid>
+                {% else %}
+                    <c-empty_state title="No screenshots"
+                                   description="No screenshots were attached to this report" />
+                {% endif %}
             </c-fieldset>
-        {% else %}
-            <c-alert variant="info">This incident is pending gold team review.</c-alert>
-        {% endif %}
-        <c-button_row class="mt-20 justify-end">
-        {% if can_delete %}
-            <c-form action="{% url 'scoring:delete_incident_report' incident.id %}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this incident report? This cannot be undone.');">
-            {% csrf_token %}
-            <c-button type="submit" variant="danger" ::disabled="submitting">Delete Report</c-button>
-            </c-form>
-        {% endif %}
-        {% if is_gold_team and not incident.is_approved %}
-            <c-link href="{% url 'scoring:match_incident' incident.id %}" variant="primary">Review Now</c-link>
-        {% endif %}
-        <c-link href="{% url 'scoring:submit_incident_report' %}" variant="default">Submit Another</c-link>
-        </c-button_row>
+            {% if incident.is_approved %}
+                <c-fieldset heading="Review Status">
+                    <c-detail_grid>
+                        <c-detail_row label="Reviewed By">
+                            {{ incident.approved_by.username }}
+                        </c-detail_row>
+                        <c-detail_row label="Reviewed At">
+                            {{ incident.approved_at|date:"Y-m-d H:i:s" }}
+                        </c-detail_row>
+                        {% if incident.matched_to_red_score %}
+                            <c-detail_row label="Matched To">
+                                Red Team Finding #{{ incident.matched_to_red_score.id }}
+                            </c-detail_row>
+                        {% endif %}
+                        <c-detail_row label="Points Returned">
+                            <strong>
+                                <c-score_value :value="incident.points_returned" format="signed" />
+                            </strong>
+                        </c-detail_row>
+                    </c-detail_grid>
+                </c-fieldset>
+            {% else %}
+                <c-alert variant="info">
+                    This incident is pending gold team review.
+                </c-alert>
+            {% endif %}
+            <c-button_row class="mt-20 justify-end">
+                {% if can_delete %}
+                    <c-form action="{% url 'scoring:delete_incident_report' incident.id %}"
+                            class="d-inline"
+                            onsubmit="return confirm('Are you sure you want to delete this incident report? This cannot be undone.');">
+                        {% csrf_token %}
+                        <c-button type="submit" variant="danger" ::disabled="submitting">
+                            Delete Report
+                        </c-button>
+                    </c-form>
+                {% endif %}
+                {% if is_gold_team and not incident.is_approved %}
+                    <c-link href="{% url 'scoring:match_incident' incident.id %}"
+                            variant="primary">Review Now</c-link>
+                {% endif %}
+                <c-link href="{% url 'scoring:submit_incident_report' %}" variant="default">Submit Another</c-link>
+            </c-button_row>
         </c-module>
     </div>
 {% endblock content %}

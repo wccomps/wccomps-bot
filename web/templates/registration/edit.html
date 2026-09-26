@@ -17,45 +17,59 @@
                     info
                 {% endif %}
                 ">
-                {{ message }}
+                    {{ message }}
                 </c-alert>
             {% endfor %}
         {% endif %}
         <c-module>
-        <p>
-            Status: <strong>{{ registration.get_status_display }}</strong>
-        </p>
-        <p>Submitted: {{ registration.submitted_at|date:"F d, Y g:i A" }}</p>
-        <form method="post">
-            {% csrf_token %}
-            <c-fieldset heading="School Information" aligned="true">
-            <c-form_field label="{{ form.school_name.label }}" required="true" id="{{ form.school_name.id_for_label }}" error="
+            <p>
+                Status: <strong>{{ registration.get_status_display }}</strong>
+            </p>
+            <p>Submitted: {{ registration.submitted_at|date:"F d, Y g:i A" }}</p>
+            <form method="post">
+                {% csrf_token %}
+                <c-fieldset heading="School Information" aligned="true">
+                    <c-form_field label="{{ form.school_name.label }}"
+                                  required="true"
+                                  id="{{ form.school_name.id_for_label }}"
+                                  error="
             {% for e in form.school_name.errors %}{{ e }}{% endfor %}
             ">
-            {{ form.school_name }}
-            </c-form_field>
-            </c-fieldset>
-            <c-fieldset heading="Team Captain Contact" aligned="true">
-            <c-form_field label="{{ form.contact_name.label }}" required="true" id="{{ form.contact_name.id_for_label }}" error="
+                        {{ form.school_name }}
+                    </c-form_field>
+                </c-fieldset>
+                <c-fieldset heading="Team Captain Contact" aligned="true">
+                    <c-form_field label="{{ form.contact_name.label }}"
+                                  required="true"
+                                  id="{{ form.contact_name.id_for_label }}"
+                                  error="
             {% for e in form.contact_name.errors %}{{ e }}{% endfor %}
             ">
-            {{ form.contact_name }}
-            </c-form_field>
-            <c-form_field label="{{ form.contact_email.label }}" required="true" id="{{ form.contact_email.id_for_label }}" error="
+                        {{ form.contact_name }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.contact_email.label }}"
+                                  required="true"
+                                  id="{{ form.contact_email.id_for_label }}"
+                                  error="
             {% for e in form.contact_email.errors %}{{ e }}{% endfor %}
             ">
-            {{ form.contact_email }}
-            </c-form_field>
-            <c-form_field label="{{ form.phone.label }}" required="true" id="{{ form.phone.id_for_label }}" error="
+                        {{ form.contact_email }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.phone.label }}"
+                                  required="true"
+                                  id="{{ form.phone.id_for_label }}"
+                                  error="
             {% for e in form.phone.errors %}{{ e }}{% endfor %}
             ">
-            {{ form.phone }}
-            </c-form_field>
-            </c-fieldset>
-            <c-button_row class="mt-20 justify-end">
-            <c-button type="submit" variant="primary">Save Changes</c-button>
-            </c-button_row>
-        </form>
+                        {{ form.phone }}
+                    </c-form_field>
+                </c-fieldset>
+                <c-button_row class="mt-20 justify-end">
+                    <c-button type="submit" variant="primary">
+                        Save Changes
+                    </c-button>
+                </c-button_row>
+            </form>
         </c-module>
     </div>
 {% endblock content %}

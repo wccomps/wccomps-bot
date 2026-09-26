@@ -29,28 +29,36 @@
         <!-- Desktop table -->
         <div class="history-table">
             <c-table aria_label="Ticket history">
-            <c-slot name="headers">
-            <tr>
-                <c-table_header sortable="false">Timestamp</c-table_header>
-                <c-table_header sortable="false">Action</c-table_header>
-                <c-table_header sortable="false">Actor</c-table_header>
-                <c-table_header sortable="false">Details</c-table_header>
-            </tr>
-            </c-slot>
-            {% for event in history %}
-                <tr class="{% cycle 'row1' 'row2' %}">
-                    <td>{{ event.timestamp|timesince }} ago</td>
-                    <td>{{ event.action }}</td>
-                    <td>
-                        {% if event.actor %}
-                            {{ event.actor }}
-                        {% else %}
-                            System
-                        {% endif %}
-                    </td>
-                    <td>{{ event.details|format_history_details }}</td>
-                </tr>
-            {% endfor %}
+                <c-slot name="headers">
+                    <tr>
+                        <c-table_header sortable="false">
+                            Timestamp
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Action
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Actor
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Details
+                        </c-table_header>
+                    </tr>
+                </c-slot>
+                {% for event in history %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <td>{{ event.timestamp|timesince }} ago</td>
+                        <td>{{ event.action }}</td>
+                        <td>
+                            {% if event.actor %}
+                                {{ event.actor }}
+                            {% else %}
+                                System
+                            {% endif %}
+                        </td>
+                        <td>{{ event.details|format_history_details }}</td>
+                    </tr>
+                {% endfor %}
             </c-table>
         </div>
         <!-- Mobile cards -->

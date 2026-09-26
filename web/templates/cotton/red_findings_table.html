@@ -39,16 +39,38 @@
                                        title="Select all">
                             </th>
                         {% endif %}
-                        <c-table_header sortable="false">ID</c-table_header>
-                        <c-table_header sort_field="attack_type__name" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ selected_team }}&attack_type={{ selected_attack_type }}&submitter={{ selected_submitter }}&search={{ search_query }}">Attack Type</c-table_header>
-                        <c-table_header sortable="false">Box</c-table_header>
-                        <c-table_header sortable="false">Service</c-table_header>
-                        <c-table_header sortable="false">Teams</c-table_header>
-                        <c-table_header sort_field="created_at" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ selected_team }}&attack_type={{ selected_attack_type }}&submitter={{ selected_submitter }}&search={{ search_query }}">Submitted</c-table_header>
-                        <c-table_header sortable="false">Evidence</c-table_header>
+                        <c-table_header sortable="false">
+                            ID
+                        </c-table_header>
+                        <c-table_header sort_field="attack_type__name"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ selected_team }}&attack_type={{ selected_attack_type }}&submitter={{ selected_submitter }}&search={{ search_query }}">
+                            Attack Type
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Box
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Service
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Teams
+                        </c-table_header>
+                        <c-table_header sort_field="created_at"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ selected_team }}&attack_type={{ selected_attack_type }}&submitter={{ selected_submitter }}&search={{ search_query }}">
+                            Submitted
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Evidence
+                        </c-table_header>
                         {% if is_gold_team %}<c-table_header sortable="false">Points</c-table_header>{% endif %}
-                        <c-table_header sortable="false">Status</c-table_header>
-                        <c-table_header sortable="false">Actions</c-table_header>
+                        <c-table_header sortable="false">
+                            Status
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Actions
+                        </c-table_header>
                     </tr>
                 </thead>
                 <tbody>
@@ -72,7 +94,9 @@
                             <td class="field-box">{{ finding.affected_boxes_display|default:"—" }}</td>
                             <td class="field-service">{{ finding.affected_service }}</td>
                             <td class="field-teams">
-                                <c-badge>{{ finding.affected_teams.count }} teams</c-badge>
+                                <c-badge>
+                                    {{ finding.affected_teams.count }} teams
+                                </c-badge>
                                 <div class="text-sm text-muted">
                                     {% for team in finding.affected_teams.all|slice:":3" %}
                                         Team {{ team.team_number }}
@@ -87,7 +111,9 @@
                             </td>
                             <td class="field-evidence">
                                 {% if finding.screenshots.exists %}
-                                    <c-badge variant="success">{{ finding.screenshots.count }} files</c-badge>
+                                    <c-badge variant="success">
+                                        {{ finding.screenshots.count }} files
+                                    </c-badge>
                                 {% else %}
                                     <span class="text-muted">None</span>
                                 {% endif %}
@@ -105,9 +131,13 @@
                             {% endif %}
                             <td class="field-status">
                                 {% if finding.is_approved %}
-                                    <c-badge variant="resolved"><span aria-hidden="true">✓</span> Approved</c-badge>
+                                    <c-badge variant="resolved">
+                                        <span aria-hidden="true">✓</span> Approved
+                                    </c-badge>
                                 {% else %}
-                                    <c-badge variant="claimed"><span aria-hidden="true">⏳</span> Pending</c-badge>
+                                    <c-badge variant="claimed">
+                                        <span aria-hidden="true">⏳</span> Pending
+                                    </c-badge>
                                 {% endif %}
                             </td>
                             <td class="field-actions">
@@ -117,7 +147,9 @@
                                           class="d-inline"
                                           onsubmit="return confirm('Delete this finding?');">
                                         {% csrf_token %}
-                                        <c-button type="submit" variant="danger">Delete</c-button>
+                                        <c-button type="submit" variant="danger">
+                                            Delete
+                                        </c-button>
                                     </form>
                                 {% elif current_user in finding.contributors.all and finding.submitted_by != current_user and not finding.is_approved %}
                                     <form method="post"
@@ -125,7 +157,9 @@
                                           class="d-inline"
                                           onsubmit="return confirm('Remove yourself from this finding?');">
                                         {% csrf_token %}
-                                        <c-button type="submit" variant="danger">Leave</c-button>
+                                        <c-button type="submit" variant="danger">
+                                            Leave
+                                        </c-button>
                                     </form>
                                 {% else %}
                                     <span class="text-muted">—</span>
@@ -136,7 +170,7 @@
                         <tr>
                             <td colspan="{% if is_gold_team %}11{% else %}9{% endif %}"
                                 class="text-center p-20">
-                                {% if selected_team or selected_attack_type or selected_submitter or status_filter != 'pending' %}
+                                {% if selected_team or selected_attack_type or selected_submitter or status_filter != "pending" %}
                                     No findings match your filters. Try <a href="{% url 'scoring:red_team_portal' %}">clearing all filters</a>
                                 {% else %}
                                     No pending findings. All red team findings have been approved.
@@ -148,5 +182,6 @@
             </table>
         </div>
     </form>
-    <c-pagination :page_obj="page_obj" query_params="&status={{ status_filter }}&team={{ selected_team }}&attack_type={{ selected_attack_type }}&submitter={{ selected_submitter }}&sort={{ sort_by }}&search={{ search_query }}" />
+    <c-pagination :page_obj="page_obj"
+                  query_params="&status={{ status_filter }}&team={{ selected_team }}&attack_type={{ selected_attack_type }}&submitter={{ selected_submitter }}&sort={{ sort_by }}&search={{ search_query }}" />
 </div>

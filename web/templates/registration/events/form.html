@@ -7,61 +7,83 @@
     <div id="content-main">
         <c-page_header title="{{ title }}" subtitle="{{ season.name }}" />
         <c-module>
-        <c-form>
-        {% csrf_token %}
-        <c-fieldset heading="Event Details" aligned="true">
-        <c-form_field label="{{ form.name.label }}" required="true" id="{{ form.name.id_for_label }}" error="
+            <c-form>
+                {% csrf_token %}
+                <c-fieldset heading="Event Details" aligned="true">
+                    <c-form_field label="{{ form.name.label }}"
+                                  required="true"
+                                  id="{{ form.name.id_for_label }}"
+                                  error="
         {% for e in form.name.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.name }}
-        </c-form_field>
-        <c-form_field label="{{ form.event_type.label }}" required="true" id="{{ form.event_type.id_for_label }}" error="
+                        {{ form.name }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.event_type.label }}"
+                                  required="true"
+                                  id="{{ form.event_type.id_for_label }}"
+                                  error="
         {% for e in form.event_type.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.event_type }}
-        </c-form_field>
-        <c-form_field label="{{ form.event_number.label }}" id="{{ form.event_number.id_for_label }}" error="
+                        {{ form.event_type }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.event_number.label }}"
+                                  id="{{ form.event_number.id_for_label }}"
+                                  error="
         {% for e in form.event_number.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.event_number }}
-        </c-form_field>
-        <c-form_field label="{{ form.date.label }}" required="true" id="{{ form.date.id_for_label }}" error="
+                        {{ form.event_number }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.date.label }}"
+                                  required="true"
+                                  id="{{ form.date.id_for_label }}"
+                                  error="
         {% for e in form.date.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.date }}
-        </c-form_field>
-        <c-form_field label="{{ form.start_time.label }}" id="{{ form.start_time.id_for_label }}" error="
+                        {{ form.date }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.start_time.label }}"
+                                  id="{{ form.start_time.id_for_label }}"
+                                  error="
         {% for e in form.start_time.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.start_time }}
-        </c-form_field>
-        <c-form_field label="{{ form.end_time.label }}" id="{{ form.end_time.id_for_label }}" error="
+                        {{ form.start_time }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.end_time.label }}"
+                                  id="{{ form.end_time.id_for_label }}"
+                                  error="
         {% for e in form.end_time.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.end_time }}
-        </c-form_field>
-        <c-form_field label="{{ form.max_teams.label }}" id="{{ form.max_teams.id_for_label }}" error="
+                        {{ form.end_time }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.max_teams.label }}"
+                                  id="{{ form.max_teams.id_for_label }}"
+                                  error="
         {% for e in form.max_teams.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.max_teams }}
-        </c-form_field>
-        </c-fieldset>
-        <c-fieldset heading="Registration Settings" aligned="true">
-        <c-form_field label="{{ form.registration_open.label }}" id="{{ form.registration_open.id_for_label }}">
-        {{ form.registration_open }}
-        </c-form_field>
-        <c-form_field label="{{ form.registration_deadline.label }}" id="{{ form.registration_deadline.id_for_label }}" error="
+                        {{ form.max_teams }}
+                    </c-form_field>
+                </c-fieldset>
+                <c-fieldset heading="Registration Settings" aligned="true">
+                    <c-form_field label="{{ form.registration_open.label }}"
+                                  id="{{ form.registration_open.id_for_label }}">
+                        {{ form.registration_open }}
+                    </c-form_field>
+                    <c-form_field label="{{ form.registration_deadline.label }}"
+                                  id="{{ form.registration_deadline.id_for_label }}"
+                                  error="
         {% for e in form.registration_deadline.errors %}{{ e }}{% endfor %}
         ">
-        {{ form.registration_deadline }}
-        </c-form_field>
-        </c-fieldset>
-        <c-button_row class="mt-20 justify-end">
-        <a href="{% url 'registration_event_list' season_id=season.id %}"
-           class="btn btn-secondary">Cancel</a>
-        <c-button type="submit" variant="primary" ::disabled="submitting">Save</c-button>
-        </c-button_row>
-        </c-form>
+                        {{ form.registration_deadline }}
+                    </c-form_field>
+                </c-fieldset>
+                <c-button_row class="mt-20 justify-end">
+                    <a href="{% url 'registration_event_list' season_id=season.id %}"
+                       class="btn btn-secondary">Cancel</a>
+                    <c-button type="submit" variant="primary" ::disabled="submitting">
+                        Save
+                    </c-button>
+                </c-button_row>
+            </c-form>
         </c-module>
     </div>
 {% endblock registration_content %}

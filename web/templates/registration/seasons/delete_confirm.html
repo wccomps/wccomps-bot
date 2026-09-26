@@ -7,17 +7,19 @@
     <div id="content-main">
         <c-page_header title="Delete Season" />
         <c-module>
-        <c-alert variant="warning">
-        Are you sure you want to delete the season "{{ season.name }}"?
-        This will also delete all {{ season.events.count }} event(s) associated with this season.
-        </c-alert>
-        <form method="post">
-            {% csrf_token %}
-            <c-button_row class="mt-20 justify-end">
-            <a href="{% url 'registration_season_list' %}" class="btn btn-secondary">Cancel</a>
-            <c-button type="submit" variant="danger">Delete Season</c-button>
-            </c-button_row>
-        </form>
+            <c-alert variant="warning">
+                Are you sure you want to delete the season "{{ season.name }}"?
+                This will also delete all {{ season.events.count }} event(s) associated with this season.
+            </c-alert>
+            <form method="post">
+                {% csrf_token %}
+                <c-button_row class="mt-20 justify-end">
+                    <a href="{% url 'registration_season_list' %}" class="btn btn-secondary">Cancel</a>
+                    <c-button type="submit" variant="danger">
+                        Delete Season
+                    </c-button>
+                </c-button_row>
+            </form>
         </c-module>
     </div>
 {% endblock registration_content %}

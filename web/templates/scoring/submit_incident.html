@@ -4,96 +4,131 @@
 {% endblock title %}
 {% block content %}
     {% load cotton %}
-    <c-page_header title="Submit Incident Report" subtitle="Report detected attacks on your systems" parent_url="{% url 'scoring:incident_list' %}" parent_label="Incidents" />
+    <c-page_header title="Submit Incident Report"
+                   subtitle="Report detected attacks on your systems"
+                   parent_url="{% url 'scoring:incident_list' %}"
+                   parent_label="Incidents" />
     <c-module>
-    {% if team or is_admin %}
-        <c-form enctype="multipart/form-data" id="incidentForm">
-        {% csrf_token %}
-        <!-- Target Information Section -->
-        <c-fieldset heading="Target Information">
-        {% if is_admin %}
-            <c-form_field label="{{ form.team.label }}" required="true" :id="form.team.id_for_label" help_text="{{ form.team.help_text }}" error="{{ form.team.errors|join:', ' }}">
-            {{ form.team }}
-            </c-form_field>
+        {% if team or is_admin %}
+            <c-form enctype="multipart/form-data" id="incidentForm">
+                {% csrf_token %}
+                <!-- Target Information Section -->
+                <c-fieldset heading="Target Information">
+                    {% if is_admin %}
+                        <c-form_field label="{{ form.team.label }}"
+                                      required="true"
+                                      :id="form.team.id_for_label"
+                                      help_text="{{ form.team.help_text }}"
+                                      error="{{ form.team.errors|join:', ' }}">
+                            {{ form.team }}
+                        </c-form_field>
+                    {% endif %}
+                    <c-form_field label="{{ form.affected_boxes.label }}"
+                                  error="{{ form.affected_boxes.errors|join:', ' }}">
+                        {{ form.affected_boxes }}
+                        {% if form.box_choices %}
+                            <div class="d-flex flex-wrap gap-10">
+                                {% for value, label in form.box_choices %}
+                                    <button type="button"
+                                            class="button box-toggle"
+                                            data-box="{{ value }}">{{ label }}</button>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </c-form_field>
+                    <div class="grid-2">
+                        <c-form_field label="{{ form.affected_service.label }}"
+                                      :id="form.affected_service.id_for_label"
+                                      help_text="{{ form.affected_service.help_text }}"
+                                      error="{{ form.affected_service.errors|join:', ' }}">
+                            {{ form.affected_service }}
+                        </c-form_field>
+                        <c-form_field label="{{ form.destination_ip.label }}"
+                                      required="true"
+                                      :id="form.destination_ip.id_for_label"
+                                      help_text="Auto-populated based on selected boxes"
+                                      error="{{ form.destination_ip.errors|join:', ' }}">
+                            {{ form.destination_ip }}
+                        </c-form_field>
+                    </div>
+                </c-fieldset>
+                <!-- Attack Details Section -->
+                <c-fieldset heading="Attack Details">
+                    <div class="grid-2">
+                        <c-form_field label="{{ form.source_ip.label }}"
+                                      required="true"
+                                      :id="form.source_ip.id_for_label"
+                                      help_text="{{ form.source_ip.help_text }}"
+                                      error="{{ form.source_ip.errors|join:', ' }}">
+                            {{ form.source_ip }}
+                        </c-form_field>
+                        <c-form_field label="{{ form.attack_detected_at.label }}"
+                                      required="true"
+                                      :id="form.attack_detected_at.id_for_label"
+                                      help_text="{{ form.attack_detected_at.help_text }}"
+                                      error="{{ form.attack_detected_at.errors|join:', ' }}">
+                            {{ form.attack_detected_at }}
+                        </c-form_field>
+                    </div>
+                    <c-form_field label="{{ form.attack_description.label }}"
+                                  required="true"
+                                  :id="form.attack_description.id_for_label"
+                                  help_text="{{ form.attack_description.help_text }}"
+                                  error="{{ form.attack_description.errors|join:', ' }}">
+                        {{ form.attack_description }}
+                    </c-form_field>
+                    <div class="mb-5">
+                        {{ form.attack_mitigated }}
+                        <label for="{{ form.attack_mitigated.id_for_label }}">{{ form.attack_mitigated.label }}</label>
+                        {% if form.attack_mitigated.help_text %}<div class="help-text">{{ form.attack_mitigated.help_text }}</div>{% endif %}
+                    </div>
+                </c-fieldset>
+                <!-- Screenshot Evidence Section -->
+                <c-fieldset heading="Evidence">
+                    <c-form_field label="Upload Files"
+                                  id="screenshots"
+                                  help_text="Upload screenshots, logs, or other evidence. Maximum 20 files.">
+                        <input type="file"
+                               class="vTextField"
+                               id="screenshots"
+                               name="screenshots"
+                               multiple
+                               onchange="previewScreenshots(this)">
+                    </c-form_field>
+                    <div id="screenshotPreview" class="grid-4 mb-15" aria-live="polite"></div>
+                </c-fieldset>
+                <c-fieldset heading="Incident Report Guidelines"
+                            collapsible="true"
+                            collapsed="true">
+                    <div class="text-muted">
+                        <p>
+                            Teams are strongly encouraged to provide incident reports for each Red Team incident they detect. Incident reports can be completed as needed throughout the competition and presented to the White Team for collection.
+                        </p>
+                        <p>
+                            <strong>Your incident report must contain:</strong>
+                        </p>
+                        <ul>
+                            <li>
+                                A description of what occurred (including source and destination IP addresses, timelines of activity, passwords cracked, access obtained, damage done, etc.)
+                            </li>
+                            <li>A discussion of what was affected</li>
+                            <li>A remediation plan</li>
+                        </ul>
+                        <p class="mb-0">
+                            <strong>Important:</strong> A thorough incident report that correctly identifies and addresses a successful Red Team attack may reduce the Red Team penalty for that event. No partial points will be given for incomplete or vague incident reports.
+                        </p>
+                    </div>
+                </c-fieldset>
+                <c-button_row class="justify-end">
+                    <c-link href="{% url 'scoring:incident_list' %}" variant="cancel">Cancel</c-link>
+                    <c-button type="submit" variant="primary" ::disabled="submitting">
+                        Submit Report
+                    </c-button>
+                </c-button_row>
+            </c-form>
+        {% else %}
+            <p class="text-muted">You must be associated with a team to submit incident reports.</p>
         {% endif %}
-        <c-form_field label="{{ form.affected_boxes.label }}" error="{{ form.affected_boxes.errors|join:', ' }}">
-        {{ form.affected_boxes }}
-        {% if form.box_choices %}
-            <div class="d-flex flex-wrap gap-10">
-                {% for value, label in form.box_choices %}
-                    <button type="button" class="button box-toggle" data-box="{{ value }}">{{ label }}</button>
-                {% endfor %}
-            </div>
-        {% endif %}
-        </c-form_field>
-        <div class="grid-2">
-            <c-form_field label="{{ form.affected_service.label }}" :id="form.affected_service.id_for_label" help_text="{{ form.affected_service.help_text }}" error="{{ form.affected_service.errors|join:', ' }}">
-            {{ form.affected_service }}
-            </c-form_field>
-            <c-form_field label="{{ form.destination_ip.label }}" required="true" :id="form.destination_ip.id_for_label" help_text="Auto-populated based on selected boxes" error="{{ form.destination_ip.errors|join:', ' }}">
-            {{ form.destination_ip }}
-            </c-form_field>
-        </div>
-        </c-fieldset>
-        <!-- Attack Details Section -->
-        <c-fieldset heading="Attack Details">
-        <div class="grid-2">
-            <c-form_field label="{{ form.source_ip.label }}" required="true" :id="form.source_ip.id_for_label" help_text="{{ form.source_ip.help_text }}" error="{{ form.source_ip.errors|join:', ' }}">
-            {{ form.source_ip }}
-            </c-form_field>
-            <c-form_field label="{{ form.attack_detected_at.label }}" required="true" :id="form.attack_detected_at.id_for_label" help_text="{{ form.attack_detected_at.help_text }}" error="{{ form.attack_detected_at.errors|join:', ' }}">
-            {{ form.attack_detected_at }}
-            </c-form_field>
-        </div>
-        <c-form_field label="{{ form.attack_description.label }}" required="true" :id="form.attack_description.id_for_label" help_text="{{ form.attack_description.help_text }}" error="{{ form.attack_description.errors|join:', ' }}">
-        {{ form.attack_description }}
-        </c-form_field>
-        <div class="mb-5">
-            {{ form.attack_mitigated }}
-            <label for="{{ form.attack_mitigated.id_for_label }}">{{ form.attack_mitigated.label }}</label>
-            {% if form.attack_mitigated.help_text %}<div class="help-text">{{ form.attack_mitigated.help_text }}</div>{% endif %}
-        </div>
-        </c-fieldset>
-        <!-- Screenshot Evidence Section -->
-        <c-fieldset heading="Evidence">
-        <c-form_field label="Upload Files" id="screenshots" help_text="Upload screenshots, logs, or other evidence. Maximum 20 files.">
-        <input type="file"
-               class="vTextField"
-               id="screenshots"
-               name="screenshots"
-               multiple
-               onchange="previewScreenshots(this)">
-        </c-form_field>
-        <div id="screenshotPreview" class="grid-4 mb-15" aria-live="polite"></div>
-        </c-fieldset>
-        <c-fieldset heading="Incident Report Guidelines" collapsible="true" collapsed="true">
-        <div class="text-muted">
-            <p>
-                Teams are strongly encouraged to provide incident reports for each Red Team incident they detect. Incident reports can be completed as needed throughout the competition and presented to the White Team for collection.
-            </p>
-            <p>
-                <strong>Your incident report must contain:</strong>
-            </p>
-            <ul>
-                <li>
-                    A description of what occurred (including source and destination IP addresses, timelines of activity, passwords cracked, access obtained, damage done, etc.)
-                </li>
-                <li>A discussion of what was affected</li>
-                <li>A remediation plan</li>
-            </ul>
-            <p class="mb-0">
-                <strong>Important:</strong> A thorough incident report that correctly identifies and addresses a successful Red Team attack may reduce the Red Team penalty for that event. No partial points will be given for incomplete or vague incident reports.
-            </p>
-        </div>
-        </c-fieldset>
-        <c-button_row class="justify-end">
-        <c-link href="{% url 'scoring:incident_list' %}" variant="cancel">Cancel</c-link>
-        <c-button type="submit" variant="primary" ::disabled="submitting">Submit Report</c-button>
-        </c-button_row>
-        </c-form>
-    {% else %}
-        <p class="text-muted">You must be associated with a team to submit incident reports.</p>
-    {% endif %}
     </c-module>
     {{ box_metadata|json_script:"box-metadata" }}
     <script>

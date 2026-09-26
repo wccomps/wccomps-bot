@@ -19,13 +19,33 @@
                                    @click="toggleAll"
                                    title="Select all">
                         </th>
-                        <c-table_header sortable="false">ID</c-table_header>
-                        <c-table_header sortable="false">Check</c-table_header>
-                        <c-table_header sort_field="team__team_number" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ selected_team }}&check={{ selected_check }}&search={{ search_query }}">Team</c-table_header>
-                        <c-table_header sortable="false">Description</c-table_header>
-                        <c-table_header sort_field="points_awarded" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ selected_team }}&check={{ selected_check }}&search={{ search_query }}">Points</c-table_header>
-                        <c-table_header sort_field="created_at" current_sort=sort_by query_params="&status={{ status_filter }}&team={{ selected_team }}&check={{ selected_check }}&search={{ search_query }}">Submitted</c-table_header>
-                        <c-table_header sortable="false">Status</c-table_header>
+                        <c-table_header sortable="false">
+                            ID
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Check
+                        </c-table_header>
+                        <c-table_header sort_field="team__team_number"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ selected_team }}&check={{ selected_check }}&search={{ search_query }}">
+                            Team
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Description
+                        </c-table_header>
+                        <c-table_header sort_field="points_awarded"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ selected_team }}&check={{ selected_check }}&search={{ search_query }}">
+                            Points
+                        </c-table_header>
+                        <c-table_header sort_field="created_at"
+                                        current_sort="sort_by"
+                                        query_params="&status={{ status_filter }}&team={{ selected_team }}&check={{ selected_check }}&search={{ search_query }}">
+                            Submitted
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Status
+                        </c-table_header>
                     </tr>
                 </thead>
                 <tbody>
@@ -61,17 +81,21 @@
                             </td>
                             <td class="field-status">
                                 {% if check.is_approved %}
-                                    <c-badge variant="resolved"><span aria-hidden="true">✓</span> Approved</c-badge>
+                                    <c-badge variant="resolved">
+                                        <span aria-hidden="true">✓</span> Approved
+                                    </c-badge>
                                     {% if check.approved_by %}<div class="text-sm text-muted">by {{ check.approved_by.username }}</div>{% endif %}
                                 {% else %}
-                                    <c-badge variant="claimed"><span aria-hidden="true">⏳</span> Pending</c-badge>
+                                    <c-badge variant="claimed">
+                                        <span aria-hidden="true">⏳</span> Pending
+                                    </c-badge>
                                 {% endif %}
                             </td>
                         </tr>
                     {% empty %}
                         <tr>
                             <td colspan="8" class="text-center p-20">
-                                {% if selected_team or selected_check or search_query or status_filter != 'pending' %}
+                                {% if selected_team or selected_check or search_query or status_filter != "pending" %}
                                     No checks match your filters. Try <a href="{% url 'scoring:review_orange' %}">clearing all filters</a>
                                 {% else %}
                                     No pending checks. All orange team checks have been approved.
@@ -83,5 +107,6 @@
             </table>
         </div>
     </form>
-    <c-pagination :page_obj="page_obj" query_params="&status={{ status_filter }}&team={{ selected_team }}&check={{ selected_check }}&search={{ search_query }}&sort={{ sort_by }}" />
+    <c-pagination :page_obj="page_obj"
+                  query_params="&status={{ status_filter }}&team={{ selected_team }}&check={{ selected_check }}&search={{ search_query }}&sort={{ sort_by }}" />
 </div>

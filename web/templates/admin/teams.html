@@ -7,68 +7,90 @@
     <div x-data="teamsAdmin">
         <c-page_header title="Team Management" />
         <c-module>
-        <c-slot name="title">Bulk Actions</c-slot>
-        <form @submit.prevent="bulkAction"
-              class="d-flex gap-10 items-end flex-wrap">
-            <c-filter_field label="Team Numbers" id="bulk_team_numbers">
-            <input type="text"
-                   name="team_numbers"
-                   :value="bulkTeamNumbers"
-                   @input="setField"
-                   data-field="bulkTeamNumbers"
-                   class="vTextField"
-                   placeholder="1,3,5-10,15">
-            </c-filter_field>
-            <c-filter_field label="Action" id="bulk_action">
-            <select name="action"
-                    :value="bulkActionType"
-                    @change="setField"
-                    data-field="bulkActionType"
-                    class="vTextField">
-                <option value="activate">Activate</option>
-                <option value="deactivate">Deactivate</option>
-                <option value="recreate">Recreate Channels</option>
-            </select>
-            </c-filter_field>
-            <c-button type="submit" variant="default" ::disabled="loading">Execute</c-button>
-        </form>
+            <c-slot name="title">
+                Bulk Actions
+            </c-slot>
+            <form @submit.prevent="bulkAction"
+                  class="d-flex gap-10 items-end flex-wrap">
+                <c-filter_field label="Team Numbers" id="bulk_team_numbers">
+                    <input type="text"
+                           name="team_numbers"
+                           :value="bulkTeamNumbers"
+                           @input="setField"
+                           data-field="bulkTeamNumbers"
+                           class="vTextField"
+                           placeholder="1,3,5-10,15">
+                </c-filter_field>
+                <c-filter_field label="Action" id="bulk_action">
+                    <select name="action"
+                            :value="bulkActionType"
+                            @change="setField"
+                            data-field="bulkActionType"
+                            class="vTextField">
+                        <option value="activate">Activate</option>
+                        <option value="deactivate">Deactivate</option>
+                        <option value="recreate">Recreate Channels</option>
+                    </select>
+                </c-filter_field>
+                <c-button type="submit" variant="default" ::disabled="loading">
+                    Execute
+                </c-button>
+            </form>
         </c-module>
         <c-module class="mt-5">
-        <c-table id="teams_list" class="w-full" aria_label="Team management list">
-        <c-slot name="headers">
-        <tr>
-            <c-table_header sortable="false">Team #</c-table_header>
-            <c-table_header sortable="false">Name</c-table_header>
-            <c-table_header sortable="false">Members</c-table_header>
-            <c-table_header sortable="false">Status</c-table_header>
-            <c-table_header sortable="false">Discord</c-table_header>
-        </tr>
-        </c-slot>
-        {% for item in teams %}
-            <tr class="{% cycle 'row1' 'row2' %}">
-                <th class="field-team_number">
-                    <a href="{% url 'admin_team_detail' item.team.team_number %}">{{ item.team.team_number }}</a>
-                </th>
-                <td class="field-name">Team {{ item.team.team_number }}</td>
-                <td class="field-members">{{ item.member_count }}/{{ item.team.max_members }}</td>
-                <td class="field-status">
-                    {% if item.team.is_active %}
-                        <c-badge variant="success">Active</c-badge>
-                    {% else %}
-                        <c-badge variant="danger">Inactive</c-badge>
-                    {% endif %}
-                </td>
-                <td class="field-discord">
-                    {% if item.team.discord_role_id %}
-                        <c-badge variant="success">Configured</c-badge>
-                    {% else %}
-                        <c-badge variant="neutral">Not set</c-badge>
-                    {% endif %}
-                </td>
-            </tr>
-        {% endfor %}
-        </c-table>
-        <p class="paginator">{{ teams|length }} team(s)</p>
+            <c-table id="teams_list" class="w-full" aria_label="Team management list">
+                <c-slot name="headers">
+                    <tr>
+                        <c-table_header sortable="false">
+                            Team #
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Name
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Members
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Status
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Discord
+                        </c-table_header>
+                    </tr>
+                </c-slot>
+                {% for item in teams %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        <th class="field-team_number">
+                            <a href="{% url 'admin_team_detail' item.team.team_number %}">{{ item.team.team_number }}</a>
+                        </th>
+                        <td class="field-name">Team {{ item.team.team_number }}</td>
+                        <td class="field-members">{{ item.member_count }}/{{ item.team.max_members }}</td>
+                        <td class="field-status">
+                            {% if item.team.is_active %}
+                                <c-badge variant="success">
+                                    Active
+                                </c-badge>
+                            {% else %}
+                                <c-badge variant="danger">
+                                    Inactive
+                                </c-badge>
+                            {% endif %}
+                        </td>
+                        <td class="field-discord">
+                            {% if item.team.discord_role_id %}
+                                <c-badge variant="success">
+                                    Configured
+                                </c-badge>
+                            {% else %}
+                                <c-badge variant="neutral">
+                                    Not set
+                                </c-badge>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </c-table>
+            <p class="paginator">{{ teams|length }} team(s)</p>
         </c-module>
         <c-toast />
     </div>

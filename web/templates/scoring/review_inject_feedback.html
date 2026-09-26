@@ -36,36 +36,43 @@
         }));
     });
     </script>
-    <c-page_header title="Review Inject Feedback" subtitle="Review and approve AI-synthesized feedback before showing to teams" />
+    <c-page_header title="Review Inject Feedback"
+                   subtitle="Review and approve AI-synthesized feedback before showing to teams" />
     {% if messages %}
         {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
     {% endif %}
     <c-module filtered="true">
-    <c-filter_toolbar form_id="feedback-filter" hx_get="{% url 'scoring:review_inject_feedback' %}" hx_target="#inject-feedback-content" hx_swap="outerHTML" hx_push_url="true">
-    {% if has_unapproved %}
-        <c-slot name="actions">
-        <c-button type="submit" form="bulk-approve-form" variant="primary">Approve Selected</c-button>
-        </c-slot>
-    {% endif %}
-    <c-filter_field label="Inject" id="id_inject">
-    <select name="inject" id="id_inject" aria-label="Filter by inject">
-        <option value="">All Injects</option>
-        {% for inject_id, inject_name in inject_choices %}
-            <option value="{{ inject_id }}"
-                    {% if inject_filter == inject_id %}selected{% endif %}>{{ inject_name }}</option>
-        {% endfor %}
-    </select>
-    </c-filter_field>
-    <c-filter_field label="Status" id="id_status">
-    <select name="status" id="id_status" aria-label="Filter by status">
-        <option value="pending"
-                {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
-        <option value="approved"
-                {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
-        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
-    </select>
-    </c-filter_field>
-    </c-filter_toolbar>
-    {% include "scoring/partials/inject_feedback_table.html" %}
+        <c-filter_toolbar form_id="feedback-filter"
+                          hx_get="{% url 'scoring:review_inject_feedback' %}"
+                          hx_target="#inject-feedback-content"
+                          hx_swap="outerHTML"
+                          hx_push_url="true">
+            {% if has_unapproved %}
+                <c-slot name="actions">
+                    <c-button type="submit" form="bulk-approve-form" variant="primary">
+                        Approve Selected
+                    </c-button>
+                </c-slot>
+            {% endif %}
+            <c-filter_field label="Inject" id="id_inject">
+                <select name="inject" id="id_inject" aria-label="Filter by inject">
+                    <option value="">All Injects</option>
+                    {% for inject_id, inject_name in inject_choices %}
+                        <option value="{{ inject_id }}"
+                                {% if inject_filter == inject_id %}selected{% endif %}>{{ inject_name }}</option>
+                    {% endfor %}
+                </select>
+            </c-filter_field>
+            <c-filter_field label="Status" id="id_status">
+                <select name="status" id="id_status" aria-label="Filter by status">
+                    <option value="pending"
+                            {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="approved"
+                            {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+                </select>
+            </c-filter_field>
+        </c-filter_toolbar>
+        {% include "scoring/partials/inject_feedback_table.html" %}
     </c-module>
 {% endblock white_team_content %}

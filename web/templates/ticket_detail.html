@@ -45,198 +45,222 @@
 {% endblock extrastyle %}
 {% block content %}
     <div id="content-main">
-        <c-page_header title="{{ ticket.ticket_number }} — {{ ticket.title }}" subtitle="Team {{ ticket.team.team_number }}" parent_url="{% url 'ticket_list' %}" parent_label="Tickets" />
+        <c-page_header title="{{ ticket.ticket_number }} — {{ ticket.title }}"
+                       subtitle="Team {{ ticket.team.team_number }}"
+                       parent_url="{% url 'ticket_list' %}"
+                       parent_label="Tickets" />
         {% if messages %}
             {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
         {% endif %}
         <c-module>
-        <!-- Status bar with primary actions -->
-        <div class="status-bar">
-            <!-- Row 1: Status info -->
-            <div class="d-flex items-center gap-10 flex-wrap">
-                {# djlint:off #}
+            <!-- Status bar with primary actions -->
+            <div class="status-bar">
+                <!-- Row 1: Status info -->
+                <div class="d-flex items-center gap-10 flex-wrap">
+                    {# djlint:off #}
                 <c-badge variant="{% if ticket.status == 'open' %}info{% elif ticket.status == 'claimed' %}warning{% elif ticket.status == 'resolved' %}success{% else %}neutral{% endif %}">{{ status_display }}</c-badge>
-                {# djlint:on #}
-                {% if is_ops %}
-                    {% if ticket.status == 'claimed' and ticket.assigned_to.username == authentik_username or is_ticketing_admin %}
-                        <form method="post"
-                              action="{% url 'ticket_change_category' ticket.ticket_number %}"
-                              class="d-inline-block m-0"
-                              x-data="categoryChanger"
-                              data-initial-cat="{{ ticket.category_id }}"
-                              @submit="confirmChange">
-                            {% csrf_token %}
-                            <select name="new_category"
-                                    :value="newCat"
-                                    @change="onCatChange"
-                                    aria-label="Change ticket category"
-                                    class="py-5 px-10">
-                                {% for cat_id, cat_info in categories.items %}
-                                    <option value="{{ cat_id }}"
-                                            {% if cat_id == ticket.category_id %}selected{% endif %}>
-                                        {{ cat_info.display_name }} ({{ cat_info.points }}pt)
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </form>
+                    {# djlint:on #}
+                    {% if is_ops %}
+                        {% if ticket.status == "claimed" and ticket.assigned_to.username == authentik_username or is_ticketing_admin %}
+                            <form method="post"
+                                  action="{% url 'ticket_change_category' ticket.ticket_number %}"
+                                  class="d-inline-block m-0"
+                                  x-data="categoryChanger"
+                                  data-initial-cat="{{ ticket.category_id }}"
+                                  @submit="confirmChange">
+                                {% csrf_token %}
+                                <select name="new_category"
+                                        :value="newCat"
+                                        @change="onCatChange"
+                                        aria-label="Change ticket category"
+                                        class="py-5 px-10">
+                                    {% for cat_id, cat_info in categories.items %}
+                                        <option value="{{ cat_id }}"
+                                                {% if cat_id == ticket.category_id %}selected{% endif %}>
+                                            {{ cat_info.display_name }} ({{ cat_info.points }}pt)
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        {% else %}
+                            <span>{{ category_name }}</span>
+                        {% endif %}
                     {% else %}
                         <span>{{ category_name }}</span>
                     {% endif %}
-                {% else %}
-                    <span>{{ category_name }}</span>
+                    {% if is_ops and ticket.points_charged is not None %}<span>{{ ticket.points_charged }}pt charged</span>{% endif %}
+                    {% if ticket.assigned_to %}<span>Assigned: {{ ticket.assigned_to }}</span>{% endif %}
+                </div>
+                <!-- Row 2: Action buttons (ops only) -->
+                {% if is_ops %}
+                    <div class="d-flex gap-10 items-center mt-10">
+                        {% if ticket.status == "open" %}
+                            <c-form action="{% url 'ticket_claim' ticket.ticket_number %}" class="m-0">
+                                {% csrf_token %}
+                                <c-button type="submit" variant="primary" ::disabled="submitting">
+                                    Claim
+                                </c-button>
+                            </c-form>
+                        {% elif ticket.status == "claimed" and ticket.assigned_to.username == authentik_username or is_ticketing_admin %}
+                            <c-form action="{% url 'ticket_unclaim' ticket.ticket_number %}" class="m-0">
+                                {% csrf_token %}
+                                <c-button type="submit" variant="default" ::disabled="submitting">
+                                    Unclaim
+                                </c-button>
+                            </c-form>
+                        {% endif %}
+                        {% if ticket.status == "resolved" and is_ticketing_admin %}
+                            <c-form action="{% url 'ticket_reopen' ticket.ticket_number %}" class="m-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="reopen_reason" value="">
+                                <c-button type="submit" variant="warning" ::disabled="submitting">
+                                    Reopen
+                                </c-button>
+                            </c-form>
+                        {% endif %}
+                    </div>
                 {% endif %}
-                {% if is_ops and ticket.points_charged is not None %}<span>{{ ticket.points_charged }}pt charged</span>{% endif %}
-                {% if ticket.assigned_to %}<span>Assigned: {{ ticket.assigned_to }}</span>{% endif %}
+                <!-- Row 3: Key metadata (service/hostname/IP) -->
+                {% if ticket.service_name or ticket.hostname or ticket.ip_address %}
+                    <div class="d-flex gap-10 flex-wrap mt-10 text-sm">
+                        {% if ticket.service_name %}<span><strong>Service:</strong> {{ ticket.service_name }}</span>{% endif %}
+                        {% if ticket.hostname %}<span><strong>Host:</strong> {{ ticket.hostname }}</span>{% endif %}
+                        {% if ticket.ip_address %}<span><strong>IP:</strong> {{ ticket.ip_address }}</span>{% endif %}
+                    </div>
+                {% endif %}
             </div>
-            <!-- Row 2: Action buttons (ops only) -->
-            {% if is_ops %}
-                <div class="d-flex gap-10 items-center mt-10">
-                    {% if ticket.status == 'open' %}
-                        <c-form action="{% url 'ticket_claim' ticket.ticket_number %}" class="m-0">
-                        {% csrf_token %}
-                        <c-button type="submit" variant="primary" ::disabled="submitting">Claim</c-button>
-                        </c-form>
-                    {% elif ticket.status == 'claimed' and ticket.assigned_to.username == authentik_username or is_ticketing_admin %}
-                        <c-form action="{% url 'ticket_unclaim' ticket.ticket_number %}" class="m-0">
-                        {% csrf_token %}
-                        <c-button type="submit" variant="default" ::disabled="submitting">Unclaim</c-button>
-                        </c-form>
-                    {% endif %}
-                    {% if ticket.status == 'resolved' and is_ticketing_admin %}
-                        <c-form action="{% url 'ticket_reopen' ticket.ticket_number %}" class="m-0">
-                        {% csrf_token %}
-                        <input type="hidden" name="reopen_reason" value="">
-                        <c-button type="submit" variant="warning" ::disabled="submitting">Reopen</c-button>
-                        </c-form>
-                    {% endif %}
-                </div>
-            {% endif %}
-            <!-- Row 3: Key metadata (service/hostname/IP) -->
-            {% if ticket.service_name or ticket.hostname or ticket.ip_address %}
-                <div class="d-flex gap-10 flex-wrap mt-10 text-sm">
-                    {% if ticket.service_name %}<span><strong>Service:</strong> {{ ticket.service_name }}</span>{% endif %}
-                    {% if ticket.hostname %}<span><strong>Host:</strong> {{ ticket.hostname }}</span>{% endif %}
-                    {% if ticket.ip_address %}<span><strong>IP:</strong> {{ ticket.ip_address }}</span>{% endif %}
-                </div>
-            {% endif %}
-        </div>
-        <!-- Resolve form (shown for ops with claimed tickets) -->
-        {% if is_ops and ticket.status == 'claimed' %}
-            {% if ticket.assigned_to.username == authentik_username or is_ticketing_admin %}
-                <c-fieldset heading="Resolve Ticket">
-                <c-form action="{% url 'ticket_resolve' ticket.ticket_number %}">
-                {% csrf_token %}
-                <div class="mb-15">
-                    <div class="mb-15">
-                        <label for="resolution_notes" class="font-semibold text-sm d-block mb-5">Resolution Notes:</label>
-                        <textarea name="resolution_notes"
-                                  id="resolution_notes"
-                                  rows="3"
-                                  placeholder="Describe what was done to resolve this ticket..."
-                                  required
-                                  class="w-full"></textarea>
-                    </div>
-                    <div>
-                        <label for="points_override" class="font-semibold text-sm d-block mb-5">
-                            {% if variable_points %}
-                                Points:
-                            {% else %}
-                                Points Override:
-                            {% endif %}
-                        </label>
-                        <input type="number"
-                               name="points_override"
-                               id="points_override"
-                               placeholder="{% if variable_points %}Enter points{% else %}{{ ticket.points_charged }}pt default{% endif %}"
-                               {% if variable_points %}required{% endif %}
-                               min="0"
-                               class="w-full">
-                    </div>
-                </div>
-                <c-button type="submit" variant="primary" ::disabled="submitting">Resolve Ticket</c-button>
-                </c-form>
-                {% if is_ticketing_support or is_ticketing_admin %}
-                    <div class="border-top mt-15 pt-15">
-                        <c-form action="{% url 'ticket_reassign' ticket.ticket_number %}" class="d-flex gap-10 items-center m-0">
-                        {% csrf_token %}
-                        <input type="text"
-                               name="new_assignee_username"
-                               placeholder="Reassign to..."
-                               aria-label="Reassign to username"
-                               required
-                               class="py-5 px-10 w-150">
-                        <c-button type="submit" variant="default" ::disabled="submitting">Reassign</c-button>
-                        </c-form>
-                    </div>
-                {% endif %}
-                </c-fieldset>
-            {% else %}
-                <p class="text-muted p-10">
-                    Assigned to <strong>{{ ticket.assigned_to.username }}</strong>. Only they or an admin can resolve it.
-                </p>
-            {% endif %}
-        {% endif %}
-        <!-- Ticket Details -->
-        <c-fieldset heading="Ticket Information">
-        <c-detail_grid>
-        {% if ticket.description %}<c-detail_row label="Description">{{ ticket.description }}</c-detail_row>{% endif %}
-        <c-detail_row label="Created">{{ ticket.created_at|timesince }} ago</c-detail_row>
-        {% if ticket.resolved_at %}
-            <c-detail_row label="Resolved">{{ ticket.resolved_at|timesince }} ago</c-detail_row>
-        {% endif %}
-        {% if ticket.resolution_notes %}
-            <c-detail_row label="Resolution Notes">{{ ticket.resolution_notes }}</c-detail_row>
-        {% endif %}
-        </c-detail_grid>
-        </c-fieldset>
-        <!-- Comments -->
-        {# djlint:off #}
-        <c-fieldset heading="Comments" collapsible="true" collapsed="{% if not comments %}true{% else %}false{% endif %}">
-        {# djlint:on #}
-        <div id="comments-list"
-             aria-live="polite"
-             hx-get="{% url 'ticket_detail_dynamic' ticket.ticket_number %}"
-             hx-trigger="every 30s"
-             hx-select="#comments-list"
-             hx-swap="outerHTML">
-            {% if comments %}
-                <div class="comment-list">
-                    {% for comment in comments %}
-                        <div class="comment-item">
-                            <div class="comment-header">
-                                <span class="comment-author">
-                                    {% if comment.author %}
-                                        {{ comment.author }}
-                                    {% else %}
-                                        Unknown
-                                    {% endif %}
-                                </span>
-                                <span class="comment-time">{{ comment.posted_at|timesince }} ago</span>
+            <!-- Resolve form (shown for ops with claimed tickets) -->
+            {% if is_ops and ticket.status == "claimed" %}
+                {% if ticket.assigned_to.username == authentik_username or is_ticketing_admin %}
+                    <c-fieldset heading="Resolve Ticket">
+                        <c-form action="{% url 'ticket_resolve' ticket.ticket_number %}">
+                            {% csrf_token %}
+                            <div class="mb-15">
+                                <div class="mb-15">
+                                    <label for="resolution_notes"
+                                           class="font-semibold text-sm d-block mb-5">Resolution Notes:</label>
+                                    <textarea name="resolution_notes"
+                                              id="resolution_notes"
+                                              rows="3"
+                                              placeholder="Describe what was done to resolve this ticket..."
+                                              required
+                                              class="w-full"></textarea>
+                                </div>
+                                <div>
+                                    <label for="points_override" class="font-semibold text-sm d-block mb-5">
+                                        {% if variable_points %}
+                                            Points:
+                                        {% else %}
+                                            Points Override:
+                                        {% endif %}
+                                    </label>
+                                    <input type="number"
+                                           name="points_override"
+                                           id="points_override"
+                                           placeholder="{% if variable_points %}Enter points{% else %}{{ ticket.points_charged }}pt default{% endif %}"
+                                           {% if variable_points %}required{% endif %}
+                                           min="0"
+                                           class="w-full">
+                                </div>
                             </div>
-                            <div class="comment-body">{{ comment.comment_text }}</div>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <c-empty_state title="No comments yet" description="Comments will appear here" />
+                            <c-button type="submit" variant="primary" ::disabled="submitting">
+                                Resolve Ticket
+                            </c-button>
+                        </c-form>
+                        {% if is_ticketing_support or is_ticketing_admin %}
+                            <div class="border-top mt-15 pt-15">
+                                <c-form action="{% url 'ticket_reassign' ticket.ticket_number %}"
+                                        class="d-flex gap-10 items-center m-0">
+                                    {% csrf_token %}
+                                    <input type="text"
+                                           name="new_assignee_username"
+                                           placeholder="Reassign to..."
+                                           aria-label="Reassign to username"
+                                           required
+                                           class="py-5 px-10 w-150">
+                                    <c-button type="submit" variant="default" ::disabled="submitting">
+                                        Reassign
+                                    </c-button>
+                                </c-form>
+                            </div>
+                        {% endif %}
+                    </c-fieldset>
+                {% else %}
+                    <p class="text-muted p-10">
+                        Assigned to <strong>{{ ticket.assigned_to.username }}</strong>. Only they or an admin can resolve it.
+                    </p>
+                {% endif %}
             {% endif %}
-        </div>
-        {% if ticket.status != 'resolved' and ticket.status != 'cancelled' %}
-            <c-form action="{% url 'ticket_comment' ticket.ticket_number %}" class="mt-20">
-            {% csrf_token %}
-            <c-form_field label="Add Comment" id="comment">
-            <textarea name="comment"
-                      id="comment"
-                      rows="3"
-                      placeholder="Add a comment..."
-                      required
-                      class="vTextField"></textarea>
-            </c-form_field>
-            <c-button_row>
-            <c-button type="submit" variant="primary" ::disabled="submitting">Post Comment</c-button>
-            </c-button_row>
-            </c-form>
-        {% endif %}
+            <!-- Ticket Details -->
+            <c-fieldset heading="Ticket Information">
+                <c-detail_grid>
+                    {% if ticket.description %}<c-detail_row label="Description">{{ ticket.description }}</c-detail_row>{% endif %}
+                    <c-detail_row label="Created">
+                        {{ ticket.created_at|timesince }} ago
+                    </c-detail_row>
+                    {% if ticket.resolved_at %}
+                        <c-detail_row label="Resolved">
+                            {{ ticket.resolved_at|timesince }} ago
+                        </c-detail_row>
+                    {% endif %}
+                    {% if ticket.resolution_notes %}
+                        <c-detail_row label="Resolution Notes">
+                            {{ ticket.resolution_notes }}
+                        </c-detail_row>
+                    {% endif %}
+                </c-detail_grid>
+            </c-fieldset>
+            <!-- Comments -->
+            {# djlint:off #}
+        <c-fieldset heading="Comments" collapsible="true" collapsed="{% if not comments %}true{% else %}false{% endif %}">
+            {# djlint:on #}
+            <div id="comments-list"
+                 aria-live="polite"
+                 hx-get="{% url 'ticket_detail_dynamic' ticket.ticket_number %}"
+                 hx-trigger="every 30s"
+                 hx-select="#comments-list"
+                 hx-swap="outerHTML">
+                {% if comments %}
+                    <div class="comment-list">
+                        {% for comment in comments %}
+                            <div class="comment-item">
+                                <div class="comment-header">
+                                    <span class="comment-author">
+                                        {% if comment.author %}
+                                            {{ comment.author }}
+                                        {% else %}
+                                            Unknown
+                                        {% endif %}
+                                    </span>
+                                    <span class="comment-time">{{ comment.posted_at|timesince }} ago</span>
+                                </div>
+                                <div class="comment-body">{{ comment.comment_text }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <c-empty_state title="No comments yet" description="Comments will appear here" />
+                {% endif %}
+            </div>
+            {% if ticket.status != "resolved" and ticket.status != "cancelled" %}
+                <c-form action="{% url 'ticket_comment' ticket.ticket_number %}"
+                        class="mt-20">
+                    {% csrf_token %}
+                    <c-form_field label="Add Comment" id="comment">
+                        <textarea name="comment"
+                                  id="comment"
+                                  rows="3"
+                                  placeholder="Add a comment..."
+                                  required
+                                  class="vTextField"></textarea>
+                    </c-form_field>
+                    <c-button_row>
+                        <c-button type="submit" variant="primary" ::disabled="submitting">
+                            Post Comment
+                        </c-button>
+                    </c-button_row>
+                </c-form>
+            {% endif %}
         </c-fieldset>
         <!-- Attachments -->
         {# djlint:off #}
@@ -268,39 +292,51 @@
                             </div>
                         {% endif %}
                         <div class="attachment-info">
-                            <span class="attachment-name" title="{{ attachment.filename }}">{{ attachment.filename|truncatechars:25 }}</span>
+                            <span class="attachment-name"
+                                  title="{{ attachment.filename }}">{{ attachment.filename|truncatechars:25 }}</span>
                             <span class="attachment-meta">{{ attachment.uploaded_by }} · {{ attachment.uploaded_at|timesince }} ago</span>
-                            <c-link href="{% url 'ticket_attachment_download' ticket.ticket_number attachment.id %}" variant="default">Download</c-link>
+                            <c-link href="{% url 'ticket_attachment_download' ticket.ticket_number attachment.id %}"
+                                    variant="default">Download</c-link>
                         </div>
                     </div>
                 {% endfor %}
             </div>
         {% else %}
-            <c-empty_state title="No attachments yet" description="Upload files to attach to this ticket" />
+            <c-empty_state title="No attachments yet"
+                           description="Upload files to attach to this ticket" />
         {% endif %}
-        {% if ticket.status != 'resolved' and ticket.status != 'cancelled' %}
-            <c-form action="{% url 'ticket_attachment_upload' ticket.ticket_number %}" enctype="multipart/form-data" class="mt-20 d-flex gap-10 items-center">
-            {% csrf_token %}
-            <input type="file"
-                   name="attachment"
-                   required
-                   aria-label="Choose file to upload">
-            <c-button type="submit" variant="default" ::disabled="submitting">Upload</c-button>
+        {% if ticket.status != "resolved" and ticket.status != "cancelled" %}
+            <c-form action="{% url 'ticket_attachment_upload' ticket.ticket_number %}"
+                    enctype="multipart/form-data"
+                    class="mt-20 d-flex gap-10 items-center">
+                {% csrf_token %}
+                <input type="file"
+                       name="attachment"
+                       required
+                       aria-label="Choose file to upload">
+                <c-button type="submit" variant="default" ::disabled="submitting">
+                    Upload
+                </c-button>
             </c-form>
         {% endif %}
-        </c-fieldset>
-        <!-- Cancel ticket (team members only, open tickets) -->
-        {% if not is_ops and ticket.status == 'open' %}
-            <c-action_box heading="Cancel Ticket" variant="warning">
+    </c-fieldset>
+    <!-- Cancel ticket (team members only, open tickets) -->
+    {% if not is_ops and ticket.status == "open" %}
+        <c-action_box heading="Cancel Ticket" variant="warning">
             <c-form action="{% url 'ticket_cancel' ticket.ticket_number %}">
-            {% csrf_token %}
-            <c-button type="submit" variant="danger" hx-confirm="Are you sure you want to cancel this ticket?" ::disabled="submitting">Cancel Ticket</c-button>
+                {% csrf_token %}
+                <c-button type="submit"
+                          variant="danger"
+                          hx-confirm="Are you sure you want to cancel this ticket?"
+                          ::disabled="submitting">
+                    Cancel Ticket
+                </c-button>
             </c-form>
-            </c-action_box>
-        {% endif %}
-        <!-- History (ops only) -->
-        {% if is_ops %}
-            <c-fieldset heading="History" collapsible="true" collapsed="true">
+        </c-action_box>
+    {% endif %}
+    <!-- History (ops only) -->
+    {% if is_ops %}
+        <c-fieldset heading="History" collapsible="true" collapsed="true">
             <div id="history-list"
                  aria-live="polite"
                  hx-get="{% url 'ticket_detail_dynamic' ticket.ticket_number %}"
@@ -311,28 +347,36 @@
                     <!-- Desktop table -->
                     <div class="history-table">
                         <c-table aria_label="Ticket history">
-                        <c-slot name="headers">
-                        <tr>
-                            <c-table_header sortable="false">Timestamp</c-table_header>
-                            <c-table_header sortable="false">Action</c-table_header>
-                            <c-table_header sortable="false">Actor</c-table_header>
-                            <c-table_header sortable="false">Details</c-table_header>
-                        </tr>
-                        </c-slot>
-                        {% for event in history %}
-                            <tr class="{% cycle 'row1' 'row2' %}">
-                                <td>{{ event.timestamp|timesince }} ago</td>
-                                <td>{{ event.action }}</td>
-                                <td>
-                                    {% if event.actor %}
-                                        {{ event.actor }}
-                                    {% else %}
-                                        System
-                                    {% endif %}
-                                </td>
-                                <td>{{ event.details|format_history_details }}</td>
-                            </tr>
-                        {% endfor %}
+                            <c-slot name="headers">
+                                <tr>
+                                    <c-table_header sortable="false">
+                                        Timestamp
+                                    </c-table_header>
+                                    <c-table_header sortable="false">
+                                        Action
+                                    </c-table_header>
+                                    <c-table_header sortable="false">
+                                        Actor
+                                    </c-table_header>
+                                    <c-table_header sortable="false">
+                                        Details
+                                    </c-table_header>
+                                </tr>
+                            </c-slot>
+                            {% for event in history %}
+                                <tr class="{% cycle 'row1' 'row2' %}">
+                                    <td>{{ event.timestamp|timesince }} ago</td>
+                                    <td>{{ event.action }}</td>
+                                    <td>
+                                        {% if event.actor %}
+                                            {{ event.actor }}
+                                        {% else %}
+                                            System
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ event.details|format_history_details }}</td>
+                                </tr>
+                            {% endfor %}
                         </c-table>
                     </div>
                     <!-- Mobile cards -->
@@ -359,9 +403,9 @@
                     <p class="text-muted">No history available.</p>
                 {% endif %}
             </div>
-            </c-fieldset>
-        {% endif %}
-        </c-module>
+        </c-fieldset>
+    {% endif %}
+    </c-module>
     </div>
     <script>
     document.addEventListener('alpine:init', () => {

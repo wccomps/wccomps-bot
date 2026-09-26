@@ -10,95 +10,119 @@
             {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
         {% endif %}
         <c-module>
-        {% if is_gold_view %}
-            {% if packets %}
+            {% if is_gold_view %}
+                {% if packets %}
+                    <c-table aria_label="Packets">
+                        <c-slot name="headers">
+                            <tr>
+                                <c-table_header sortable="false">
+                                    Title
+                                </c-table_header>
+                                <c-table_header sortable="false">
+                                    File
+                                </c-table_header>
+                                <c-table_header sortable="false">
+                                    Distributed
+                                </c-table_header>
+                                <c-table_header sortable="false">
+                                    Actions
+                                </c-table_header>
+                            </tr>
+                        </c-slot>
+                        {% for packet in packets %}
+                            <tr>
+                                <td>
+                                    <strong>{{ packet.title }}</strong>
+                                    {% if packet.notes %}
+                                        <br>
+                                        <small>{{ packet.notes }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ packet.filename }}
+                                    <br>
+                                    <small>{{ packet.file_size|filesizeformat }}</small>
+                                </td>
+                                <td>{{ packet.actual_distribution_time|date:"Y-m-d H:i"|default:"-" }}</td>
+                                <td>
+                                    <c-link href="{% url 'download_packet' packet.id %}"
+                                            variant="default">Download</c-link>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </c-table>
+                {% else %}
+                    <c-empty_state title="No packets available"
+                                   description="No packets have been distributed yet" />
+                {% endif %}
+            {% elif distributions %}
                 <c-table aria_label="Packets">
-                <c-slot name="headers">
-                <tr>
-                    <c-table_header sortable="false">Title</c-table_header>
-                    <c-table_header sortable="false">File</c-table_header>
-                    <c-table_header sortable="false">Distributed</c-table_header>
-                    <c-table_header sortable="false">Actions</c-table_header>
-                </tr>
-                </c-slot>
-                {% for packet in packets %}
-                    <tr>
-                        <td>
-                            <strong>{{ packet.title }}</strong>
-                            {% if packet.notes %}
+                    <c-slot name="headers">
+                        <tr>
+                            <c-table_header sortable="false">
+                                Title
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                File
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Distributed
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Downloaded
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Actions
+                            </c-table_header>
+                        </tr>
+                    </c-slot>
+                    {% for dist in distributions %}
+                        <tr>
+                            <td>
+                                <strong>{{ dist.packet.title }}</strong>
+                                {% if dist.packet.notes %}
+                                    <br>
+                                    <small>{{ dist.packet.notes }}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ dist.packet.filename }}
                                 <br>
-                                <small>{{ packet.notes }}</small>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {{ packet.filename }}
-                            <br>
-                            <small>{{ packet.file_size|filesizeformat }}</small>
-                        </td>
-                        <td>{{ packet.actual_distribution_time|date:"Y-m-d H:i"|default:"-" }}</td>
-                        <td>
-                            <c-link href="{% url 'download_packet' packet.id %}" variant="default">Download</c-link>
-                        </td>
-                    </tr>
-                {% endfor %}
+                                <small>{{ dist.packet.file_size|filesizeformat }}</small>
+                            </td>
+                            <td>
+                                {% if dist.packet.actual_distribution_time %}
+                                    {{ dist.packet.actual_distribution_time|date:"Y-m-d H:i" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if dist.downloaded_at %}
+                                    <c-badge variant="success">
+                                        ✓
+                                    </c-badge>
+                                    {{ dist.download_count }} time(s)
+                                    <br>
+                                    <small>Last: {{ dist.last_downloaded_at|date:"Y-m-d H:i" }}</small>
+                                {% else %}
+                                    <span class="text-muted">Not yet</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <c-link href="{% url 'download_packet' dist.packet.id %}"
+                                        variant="default">Download</c-link>
+                            </td>
+                        </tr>
+                    {% endfor %}
                 </c-table>
             {% else %}
-                <c-empty_state title="No packets available" description="No packets have been distributed yet" />
+                <c-empty_state title="No packets available"
+                               description="Packets will appear here when distributed" />
             {% endif %}
-        {% elif distributions %}
-            <c-table aria_label="Packets">
-            <c-slot name="headers">
-            <tr>
-                <c-table_header sortable="false">Title</c-table_header>
-                <c-table_header sortable="false">File</c-table_header>
-                <c-table_header sortable="false">Distributed</c-table_header>
-                <c-table_header sortable="false">Downloaded</c-table_header>
-                <c-table_header sortable="false">Actions</c-table_header>
-            </tr>
-            </c-slot>
-            {% for dist in distributions %}
-                <tr>
-                    <td>
-                        <strong>{{ dist.packet.title }}</strong>
-                        {% if dist.packet.notes %}
-                            <br>
-                            <small>{{ dist.packet.notes }}</small>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {{ dist.packet.filename }}
-                        <br>
-                        <small>{{ dist.packet.file_size|filesizeformat }}</small>
-                    </td>
-                    <td>
-                        {% if dist.packet.actual_distribution_time %}
-                            {{ dist.packet.actual_distribution_time|date:"Y-m-d H:i" }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if dist.downloaded_at %}
-                            <c-badge variant="success">✓</c-badge>
-                            {{ dist.download_count }} time(s)
-                            <br>
-                            <small>Last: {{ dist.last_downloaded_at|date:"Y-m-d H:i" }}</small>
-                        {% else %}
-                            <span class="text-muted">Not yet</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <c-link href="{% url 'download_packet' dist.packet.id %}" variant="default">Download</c-link>
-                    </td>
-                </tr>
-            {% endfor %}
-            </c-table>
-        {% else %}
-            <c-empty_state title="No packets available" description="Packets will appear here when distributed" />
-        {% endif %}
         </c-module>
         <c-button_row class="mt-20">
-        <c-link href="{% url 'home' %}" variant="history">Back to Home</c-link>
+            <c-link href="{% url 'home' %}" variant="history">Back to Home</c-link>
         </c-button_row>
     </div>
 {% endblock content %}

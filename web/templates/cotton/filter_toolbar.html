@@ -2,7 +2,15 @@
 {# Usage: <c-filter_toolbar form_id="filter-form" method="GET">Filter fields here</c-filter_toolbar> #}
 {# Props: form_id, method (GET|POST), action, class, aria_label, hx_get, hx_target, hx_swap, hx_push_url #}
 {# Slots: default (filter fields), actions (buttons on the right) #}
-<c-vars form_id="changelist-filter" method="GET" action class aria_label="Filter results" hx_get hx_target hx_swap hx_push_url />
+<c-vars form_id="changelist-filter"
+        method="GET"
+        action
+        class
+        aria_label="Filter results"
+        hx_get
+        hx_target
+        hx_swap
+        hx_push_url />
 <div {{ attrs }} class="toolbar d-flex justify-between items-start gap-10">
     <form id="{{ form_id }}"
           method="{{ method }}"

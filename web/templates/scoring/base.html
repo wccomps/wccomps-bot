@@ -8,15 +8,16 @@
     {% load cotton %}
     {% if is_gold_team or is_white_team or is_admin %}
         <c-nav>
-        {% if is_gold_team or is_admin %}
-            <c-nav_item name="red_team" href="{% url 'scoring:red_team_portal' %}">Red Team Scores</c-nav_item>
-            <c-nav_item name="orange_team" href="{% url 'scoring:review_orange' %}">Orange Checks</c-nav_item>
-        {% endif %}
-        <c-nav_item name="review_incidents" href="{% url 'scoring:review_incidents' %}">Incidents</c-nav_item>
-        <c-nav_item name="inject_grades_review" href="{% url 'scoring:inject_grades_review' %}">Inject Grades</c-nav_item>
-        {% if is_ticketing_admin or is_gold_team or is_admin %}
-            <c-nav_item name="review_tickets" href="{% url 'ops_review_tickets' %}">Ticket Points</c-nav_item>
-        {% endif %}
+            {% if is_gold_team or is_admin %}
+                <c-nav_item name="red_team" href="{% url 'scoring:red_team_portal' %}">Red Team Scores</c-nav_item>
+                <c-nav_item name="orange_team" href="{% url 'scoring:review_orange' %}">Orange Checks</c-nav_item>
+            {% endif %}
+            <c-nav_item name="review_incidents" href="{% url 'scoring:review_incidents' %}">Incidents</c-nav_item>
+            <c-nav_item name="inject_grades_review"
+                        href="{% url 'scoring:inject_grades_review' %}">Inject Grades</c-nav_item>
+            {% if is_ticketing_admin or is_gold_team or is_admin %}
+                <c-nav_item name="review_tickets" href="{% url 'ops_review_tickets' %}">Ticket Points</c-nav_item>
+            {% endif %}
         </c-nav>
     {% endif %}
     {% block scoring_content %}

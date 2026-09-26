@@ -1,23 +1,35 @@
 {# Registration review table - swappable content for htmx #}
 <div {{ attrs }} id="registration-review-content">
     <c-table id="result_list" aria_label="Team registration requests">
-    <c-slot name="headers">
-    <tr>
-        <c-table_header sortable="false">School Name</c-table_header>
-        <c-table_header sortable="false">Contact Email</c-table_header>
-        <c-table_header sortable="false">Phone</c-table_header>
-        <c-table_header sortable="false">Status</c-table_header>
-        <c-table_header sortable="false">Submitted</c-table_header>
-        <c-table_header sortable="false">Actions</c-table_header>
-    </tr>
-    </c-slot>
-    {% for registration in registrations %}
-        <tr class="{% cycle 'row1' 'row2' %}">
-            <td>{{ registration.school_name }}</td>
-            <td>{{ registration.contact_email }}</td>
-            <td>{{ registration.phone }}</td>
-            <td>
-                <c-badge variant="
+        <c-slot name="headers">
+            <tr>
+                <c-table_header sortable="false">
+                    School Name
+                </c-table_header>
+                <c-table_header sortable="false">
+                    Contact Email
+                </c-table_header>
+                <c-table_header sortable="false">
+                    Phone
+                </c-table_header>
+                <c-table_header sortable="false">
+                    Status
+                </c-table_header>
+                <c-table_header sortable="false">
+                    Submitted
+                </c-table_header>
+                <c-table_header sortable="false">
+                    Actions
+                </c-table_header>
+            </tr>
+        </c-slot>
+        {% for registration in registrations %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+                <td>{{ registration.school_name }}</td>
+                <td>{{ registration.contact_email }}</td>
+                <td>{{ registration.phone }}</td>
+                <td>
+                    <c-badge variant="
                 {% if registration.status == 'approved' %}
                     resolved
                 {% elif registration.status == 'rejected' %}
@@ -28,28 +40,32 @@
                     claimed
                 {% endif %}
                 ">
-                {{ registration.get_status_display }}
-                </c-badge>
-            </td>
-            <td>{{ registration.submitted_at|date:"Y-m-d H:i" }}</td>
-            <td>
-                {% if registration.status == 'pending' %}
-                    <form method="post"
-                          action="{% url 'registration_approve' registration.id %}"
-                          class="d-inline">
-                        {% csrf_token %}
-                        <c-button type="submit" variant="primary">Approve</c-button>
-                    </form>
-                    <c-link href="{% url 'registration_reject' registration.id %}" class="deletelink">Reject</c-link>
-                {% endif %}
-            </td>
-        </tr>
-    {% empty %}
-        <tr>
-            <td colspan="6">
-                <c-empty_state title="No registrations found" description="Registration requests will appear here" />
-            </td>
-        </tr>
-    {% endfor %}
+                        {{ registration.get_status_display }}
+                    </c-badge>
+                </td>
+                <td>{{ registration.submitted_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                    {% if registration.status == "pending" %}
+                        <form method="post"
+                              action="{% url 'registration_approve' registration.id %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <c-button type="submit" variant="primary">
+                                Approve
+                            </c-button>
+                        </form>
+                        <c-link href="{% url 'registration_reject' registration.id %}"
+                                class="deletelink">Reject</c-link>
+                    {% endif %}
+                </td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="6">
+                    <c-empty_state title="No registrations found"
+                                   description="Registration requests will appear here" />
+                </td>
+            </tr>
+        {% endfor %}
     </c-table>
 </div>

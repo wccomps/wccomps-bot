@@ -9,61 +9,82 @@
         {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
     {% endif %}
     <c-module>
-    <c-slot name="toolbar">
-    <c-link href="{% url 'orange_team:export_scores' %}" variant="default">Export CSV</c-link>
-    </c-slot>
-    {% if review_assignments %}
-        <c-table id="review" aria_label="Assignments for review">
-        <c-slot name="headers">
-        <tr>
-            <c-table_header sortable="false">Check</c-table_header>
-            <c-table_header sortable="false">Team</c-table_header>
-            <c-table_header sortable="false">Assignee</c-table_header>
-            <c-table_header sortable="false">Score</c-table_header>
-            <c-table_header sortable="false">Status</c-table_header>
-            <c-table_header sortable="false">Actions</c-table_header>
-        </tr>
+        <c-slot name="toolbar">
+            <c-link href="{% url 'orange_team:export_scores' %}" variant="default">Export CSV</c-link>
         </c-slot>
-        {% for assignment in review_assignments %}
-            <tr>
-                <td>{{ assignment.orange_check.title }}</td>
-                <td>Team {{ assignment.team.team_number }}</td>
-                <td>{{ assignment.user.username }}</td>
-                <td>{{ assignment.score|default:"—" }} / {{ assignment.orange_check.max_score }}</td>
-                <td>
-                    {% if assignment.status == "submitted" %}
-                        <c-badge variant="claimed">Submitted</c-badge>
-                    {% elif assignment.status == "in_progress" %}
-                        <c-badge variant="info">In Progress</c-badge>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if assignment.status == "submitted" %}
-                        <div class="d-flex gap-10">
-                            <form method="post"
-                                  action="{% url 'orange_team:assignment_approve' assignment.pk %}"
-                                  onsubmit="return confirm('Approve this assignment?')">
-                                {% csrf_token %}
-                                <c-button type="submit" variant="primary">Approve</c-button>
-                            </form>
-                            <form method="post"
-                                  action="{% url 'orange_team:assignment_reject' assignment.pk %}"
-                                  onsubmit="return confirm('Reject this assignment?')">
-                                {% csrf_token %}
-                                <input type="text"
-                                       name="notes"
-                                       placeholder="Reason (optional)"
-                                       class="input-sm">
-                                <c-button type="submit" variant="danger">Reject</c-button>
-                            </form>
-                        </div>
-                    {% endif %}
-                </td>
-            </tr>
-        {% endfor %}
-        </c-table>
-    {% else %}
-        <c-empty_state title="No assignments for review" description="No submitted assignments awaiting review." />
-    {% endif %}
+        {% if review_assignments %}
+            <c-table id="review" aria_label="Assignments for review">
+                <c-slot name="headers">
+                    <tr>
+                        <c-table_header sortable="false">
+                            Check
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Team
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Assignee
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Score
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Status
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Actions
+                        </c-table_header>
+                    </tr>
+                </c-slot>
+                {% for assignment in review_assignments %}
+                    <tr>
+                        <td>{{ assignment.orange_check.title }}</td>
+                        <td>Team {{ assignment.team.team_number }}</td>
+                        <td>{{ assignment.user.username }}</td>
+                        <td>{{ assignment.score|default:"—" }} / {{ assignment.orange_check.max_score }}</td>
+                        <td>
+                            {% if assignment.status == "submitted" %}
+                                <c-badge variant="claimed">
+                                    Submitted
+                                </c-badge>
+                            {% elif assignment.status == "in_progress" %}
+                                <c-badge variant="info">
+                                    In Progress
+                                </c-badge>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if assignment.status == "submitted" %}
+                                <div class="d-flex gap-10">
+                                    <form method="post"
+                                          action="{% url 'orange_team:assignment_approve' assignment.pk %}"
+                                          onsubmit="return confirm('Approve this assignment?')">
+                                        {% csrf_token %}
+                                        <c-button type="submit" variant="primary">
+                                            Approve
+                                        </c-button>
+                                    </form>
+                                    <form method="post"
+                                          action="{% url 'orange_team:assignment_reject' assignment.pk %}"
+                                          onsubmit="return confirm('Reject this assignment?')">
+                                        {% csrf_token %}
+                                        <input type="text"
+                                               name="notes"
+                                               placeholder="Reason (optional)"
+                                               class="input-sm">
+                                        <c-button type="submit" variant="danger">
+                                            Reject
+                                        </c-button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </c-table>
+        {% else %}
+            <c-empty_state title="No assignments for review"
+                           description="No submitted assignments awaiting review." />
+        {% endif %}
     </c-module>
 {% endblock orange_content %}

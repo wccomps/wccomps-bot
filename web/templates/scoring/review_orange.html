@@ -19,51 +19,64 @@
     </script>
     <c-page_header title="Review Orange Team Checks" />
     <c-module filtered="true" id="changelist">
-    <c-filter_toolbar form_id="changelist-filter" hx_get="{% url 'scoring:review_orange' %}" hx_target="#review-orange-content" hx_swap="outerHTML" hx_push_url="true">
-    {% if has_pending %}
-        <c-slot name="actions">
-        <c-button type="button" onclick="document.dispatchEvent(new CustomEvent('bulk-approve-orange'))" variant="primary">Approve Selected</c-button>
-        </c-slot>
-    {% endif %}
-    <c-filter_field label="Status" id="id_status">
-    <select name="status" id="id_status" aria-label="Filter by status">
-        <option value="pending"
-                {% if status_filter == 'pending' %}selected{% endif %}>Pending Only</option>
-        <option value="approved"
-                {% if status_filter == 'approved' %}selected{% endif %}>Approved Only</option>
-        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
-    </select>
-    </c-filter_field>
-    <c-filter_field label="Team" id="id_team">
-    <select name="team" id="id_team" aria-label="Filter by team">
-        <option value="">All Teams</option>
-        {% for team in available_teams %}
-            <option value="{{ team.id }}"
-                    {% if selected_team == team.id|stringformat:"s" %}selected{% endif %}>
-                Team {{ team.team_number }}
-            </option>
-        {% endfor %}
-    </select>
-    </c-filter_field>
-    <c-filter_field label="Check" id="id_check">
-    <select name="check" id="id_check" aria-label="Filter by check">
-        <option value="">All Checks</option>
-        <option value="manual" {% if selected_check == 'manual' %}selected{% endif %}>Manual</option>
-        {% for check in available_checks %}
-            <option value="{{ check.id }}"
-                    {% if selected_check == check.id|stringformat:"s" %}selected{% endif %}>{{ check.title }}</option>
-        {% endfor %}
-    </select>
-    </c-filter_field>
-    <c-filter_field label="Search" id="id_search" min_width="180px">
-    <input type="text"
-           name="search"
-           id="id_search"
-           value="{{ search_query }}"
-           placeholder="Search..."
-           aria-label="Search checks">
-    </c-filter_field>
-    </c-filter_toolbar>
-    <c-review_orange_table :page_obj="page_obj" :status_filter="status_filter" :selected_team="selected_team" :selected_check="selected_check" :search_query="search_query" :sort_by="sort_by" />
+        <c-filter_toolbar form_id="changelist-filter"
+                          hx_get="{% url 'scoring:review_orange' %}"
+                          hx_target="#review-orange-content"
+                          hx_swap="outerHTML"
+                          hx_push_url="true">
+            {% if has_pending %}
+                <c-slot name="actions">
+                    <c-button type="button"
+                              onclick="document.dispatchEvent(new CustomEvent('bulk-approve-orange'))"
+                              variant="primary">
+                        Approve Selected
+                    </c-button>
+                </c-slot>
+            {% endif %}
+            <c-filter_field label="Status" id="id_status">
+                <select name="status" id="id_status" aria-label="Filter by status">
+                    <option value="pending"
+                            {% if status_filter == 'pending' %}selected{% endif %}>Pending Only</option>
+                    <option value="approved"
+                            {% if status_filter == 'approved' %}selected{% endif %}>Approved Only</option>
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+                </select>
+            </c-filter_field>
+            <c-filter_field label="Team" id="id_team">
+                <select name="team" id="id_team" aria-label="Filter by team">
+                    <option value="">All Teams</option>
+                    {% for team in available_teams %}
+                        <option value="{{ team.id }}"
+                                {% if selected_team == team.id|stringformat:"s" %}selected{% endif %}>
+                            Team {{ team.team_number }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </c-filter_field>
+            <c-filter_field label="Check" id="id_check">
+                <select name="check" id="id_check" aria-label="Filter by check">
+                    <option value="">All Checks</option>
+                    <option value="manual" {% if selected_check == 'manual' %}selected{% endif %}>Manual</option>
+                    {% for check in available_checks %}
+                        <option value="{{ check.id }}"
+                                {% if selected_check == check.id|stringformat:"s" %}selected{% endif %}>{{ check.title }}</option>
+                    {% endfor %}
+                </select>
+            </c-filter_field>
+            <c-filter_field label="Search" id="id_search" min_width="180px">
+                <input type="text"
+                       name="search"
+                       id="id_search"
+                       value="{{ search_query }}"
+                       placeholder="Search..."
+                       aria-label="Search checks">
+            </c-filter_field>
+        </c-filter_toolbar>
+        <c-review_orange_table :page_obj="page_obj"
+                               :status_filter="status_filter"
+                               :selected_team="selected_team"
+                               :selected_check="selected_check"
+                               :search_query="search_query"
+                               :sort_by="sort_by" />
     </c-module>
 {% endblock scoring_content %}

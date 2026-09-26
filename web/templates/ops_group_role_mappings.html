@@ -5,77 +5,85 @@
 {% endblock title %}
 {% block admin_content %}
     <div id="content-main" x-data="teamMappings">
-        <c-page_header title="Team Mappings" parent_url="{% url 'admin_teams' %}" parent_label="Teams" />
+        <c-page_header title="Team Mappings"
+                       parent_url="{% url 'admin_teams' %}"
+                       parent_label="Teams" />
         <c-module>
-        <c-slot name="toolbar">
-        <label for="team-search" class="assistive-text">Search</label>
-        <input type="text"
-               id="team-search"
-               :value="search"
-               @input="setField"
-               data-field="search"
-               placeholder="Search teams by number or name...">
-        </c-slot>
-        <c-table id="result_list" aria_label="Team group memberships">
-        <c-slot name="headers">
-        <tr>
-            <c-table_header sortable="false">Team</c-table_header>
-            <c-table_header sortable="false">Status</c-table_header>
-            <c-table_header sortable="false">Members</c-table_header>
-        </tr>
-        </c-slot>
-        {% for item in team_status %}
-            <tr class="{% cycle 'row1' 'row2' %}"
-                x-show="matchesSearch('{{ item.team.team_number }}')">
-                <th class="field-team">Team {{ item.team.team_number }}</th>
-                <td class="field-status">
-                    <strong>{{ item.current_count }}/{{ item.max_count }}</strong>
-                    <br>
-                    <span class="mini quiet">
-                        {% if item.is_full %}
-                            Full
-                        {% elif item.current_count == 0 %}
-                            Empty
-                        {% else %}
-                            {{ item.max_count|add:"-"|add:item.current_count }} Open
-                        {% endif %}
-                    </span>
-                </td>
-                <td class="field-members">
-                    {% if item.members %}
-                        <div x-data="memberToggle">
-                            <button type="button"
-                                    class="btn-reset"
-                                    :class="toggleClass"
-                                    @click="toggle"
-                                    :aria-expanded="open">
-                                {{ item.members|length }} member{{ item.members|length|pluralize }}
-                            </button>
-                            <div x-show="open" x-transition class="mt-5">
-                                <ul class="member-list">
-                                    {% for member in item.members %}
-                                        <li>
-                                            {{ member.discord_username }}
-                                            <span class="mini quiet">({{ member.authentik_username }})</span>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
-                    {% else %}
-                        <span class="quiet">—</span>
-                    {% endif %}
-                </td>
-            </tr>
-        {% empty %}
-            <tr>
-                <td colspan="3">
-                    <c-empty_state title="No active teams found" />
-                </td>
-            </tr>
-        {% endfor %}
-        </c-table>
-        <p class="paginator">{{ team_status|length }} team(s)</p>
+            <c-slot name="toolbar">
+                <label for="team-search" class="assistive-text">Search</label>
+                <input type="text"
+                       id="team-search"
+                       :value="search"
+                       @input="setField"
+                       data-field="search"
+                       placeholder="Search teams by number or name...">
+            </c-slot>
+            <c-table id="result_list" aria_label="Team group memberships">
+                <c-slot name="headers">
+                    <tr>
+                        <c-table_header sortable="false">
+                            Team
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Status
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Members
+                        </c-table_header>
+                    </tr>
+                </c-slot>
+                {% for item in team_status %}
+                    <tr class="{% cycle 'row1' 'row2' %}"
+                        x-show="matchesSearch('{{ item.team.team_number }}')">
+                        <th class="field-team">Team {{ item.team.team_number }}</th>
+                        <td class="field-status">
+                            <strong>{{ item.current_count }}/{{ item.max_count }}</strong>
+                            <br>
+                            <span class="mini quiet">
+                                {% if item.is_full %}
+                                    Full
+                                {% elif item.current_count == 0 %}
+                                    Empty
+                                {% else %}
+                                    {{ item.max_count|add:"-"|add:item.current_count }} Open
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td class="field-members">
+                            {% if item.members %}
+                                <div x-data="memberToggle">
+                                    <button type="button"
+                                            class="btn-reset"
+                                            :class="toggleClass"
+                                            @click="toggle"
+                                            :aria-expanded="open">
+                                        {{ item.members|length }} member{{ item.members|length|pluralize }}
+                                    </button>
+                                    <div x-show="open" x-transition class="mt-5">
+                                        <ul class="member-list">
+                                            {% for member in item.members %}
+                                                <li>
+                                                    {{ member.discord_username }}
+                                                    <span class="mini quiet">({{ member.authentik_username }})</span>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <span class="quiet">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="3">
+                            <c-empty_state title="No active teams found" />
+                        </td>
+                    </tr>
+                {% endfor %}
+            </c-table>
+            <p class="paginator">{{ team_status|length }} team(s)</p>
         </c-module>
     </div>
     <style>

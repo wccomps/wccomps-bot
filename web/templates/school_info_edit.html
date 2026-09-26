@@ -5,53 +5,62 @@
 {% endblock title %}
 {% block admin_content %}
     <div id="content-main">
-        <c-page_header title="Edit School Information - Team {{ team.team_number }}" parent_url="{% url 'school_info' %}" parent_label="School Info" />
+        <c-page_header title="Edit School Information - Team {{ team.team_number }}"
+                       parent_url="{% url 'school_info' %}"
+                       parent_label="School Info" />
         <c-form>
-        {% csrf_token %}
-        <c-module>
-        {% if error %}<c-alert variant="error">{{ error }}</c-alert>{% endif %}
-        <c-fieldset aligned="true">
-        <c-form_field label="School Name" required="true" id="school_name">
-        <input type="text"
-               name="school_name"
-               id="school_name"
-               value="{% if school_info %}{{ school_info.school_name }}{% endif %}"
-               required
-               placeholder="e.g., University of Example">
-        </c-form_field>
-        <c-form_field label="Contact Email" required="true" id="contact_email" help_text="Primary contact for this team">
-        <input type="email"
-               name="contact_email"
-               id="contact_email"
-               value="{% if school_info %}{{ school_info.contact_email }}{% endif %}"
-               required
-               placeholder="e.g., coach@example.edu">
-        </c-form_field>
-        <c-form_field label="Secondary Email" id="secondary_email" help_text="Optional secondary contact">
-        <input type="email"
-               name="secondary_email"
-               id="secondary_email"
-               value="{% if school_info %}{{ school_info.secondary_email }}{% endif %}"
-               placeholder="e.g., alternate@example.edu">
-        </c-form_field>
-        <c-form_field label="Notes" id="notes" help_text="Optional internal notes">
-        <textarea name="notes"
-                  id="notes"
-                  rows="4"
-                  placeholder="Additional notes about this team...">{% if school_info %}{{ school_info.notes }}{% endif %}</textarea>
-        </c-form_field>
-        </c-fieldset>
-        <c-button_row class="justify-end">
-        <c-link href="{% url 'school_info' %}">Cancel</c-link>
-        <c-button type="submit" variant="primary" ::disabled="submitting">Save School Information</c-button>
-        </c-button_row>
-        {% if school_info %}
-            <p class="mt-20 text-muted text-sm">
-                Last updated {{ school_info.updated_at|timesince }} ago
-                {% if school_info.updated_by %}by {{ school_info.updated_by }}{% endif %}
-            </p>
-        {% endif %}
-        </c-module>
+            {% csrf_token %}
+            <c-module>
+                {% if error %}<c-alert variant="error">{{ error }}</c-alert>{% endif %}
+                <c-fieldset aligned="true">
+                    <c-form_field label="School Name" required="true" id="school_name">
+                        <input type="text"
+                               name="school_name"
+                               id="school_name"
+                               value="{% if school_info %}{{ school_info.school_name }}{% endif %}"
+                               required
+                               placeholder="e.g., University of Example">
+                    </c-form_field>
+                    <c-form_field label="Contact Email"
+                                  required="true"
+                                  id="contact_email"
+                                  help_text="Primary contact for this team">
+                        <input type="email"
+                               name="contact_email"
+                               id="contact_email"
+                               value="{% if school_info %}{{ school_info.contact_email }}{% endif %}"
+                               required
+                               placeholder="e.g., coach@example.edu">
+                    </c-form_field>
+                    <c-form_field label="Secondary Email"
+                                  id="secondary_email"
+                                  help_text="Optional secondary contact">
+                        <input type="email"
+                               name="secondary_email"
+                               id="secondary_email"
+                               value="{% if school_info %}{{ school_info.secondary_email }}{% endif %}"
+                               placeholder="e.g., alternate@example.edu">
+                    </c-form_field>
+                    <c-form_field label="Notes" id="notes" help_text="Optional internal notes">
+                        <textarea name="notes"
+                                  id="notes"
+                                  rows="4"
+                                  placeholder="Additional notes about this team...">{% if school_info %}{{ school_info.notes }}{% endif %}</textarea>
+                    </c-form_field>
+                </c-fieldset>
+                <c-button_row class="justify-end">
+                    <c-link href="{% url 'school_info' %}">Cancel</c-link>
+                    <c-button type="submit" variant="primary" ::disabled="submitting">
+                        Save School Information
+                    </c-button>
+                </c-button_row>
+                {% if school_info %}
+                    <p class="mt-20 text-muted text-sm">
+                        Last updated {{ school_info.updated_at|timesince }} ago
+                        {% if school_info.updated_by %}by {{ school_info.updated_by }}{% endif %}
+                    </p>
+                {% endif %}
+            </c-module>
         </c-form>
     </div>
 {% endblock admin_content %}

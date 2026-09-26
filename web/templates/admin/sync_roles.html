@@ -7,37 +7,43 @@
     <div x-data="syncRolesAdmin">
         <c-page_header title="Sync Roles" />
         <c-module>
-        <c-slot name="title">Authentik Role Synchronization</c-slot>
-        <div>
-            <p>Synchronize Discord roles based on Authentik group membership.</p>
-            <ul class="text-muted mb-10">
-                <li>Users in Authentik groups (e.g., WCComps_GoldTeam) will get corresponding Discord roles</li>
-                <li>Users must have linked their Discord account to be synced</li>
-                <li>Users removed from Authentik groups will lose Discord roles</li>
-            </ul>
-            <c-button_row class="mt-20">
-            <c-button variant="primary" @click="requestSyncPreview" ::disabled="loading">
-            <span x-show="notLoading">Preview Changes (Dry Run)</span>
-            <span x-show="loading">Previewing...</span>
-            </c-button>
-            </c-button_row>
-            <p class="help-text mt-10">Live sync is temporarily disabled. Only dry run preview is available.</p>
-        </div>
+            <c-slot name="title">
+                Authentik Role Synchronization
+            </c-slot>
+            <div>
+                <p>Synchronize Discord roles based on Authentik group membership.</p>
+                <ul class="text-muted mb-10">
+                    <li>Users in Authentik groups (e.g., WCComps_GoldTeam) will get corresponding Discord roles</li>
+                    <li>Users must have linked their Discord account to be synced</li>
+                    <li>Users removed from Authentik groups will lose Discord roles</li>
+                </ul>
+                <c-button_row class="mt-20">
+                    <c-button variant="primary" @click="requestSyncPreview" ::disabled="loading">
+                        <span x-show="notLoading">Preview Changes (Dry Run)</span>
+                        <span x-show="loading">Previewing...</span>
+                    </c-button>
+                </c-button_row>
+                <p class="help-text mt-10">Live sync is temporarily disabled. Only dry run preview is available.</p>
+            </div>
         </c-module>
         <c-module class="mt-20">
-        <c-slot name="title">Alternative: Discord Command</c-slot>
-        <p>You can also sync roles via Discord:</p>
-        <code class="code-block">/admin sync-roles</code>
+            <c-slot name="title">
+                Alternative: Discord Command
+            </c-slot>
+            <p>You can also sync roles via Discord:</p>
+            <code class="code-block">/admin sync-roles</code>
         </c-module>
         <c-toast />
         <template x-if="hasChanges">
             <c-module class="mt-20">
-            <c-slot name="title">Changes Made</c-slot>
-            <ul class="list-none">
-                <template x-for="change in changes" :key="change">
-                    <li x-text="change" class="font-mono text-sm"></li>
-                </template>
-            </ul>
+                <c-slot name="title">
+                    Changes Made
+                </c-slot>
+                <ul class="list-none">
+                    <template x-for="change in changes" :key="change">
+                        <li x-text="change" class="font-mono text-sm"></li>
+                    </template>
+                </ul>
             </c-module>
         </template>
     </div>

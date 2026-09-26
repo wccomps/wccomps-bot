@@ -6,59 +6,86 @@
 {% block admin_content %}
     <c-page_header title="Ticket Categories" />
     <c-module>
-    <c-slot name="toolbar">
-    <c-link href="{% url 'admin_category_create' %}" variant="add">Add Category</c-link>
-    </c-slot>
-    <c-table id="categories_list" class="w-full" aria_label="Ticket categories list">
-    <c-slot name="headers">
-    <tr>
-        <c-table_header sortable="false">Order</c-table_header>
-        <c-table_header sortable="false">Name</c-table_header>
-        <c-table_header sortable="false">Points</c-table_header>
-        <c-table_header sortable="false">Required Fields</c-table_header>
-        <c-table_header sortable="false">Variable</c-table_header>
-        <c-table_header sortable="false">User Visible</c-table_header>
-        <c-table_header sortable="false">Tickets</c-table_header>
-        <c-table_header sortable="false">Actions</c-table_header>
-    </tr>
-    </c-slot>
-    {% for category in categories %}
-        <tr class="{% cycle 'row1' 'row2' %}">
-            <td class="field-order">{{ category.sort_order }}</td>
-            <th class="field-name">
-                <a href="{% url 'admin_category_edit' category.pk %}">{{ category.display_name }}</a>
-            </th>
-            <td class="field-points">{{ category.points }}</td>
-            <td class="field-required_fields">{{ category.required_fields|join:", " }}</td>
-            <td class="field-variable">
-                {% if category.variable_points %}
-                    <c-badge variant="success">Yes</c-badge>
-                {% else %}
-                    <c-badge variant="neutral">No</c-badge>
-                {% endif %}
-            </td>
-            <td class="field-user_creatable">
-                {% if category.user_creatable %}
-                    <c-badge variant="success">Yes</c-badge>
-                {% else %}
-                    <c-badge variant="neutral">No</c-badge>
-                {% endif %}
-            </td>
-            <td class="field-tickets">{{ category.tickets.count }}</td>
-            <td class="field-actions">
-                <c-link href="{% url 'admin_category_delete' category.pk %}" variant="danger">Delete</c-link>
-            </td>
-        </tr>
-    {% empty %}
-        <tr>
-            <td colspan="8">
-                <c-empty_state title="No categories" description="Add a ticket category to get started.">
-                <c-link href="{% url 'admin_category_create' %}" variant="add">Add Category</c-link>
-                </c-empty_state>
-            </td>
-        </tr>
-    {% endfor %}
-    </c-table>
-    <p class="paginator">{{ categories|length }} category(ies)</p>
+        <c-slot name="toolbar">
+            <c-link href="{% url 'admin_category_create' %}" variant="add">Add Category</c-link>
+        </c-slot>
+        <c-table id="categories_list"
+                 class="w-full"
+                 aria_label="Ticket categories list">
+            <c-slot name="headers">
+                <tr>
+                    <c-table_header sortable="false">
+                        Order
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Name
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Points
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Required Fields
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Variable
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        User Visible
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Tickets
+                    </c-table_header>
+                    <c-table_header sortable="false">
+                        Actions
+                    </c-table_header>
+                </tr>
+            </c-slot>
+            {% for category in categories %}
+                <tr class="{% cycle 'row1' 'row2' %}">
+                    <td class="field-order">{{ category.sort_order }}</td>
+                    <th class="field-name">
+                        <a href="{% url 'admin_category_edit' category.pk %}">{{ category.display_name }}</a>
+                    </th>
+                    <td class="field-points">{{ category.points }}</td>
+                    <td class="field-required_fields">{{ category.required_fields|join:", " }}</td>
+                    <td class="field-variable">
+                        {% if category.variable_points %}
+                            <c-badge variant="success">
+                                Yes
+                            </c-badge>
+                        {% else %}
+                            <c-badge variant="neutral">
+                                No
+                            </c-badge>
+                        {% endif %}
+                    </td>
+                    <td class="field-user_creatable">
+                        {% if category.user_creatable %}
+                            <c-badge variant="success">
+                                Yes
+                            </c-badge>
+                        {% else %}
+                            <c-badge variant="neutral">
+                                No
+                            </c-badge>
+                        {% endif %}
+                    </td>
+                    <td class="field-tickets">{{ category.tickets.count }}</td>
+                    <td class="field-actions">
+                        <c-link href="{% url 'admin_category_delete' category.pk %}" variant="danger">Delete</c-link>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="8">
+                        <c-empty_state title="No categories"
+                                       description="Add a ticket category to get started.">
+                            <c-link href="{% url 'admin_category_create' %}" variant="add">Add Category</c-link>
+                        </c-empty_state>
+                    </td>
+                </tr>
+            {% endfor %}
+        </c-table>
+        <p class="paginator">{{ categories|length }} category(ies)</p>
     </c-module>
 {% endblock admin_content %}

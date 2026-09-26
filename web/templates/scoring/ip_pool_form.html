@@ -4,7 +4,10 @@
 {% endblock title %}
 {% block red_content %}
     {% load cotton %}
-    <c-page_header title="{{ action }} IP Pool" parent_url="{% url 'scoring:ip_pool_list' %}" parent_label="IP Pools" subtitle="
+    <c-page_header title="{{ action }} IP Pool"
+                   parent_url="{% url 'scoring:ip_pool_list' %}"
+                   parent_label="IP Pools"
+                   subtitle="
     {% if action == 'Edit' %}
         Update pool '{{ pool.name }}'
     {% else %}
@@ -12,23 +15,33 @@
     {% endif %}
     " />
     <c-module>
-    <c-form>
-    {% csrf_token %}
-    <c-form_field label="{{ form.name.label }}" required="true" :id="form.name.id_for_label" help_text="{{ form.name.help_text }}" error="{{ form.name.errors|join:', ' }}">
-    {{ form.name }}
-    </c-form_field>
-    <c-form_field label="{{ form.ip_addresses.label }}" required="true" :id="form.ip_addresses.id_for_label" help_text="{{ form.ip_addresses.help_text }}" error="{{ form.ip_addresses.errors|join:', ' }}">
-    {{ form.ip_addresses }}
-    </c-form_field>
-    <div class="help-text mb-20">
-        <span id="ipCount">0</span> IP addresses entered
-    </div>
-    {% if pool %}<p class="text-muted mb-20">This pool is used by {{ pool.findings.count }} finding(s).</p>{% endif %}
-    <c-button_row class="justify-end">
-    <c-link href="{% url 'scoring:ip_pool_list' %}" variant="cancel">Cancel</c-link>
-    <c-button type="submit" variant="primary" ::disabled="submitting">{{ action }} Pool</c-button>
-    </c-button_row>
-    </c-form>
+        <c-form>
+            {% csrf_token %}
+            <c-form_field label="{{ form.name.label }}"
+                          required="true"
+                          :id="form.name.id_for_label"
+                          help_text="{{ form.name.help_text }}"
+                          error="{{ form.name.errors|join:', ' }}">
+                {{ form.name }}
+            </c-form_field>
+            <c-form_field label="{{ form.ip_addresses.label }}"
+                          required="true"
+                          :id="form.ip_addresses.id_for_label"
+                          help_text="{{ form.ip_addresses.help_text }}"
+                          error="{{ form.ip_addresses.errors|join:', ' }}">
+                {{ form.ip_addresses }}
+            </c-form_field>
+            <div class="help-text mb-20">
+                <span id="ipCount">0</span> IP addresses entered
+            </div>
+            {% if pool %}<p class="text-muted mb-20">This pool is used by {{ pool.findings.count }} finding(s).</p>{% endif %}
+            <c-button_row class="justify-end">
+                <c-link href="{% url 'scoring:ip_pool_list' %}" variant="cancel">Cancel</c-link>
+                <c-button type="submit" variant="primary" ::disabled="submitting">
+                    {{ action }} Pool
+                </c-button>
+            </c-button_row>
+        </c-form>
     </c-module>
     <script>
         function updateIpCount() {

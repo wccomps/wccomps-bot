@@ -4,242 +4,271 @@
 {% endblock title %}
 {% block red_content %}
     {% load cotton %}
-    <c-page_header title="Submit Finding" subtitle="Document successful attacks for scoring" />
+    <c-page_header title="Submit Finding"
+                   subtitle="Document successful attacks for scoring" />
     <c-module>
-    <c-form enctype="multipart/form-data" id="findingForm">
-    {% csrf_token %}
-    <!-- Attack Details Section -->
-    <c-fieldset heading="Attack Details">
-    <c-form_field label="{{ form.attack_type.label }}" required="true" :id="form.attack_type.id_for_label" help_text="{{ form.attack_type.help_text }}" error="{{ form.attack_type.errors|join:', ' }}">
-    {{ form.attack_type }}
-    </c-form_field>
-    <!-- Source IP Selection -->
-    <fieldset class="source-ip-section">
-        <legend class="font-semibold text-sm d-block mb-5">Source IP</legend>
-        <div class="d-flex gap-20 mb-10">
-            {% for radio in form.source_ip_type %}
-                <div class="d-inline">
-                    {{ radio.tag }}
-                    <label for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+        <c-form enctype="multipart/form-data" id="findingForm">
+            {% csrf_token %}
+            <!-- Attack Details Section -->
+            <c-fieldset heading="Attack Details">
+                <c-form_field label="{{ form.attack_type.label }}"
+                              required="true"
+                              :id="form.attack_type.id_for_label"
+                              help_text="{{ form.attack_type.help_text }}"
+                              error="{{ form.attack_type.errors|join:', ' }}">
+                    {{ form.attack_type }}
+                </c-form_field>
+                <!-- Source IP Selection -->
+                <fieldset class="source-ip-section">
+                    <legend class="font-semibold text-sm d-block mb-5">Source IP</legend>
+                    <div class="d-flex gap-20 mb-10">
+                        {% for radio in form.source_ip_type %}
+                            <div class="d-inline">
+                                {{ radio.tag }}
+                                <label for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <!-- Single IP input -->
+                    <div id="singleIpSection">
+                        <c-form_field label="{{ form.source_ip.label }}"
+                                      :id="form.source_ip.id_for_label"
+                                      help_text="{{ form.source_ip.help_text }}"
+                                      error="{{ form.source_ip.errors|join:', ' }}">
+                            {{ form.source_ip }}
+                        </c-form_field>
+                    </div>
+                    <!-- IP Pool selection -->
+                    <div id="poolSection" class="d-none">
+                        <div class="d-flex gap-10 items-end flex-wrap">
+                            <div class="flex-grow-1">
+                                <c-form_field label="{{ form.source_ip_pool.label }}"
+                                              :id="form.source_ip_pool.id_for_label"
+                                              help_text="{{ form.source_ip_pool.help_text }}"
+                                              error="{{ form.source_ip_pool.errors|join:', ' }}">
+                                    {{ form.source_ip_pool }}
+                                </c-form_field>
+                            </div>
+                            <div class="mb-15">
+                                <c-button type="button" onclick="openCreatePoolModal()">
+                                    Create Pool
+                                </c-button>
+                            </div>
+                        </div>
+                        {% if user_pools %}
+                            <div class="help-text">
+                                <c-link href="{% url 'scoring:ip_pool_list' %}"
+                                        variant="default">Manage your IP pools</c-link>
+                            </div>
+                        {% endif %}
+                    </div>
+                </fieldset>
+            </c-fieldset>
+            <!-- Target Information Section -->
+            <c-fieldset heading="Target Information">
+                <c-form_field label="{{ form.affected_boxes.label }}"
+                              error="{{ form.affected_boxes.errors|join:', ' }}">
+                    {{ form.affected_boxes }}
+                    {% if form.box_choices %}
+                        <div class="d-flex flex-wrap gap-10">
+                            {% for value, label in form.box_choices %}
+                                <button type="button"
+                                        class="button box-toggle"
+                                        data-box="{{ value }}">{{ label }}</button>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div id="selectedIps" class="text-muted mt-10 d-none" aria-live="polite">
+                        Target IPs: <span id="ipList"></span>
+                    </div>
+                </c-form_field>
+                <c-form_field label="{{ form.affected_service.label }}"
+                              :id="form.affected_service.id_for_label"
+                              error="{{ form.affected_service.errors|join:', ' }}">
+                    {{ form.affected_service }}
+                </c-form_field>
+                <!-- Hidden field to store destination IPs for form submission -->
+                <input type="hidden"
+                       name="destination_ip_template"
+                       id="id_destination_ip_template"
+                       value="">
+            </c-fieldset>
+            <!-- Attack Characteristics Section -->
+            <c-fieldset heading="Attack Characteristics">
+                <div class="mb-5">
+                    {{ form.universally_attempted }}
+                    <label for="{{ form.universally_attempted.id_for_label }}">{{ form.universally_attempted.label }}</label>
+                    {% if form.universally_attempted.help_text %}
+                        <div class="help-text">{{ form.universally_attempted.help_text }}</div>
+                    {% endif %}
                 </div>
-            {% endfor %}
-        </div>
-        <!-- Single IP input -->
-        <div id="singleIpSection">
-            <c-form_field label="{{ form.source_ip.label }}" :id="form.source_ip.id_for_label" help_text="{{ form.source_ip.help_text }}" error="{{ form.source_ip.errors|join:', ' }}">
-            {{ form.source_ip }}
-            </c-form_field>
-        </div>
-        <!-- IP Pool selection -->
-        <div id="poolSection" class="d-none">
-            <div class="d-flex gap-10 items-end flex-wrap">
-                <div class="flex-grow-1">
-                    <c-form_field label="{{ form.source_ip_pool.label }}" :id="form.source_ip_pool.id_for_label" help_text="{{ form.source_ip_pool.help_text }}" error="{{ form.source_ip_pool.errors|join:', ' }}">
-                    {{ form.source_ip_pool }}
-                    </c-form_field>
+                <div class="mb-5">
+                    {{ form.persistence_established }}
+                    <label for="{{ form.persistence_established.id_for_label }}">{{ form.persistence_established.label }}</label>
+                    {% if form.persistence_established.help_text %}
+                        <div class="help-text">{{ form.persistence_established.help_text }}</div>
+                    {% endif %}
                 </div>
-                <div class="mb-15">
-                    <c-button type="button" onclick="openCreatePoolModal()">Create Pool</c-button>
+            </c-fieldset>
+            <!-- Attack Outcomes Section (CCDC Scoring) -->
+            <c-fieldset heading="Attack Outcomes">
+                <div class="d-flex flex-wrap gap-10 mb-15">
+                    <div>
+                        <label class="font-semibold text-sm d-block mb-5">Access Level</label>
+                        <div class="mb-5">
+                            {{ form.root_access }}
+                            <label for="{{ form.root_access.id_for_label }}"
+                                   title="Root/Administrator level access obtained">
+                                Root access <span class="text-muted">-100</span>
+                            </label>
+                        </div>
+                        <div class="mb-5">
+                            {{ form.user_access }}
+                            <label for="{{ form.user_access.id_for_label }}"
+                                   title="User level access obtained (not scored if root access)">
+                                User access <span class="text-muted">-25</span>
+                            </label>
+                        </div>
+                        <div class="mb-5">
+                            {{ form.privilege_escalation }}
+                            <label for="{{ form.privilege_escalation.id_for_label }}"
+                                   title="User escalated to Root/Admin (additional penalty)">
+                                Priv esc <span class="text-muted">-100</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="font-semibold text-sm d-block mb-5">Data Recovery</label>
+                        <div class="mb-5">
+                            {{ form.credentials_recovered }}
+                            <label for="{{ form.credentials_recovered.id_for_label }}"
+                                   title="User IDs and passwords recovered">
+                                Credentials <span class="text-muted">-50</span>
+                            </label>
+                        </div>
+                        <div class="mb-5">
+                            {{ form.sensitive_files_recovered }}
+                            <label for="{{ form.sensitive_files_recovered.id_for_label }}"
+                                   title="Config files, corporate data recovered">
+                                Sensitive files <span class="text-muted">-25</span>
+                            </label>
+                        </div>
+                        <div class="mb-5">
+                            {{ form.credit_cards_recovered }}
+                            <label for="{{ form.credit_cards_recovered.id_for_label }}"
+                                   title="Customer credit card numbers recovered">
+                                Credit cards <span class="text-muted">-50</span>
+                            </label>
+                        </div>
+                        <div class="mb-5">
+                            {{ form.pii_recovered }}
+                            <label for="{{ form.pii_recovered.id_for_label }}"
+                                   title="PII recovered: name, address, credit card number">
+                                PII <span class="text-muted">-200</span>
+                            </label>
+                        </div>
+                        <div class="mb-5">
+                            {{ form.encrypted_db_recovered }}
+                            <label for="{{ form.encrypted_db_recovered.id_for_label }}"
+                                   title="Encrypted customer data/database recovered">
+                                Encrypted DB <span class="text-muted">-25</span>
+                            </label>
+                        </div>
+                        <div class="mb-5">
+                            {{ form.db_decrypted }}
+                            <label for="{{ form.db_decrypted.id_for_label }}"
+                                   title="Database was decrypted (additional penalty)">
+                                DB decrypted <span class="text-muted">-25</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            {% if user_pools %}
-                <div class="help-text">
-                    <c-link href="{% url 'scoring:ip_pool_list' %}" variant="default">Manage your IP pools</c-link>
+                <div id="calculatedPoints"
+                     class="text-lg font-semibold"
+                     aria-live="polite">
+                    Total: <span id="pointsValue">0</span> pts per team
                 </div>
-            {% endif %}
-        </div>
-    </fieldset>
-    </c-fieldset>
-    <!-- Target Information Section -->
-    <c-fieldset heading="Target Information">
-    <c-form_field label="{{ form.affected_boxes.label }}" error="{{ form.affected_boxes.errors|join:', ' }}">
-    {{ form.affected_boxes }}
-    {% if form.box_choices %}
-        <div class="d-flex flex-wrap gap-10">
-            {% for value, label in form.box_choices %}
-                <button type="button" class="button box-toggle" data-box="{{ value }}">{{ label }}</button>
-            {% endfor %}
-        </div>
-    {% endif %}
-    <div id="selectedIps" class="text-muted mt-10 d-none" aria-live="polite">
-        Target IPs: <span id="ipList"></span>
-    </div>
-    </c-form_field>
-    <c-form_field label="{{ form.affected_service.label }}" :id="form.affected_service.id_for_label" error="{{ form.affected_service.errors|join:', ' }}">
-    {{ form.affected_service }}
-    </c-form_field>
-    <!-- Hidden field to store destination IPs for form submission -->
-    <input type="hidden"
-           name="destination_ip_template"
-           id="id_destination_ip_template"
-           value="">
-    </c-fieldset>
-    <!-- Attack Characteristics Section -->
-    <c-fieldset heading="Attack Characteristics">
-    <div class="mb-5">
-        {{ form.universally_attempted }}
-        <label for="{{ form.universally_attempted.id_for_label }}">{{ form.universally_attempted.label }}</label>
-        {% if form.universally_attempted.help_text %}
-            <div class="help-text">{{ form.universally_attempted.help_text }}</div>
-        {% endif %}
-    </div>
-    <div class="mb-5">
-        {{ form.persistence_established }}
-        <label for="{{ form.persistence_established.id_for_label }}">{{ form.persistence_established.label }}</label>
-        {% if form.persistence_established.help_text %}
-            <div class="help-text">{{ form.persistence_established.help_text }}</div>
-        {% endif %}
-    </div>
-    </c-fieldset>
-    <!-- Attack Outcomes Section (CCDC Scoring) -->
-    <c-fieldset heading="Attack Outcomes">
-    <div class="d-flex flex-wrap gap-10 mb-15">
-        <div>
-            <label class="font-semibold text-sm d-block mb-5">Access Level</label>
-            <div class="mb-5">
-                {{ form.root_access }}
-                <label for="{{ form.root_access.id_for_label }}"
-                       title="Root/Administrator level access obtained">
-                    Root access <span class="text-muted">-100</span>
-                </label>
-            </div>
-            <div class="mb-5">
-                {{ form.user_access }}
-                <label for="{{ form.user_access.id_for_label }}"
-                       title="User level access obtained (not scored if root access)">
-                    User access <span class="text-muted">-25</span>
-                </label>
-            </div>
-            <div class="mb-5">
-                {{ form.privilege_escalation }}
-                <label for="{{ form.privilege_escalation.id_for_label }}"
-                       title="User escalated to Root/Admin (additional penalty)">
-                    Priv esc <span class="text-muted">-100</span>
-                </label>
-            </div>
-        </div>
-        <div>
-            <label class="font-semibold text-sm d-block mb-5">Data Recovery</label>
-            <div class="mb-5">
-                {{ form.credentials_recovered }}
-                <label for="{{ form.credentials_recovered.id_for_label }}"
-                       title="User IDs and passwords recovered">
-                    Credentials <span class="text-muted">-50</span>
-                </label>
-            </div>
-            <div class="mb-5">
-                {{ form.sensitive_files_recovered }}
-                <label for="{{ form.sensitive_files_recovered.id_for_label }}"
-                       title="Config files, corporate data recovered">
-                    Sensitive files <span class="text-muted">-25</span>
-                </label>
-            </div>
-            <div class="mb-5">
-                {{ form.credit_cards_recovered }}
-                <label for="{{ form.credit_cards_recovered.id_for_label }}"
-                       title="Customer credit card numbers recovered">
-                    Credit cards <span class="text-muted">-50</span>
-                </label>
-            </div>
-            <div class="mb-5">
-                {{ form.pii_recovered }}
-                <label for="{{ form.pii_recovered.id_for_label }}"
-                       title="PII recovered: name, address, credit card number">
-                    PII <span class="text-muted">-200</span>
-                </label>
-            </div>
-            <div class="mb-5">
-                {{ form.encrypted_db_recovered }}
-                <label for="{{ form.encrypted_db_recovered.id_for_label }}"
-                       title="Encrypted customer data/database recovered">
-                    Encrypted DB <span class="text-muted">-25</span>
-                </label>
-            </div>
-            <div class="mb-5">
-                {{ form.db_decrypted }}
-                <label for="{{ form.db_decrypted.id_for_label }}"
-                       title="Database was decrypted (additional penalty)">
-                    DB decrypted <span class="text-muted">-25</span>
-                </label>
-            </div>
-        </div>
-    </div>
-    <div id="calculatedPoints"
-         class="text-lg font-semibold"
-         aria-live="polite">
-        Total: <span id="pointsValue">0</span> pts per team
-    </div>
-    </c-fieldset>
-    <!-- Affected Teams Section -->
-    <c-fieldset heading="Affected Teams">
-    <div class="d-flex justify-between items-center mb-10">
-        <label class="font-semibold text-sm d-block mb-0">{{ form.affected_teams.label }}</label>
-        <div class="d-flex gap-10">
-            <c-button type="button" variant="default" onclick="selectAllTeams()">Select All</c-button>
-            <c-button type="button" onclick="deselectAllTeams()">Deselect All</c-button>
-        </div>
-    </div>
-    {% if form.affected_teams.help_text %}<div class="help-text mb-5">{{ form.affected_teams.help_text }}</div>{% endif %}
-    <!-- Hidden checkboxes for form submission -->
-    <div class="d-none" id="teamCheckboxes">
-        {% for checkbox in form.affected_teams %}{{ checkbox.tag }}{% endfor %}
-    </div>
-    <!-- Visual team selector buttons -->
-    <div class="border rounded">
-        <div class="p-15">
-            <div id="teamButtons" class="d-flex flex-wrap gap-10">
-                {% for checkbox in form.affected_teams %}
-                    <button type="button"
-                            class="team-btn"
-                            data-team-id="{{ checkbox.data.value }}"
-                            data-team-label="{{ checkbox.choice_label }}"
-                            onclick="toggleTeam(this, '{{ checkbox.id_for_label }}')">
-                        {{ checkbox.choice_label }}
-                    </button>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    <div class="mt-10" aria-live="polite">
-        <small class="text-muted">
-            <span id="selectedCount">0</span> teams selected - Click teams to toggle selection
-        </small>
-    </div>
-    {% if form.affected_teams.errors %}<div class="text-danger mt-10">{{ form.affected_teams.errors }}</div>{% endif %}
-    </c-fieldset>
-    <!-- Screenshot Evidence Section -->
-    <c-fieldset heading="Evidence">
-    <c-form_field label="Upload Files" id="screenshots" help_text="Upload screenshots, logs, or other evidence. Maximum 20 files, 50MB per file.">
-    <input type="file"
-           class="vTextField"
-           id="screenshots"
-           name="screenshots"
-           multiple
-           onchange="previewScreenshots(this)">
-    </c-form_field>
-    <div id="screenshotPreview" class="grid-4 mb-15" aria-live="polite"></div>
-    </c-fieldset>
-    <!-- Additional Notes Section -->
-    <c-fieldset heading="Additional Information">
-    <c-form_field label="{{ form.notes.label }}" :id="form.notes.id_for_label" help_text="{{ form.notes.help_text }}" error="{{ form.notes.errors|join:', ' }}">
-    {{ form.notes }}
-    </c-form_field>
-    </c-fieldset>
-    <c-fieldset heading="Submission Guidelines" collapsible="true" collapsed="true">
-    <div class="text-muted">
-        <ul class="mb-0">
-            <li>Provide detailed technical information about the vulnerability or attack</li>
-            <li>Include all relevant IP addresses visible in screenshots</li>
-            <li>Select all teams that were successfully compromised</li>
-            <li>Gold Team will review and assign point values</li>
-        </ul>
-    </div>
-    </c-fieldset>
-    <c-button_row class="justify-end">
-    <c-link href="{% url 'scoring:red_team_scores' %}" variant="cancel">Cancel</c-link>
-    <c-button type="submit" variant="primary" ::disabled="submitting">Submit Finding</c-button>
-    </c-button_row>
-    </c-form>
+            </c-fieldset>
+            <!-- Affected Teams Section -->
+            <c-fieldset heading="Affected Teams">
+                <div class="d-flex justify-between items-center mb-10">
+                    <label class="font-semibold text-sm d-block mb-0">{{ form.affected_teams.label }}</label>
+                    <div class="d-flex gap-10">
+                        <c-button type="button" variant="default" onclick="selectAllTeams()">
+                            Select All
+                        </c-button>
+                        <c-button type="button" onclick="deselectAllTeams()">
+                            Deselect All
+                        </c-button>
+                    </div>
+                </div>
+                {% if form.affected_teams.help_text %}<div class="help-text mb-5">{{ form.affected_teams.help_text }}</div>{% endif %}
+                <!-- Hidden checkboxes for form submission -->
+                <div class="d-none"
+                     id="teamCheckboxes">{% for checkbox in form.affected_teams %}{{ checkbox.tag }}{% endfor %}</div>
+                <!-- Visual team selector buttons -->
+                <div class="border rounded">
+                    <div class="p-15">
+                        <div id="teamButtons" class="d-flex flex-wrap gap-10">
+                            {% for checkbox in form.affected_teams %}
+                                <button type="button"
+                                        class="team-btn"
+                                        data-team-id="{{ checkbox.data.value }}"
+                                        data-team-label="{{ checkbox.choice_label }}"
+                                        onclick="toggleTeam(this, '{{ checkbox.id_for_label }}')">
+                                    {{ checkbox.choice_label }}
+                                </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-10" aria-live="polite">
+                    <small class="text-muted">
+                        <span id="selectedCount">0</span> teams selected - Click teams to toggle selection
+                    </small>
+                </div>
+                {% if form.affected_teams.errors %}<div class="text-danger mt-10">{{ form.affected_teams.errors }}</div>{% endif %}
+            </c-fieldset>
+            <!-- Screenshot Evidence Section -->
+            <c-fieldset heading="Evidence">
+                <c-form_field label="Upload Files"
+                              id="screenshots"
+                              help_text="Upload screenshots, logs, or other evidence. Maximum 20 files, 50MB per file.">
+                    <input type="file"
+                           class="vTextField"
+                           id="screenshots"
+                           name="screenshots"
+                           multiple
+                           onchange="previewScreenshots(this)">
+                </c-form_field>
+                <div id="screenshotPreview" class="grid-4 mb-15" aria-live="polite"></div>
+            </c-fieldset>
+            <!-- Additional Notes Section -->
+            <c-fieldset heading="Additional Information">
+                <c-form_field label="{{ form.notes.label }}"
+                              :id="form.notes.id_for_label"
+                              help_text="{{ form.notes.help_text }}"
+                              error="{{ form.notes.errors|join:', ' }}">
+                    {{ form.notes }}
+                </c-form_field>
+            </c-fieldset>
+            <c-fieldset heading="Submission Guidelines" collapsible="true" collapsed="true">
+                <div class="text-muted">
+                    <ul class="mb-0">
+                        <li>Provide detailed technical information about the vulnerability or attack</li>
+                        <li>Include all relevant IP addresses visible in screenshots</li>
+                        <li>Select all teams that were successfully compromised</li>
+                        <li>Gold Team will review and assign point values</li>
+                    </ul>
+                </div>
+            </c-fieldset>
+            <c-button_row class="justify-end">
+                <c-link href="{% url 'scoring:red_team_scores' %}" variant="cancel">Cancel</c-link>
+                <c-button type="submit" variant="primary" ::disabled="submitting">
+                    Submit Finding
+                </c-button>
+            </c-button_row>
+        </c-form>
     </c-module>
     <!-- Create IP Pool Modal -->
     <div id="createPoolModal"
@@ -277,12 +306,17 @@
                             Enter one IP per line or comma-separated. <span id="ipCount">0</span> IPs entered.
                         </div>
                     </div>
-                    <c-alert variant="error" id="poolFormError" class="d-none mb-10" role="alert"></c-alert>
+                    <c-alert variant="error" id="poolFormError" class="d-none mb-10" role="alert">
+                    </c-alert>
                 </form>
             </div>
             <div class="modal-footer">
-                <c-button type="button" onclick="closeCreatePoolModal()">Cancel</c-button>
-                <c-button type="button" variant="primary" onclick="submitCreatePool()">Create Pool</c-button>
+                <c-button type="button" onclick="closeCreatePoolModal()">
+                    Cancel
+                </c-button>
+                <c-button type="button" variant="primary" onclick="submitCreatePool()">
+                    Create Pool
+                </c-button>
             </div>
         </div>
     </div>

@@ -8,269 +8,321 @@
         <c-page_header title="Competition Management" />
         {% if not config.competition_start_time and not config.controlled_applications and linked_users == 0 %}
             <c-alert variant="info">
-            <strong>Getting Started</strong>
-            <ol class="mb-0 mt-5">
-                <li>
-                    Set <strong>Max Team Members</strong> and add <strong>Controlled Apps</strong> below
-                </li>
-                <li>
-                    Set the competition <strong>Schedule</strong> (start and end times)
-                </li>
-                <li>
-                    Sync <strong>Quotient Metadata</strong> for service scoring
-                </li>
-                <li>
-                    Click <strong>Start Competition</strong> when ready
-                </li>
-            </ol>
+                <strong>Getting Started</strong>
+                <ol class="mb-0 mt-5">
+                    <li>
+                        Set <strong>Max Team Members</strong> and add <strong>Controlled Apps</strong> below
+                    </li>
+                    <li>
+                        Set the competition <strong>Schedule</strong> (start and end times)
+                    </li>
+                    <li>
+                        Sync <strong>Quotient Metadata</strong> for service scoring
+                    </li>
+                    <li>
+                        Click <strong>Start Competition</strong> when ready
+                    </li>
+                </ol>
             </c-alert>
         {% endif %}
         <!-- Status -->
         <c-module>
-        <c-slot name="title">Competition Status</c-slot>
-        <c-detail_grid>
-        <c-detail_row label="Status">
-        {% if config.applications_enabled %}
-            <c-badge variant="success">Running</c-badge>
-        {% elif config.competition_start_time %}
-            <c-badge variant="info">Scheduled</c-badge>
-        {% else %}
-            <c-badge variant="warning">Stopped</c-badge>
-        {% endif %}
-        </c-detail_row>
-        <c-detail_row label="Teams">{{ active_teams }}/{{ total_teams }} registered</c-detail_row>
-        <c-detail_row label="Users">{{ linked_users }} linked</c-detail_row>
-        <c-detail_row label="Max Members">{{ config.max_team_members }}</c-detail_row>
-        {% if config.controlled_applications %}
-            <c-detail_row label="Apps">{{ config.controlled_applications|length }} configured</c-detail_row>
-        {% endif %}
-        <c-detail_row label="Accounts">
-        {% if config.applications_enabled %}
-            Enabled
-        {% else %}
-            Disabled
-        {% endif %}
-        </c-detail_row>
-        {% if config.competition_start_time %}
-            <c-detail_row label="Starts">
-            <span x-data="formatTime"
-                  data-iso="{{ config.competition_start_time|date:'c' }}"
-                  x-text="formatted"></span>
-            </c-detail_row>
-        {% endif %}
-        {% if config.competition_end_time %}
-            <c-detail_row label="Ends">
-            <span x-data="formatTime"
-                  data-iso="{{ config.competition_end_time|date:'c' }}"
-                  x-text="formatted"></span>
-            </c-detail_row>
-        {% endif %}
-        </c-detail_grid>
+            <c-slot name="title">
+                Competition Status
+            </c-slot>
+            <c-detail_grid>
+                <c-detail_row label="Status">
+                    {% if config.applications_enabled %}
+                        <c-badge variant="success">
+                            Running
+                        </c-badge>
+                    {% elif config.competition_start_time %}
+                        <c-badge variant="info">
+                            Scheduled
+                        </c-badge>
+                    {% else %}
+                        <c-badge variant="warning">
+                            Stopped
+                        </c-badge>
+                    {% endif %}
+                </c-detail_row>
+                <c-detail_row label="Teams">
+                    {{ active_teams }}/{{ total_teams }} registered
+                </c-detail_row>
+                <c-detail_row label="Users">
+                    {{ linked_users }} linked
+                </c-detail_row>
+                <c-detail_row label="Max Members">
+                    {{ config.max_team_members }}
+                </c-detail_row>
+                {% if config.controlled_applications %}
+                    <c-detail_row label="Apps">
+                        {{ config.controlled_applications|length }} configured
+                    </c-detail_row>
+                {% endif %}
+                <c-detail_row label="Accounts">
+                    {% if config.applications_enabled %}
+                        Enabled
+                    {% else %}
+                        Disabled
+                    {% endif %}
+                </c-detail_row>
+                {% if config.competition_start_time %}
+                    <c-detail_row label="Starts">
+                        <span x-data="formatTime"
+                              data-iso="{{ config.competition_start_time|date:'c' }}"
+                              x-text="formatted"></span>
+                    </c-detail_row>
+                {% endif %}
+                {% if config.competition_end_time %}
+                    <c-detail_row label="Ends">
+                        <span x-data="formatTime"
+                              data-iso="{{ config.competition_end_time|date:'c' }}"
+                              x-text="formatted"></span>
+                    </c-detail_row>
+                {% endif %}
+            </c-detail_grid>
         </c-module>
         <!-- Team Configuration -->
         <c-module class="mt-20">
-        <c-slot name="title">Team Configuration</c-slot>
-        <form @submit.prevent="setMaxMembers"
-              class="d-flex gap-10 items-center mb-15">
-            <label for="max_members" class="font-semibold text-sm">Max Team Members</label>
-            <input type="number"
-                   name="max_members"
-                   id="max_members"
-                   :value="maxMembers"
-                   @input="setField"
-                   data-field="maxMembers"
-                   min="1"
-                   max="20"
-                   class="vTextField w-80">
-            <c-button type="submit" variant="default" ::disabled="loading">Update</c-button>
-        </form>
-        <div>
-            <label class="font-semibold text-sm d-block mb-5">Controlled Apps</label>
-            <p class="help">Authentik applications whose access will be toggled when starting/stopping the competition.</p>
-            <div class="d-flex gap-10 flex-wrap mb-10">
-                <template x-for="(app, index) in apps" :key="index">
-                    <c-badge variant="default" class="d-flex items-center gap-10">
-                    <span x-text="app"></span>
-                    <button type="button"
-                            @click="removeApp"
-                            :data-app="app"
-                            aria-label="Remove app"
-                            class="text-danger btn-reset text-md">×</button>
-                    </c-badge>
-                </template>
-                <template x-if="noApps">
-                    <span class="text-muted text-sm">No apps configured</span>
-                </template>
-            </div>
-            <form @submit.prevent="addApp" class="d-flex gap-10 items-center">
-                <select :value="newApp"
-                        @change="setField"
-                        data-field="newApp"
-                        class="vTextField w-150">
-                    <option value="">Select app...</option>
-                    {% for app in available_apps %}<option value="{{ app }}">{{ app }}</option>{% endfor %}
-                </select>
-                <c-button type="submit" variant="default" ::disabled="addDisabled">Add</c-button>
+            <c-slot name="title">
+                Team Configuration
+            </c-slot>
+            <form @submit.prevent="setMaxMembers"
+                  class="d-flex gap-10 items-center mb-15">
+                <label for="max_members" class="font-semibold text-sm">Max Team Members</label>
+                <input type="number"
+                       name="max_members"
+                       id="max_members"
+                       :value="maxMembers"
+                       @input="setField"
+                       data-field="maxMembers"
+                       min="1"
+                       max="20"
+                       class="vTextField w-80">
+                <c-button type="submit" variant="default" ::disabled="loading">
+                    Update
+                </c-button>
             </form>
-        </div>
+            <div>
+                <label class="font-semibold text-sm d-block mb-5">Controlled Apps</label>
+                <p class="help">Authentik applications whose access will be toggled when starting/stopping the competition.</p>
+                <div class="d-flex gap-10 flex-wrap mb-10">
+                    <template x-for="(app, index) in apps" :key="index">
+                        <c-badge variant="default" class="d-flex items-center gap-10">
+                            <span x-text="app"></span>
+                            <button type="button"
+                                    @click="removeApp"
+                                    :data-app="app"
+                                    aria-label="Remove app"
+                                    class="text-danger btn-reset text-md">×</button>
+                        </c-badge>
+                    </template>
+                    <template x-if="noApps">
+                        <span class="text-muted text-sm">No apps configured</span>
+                    </template>
+                </div>
+                <form @submit.prevent="addApp" class="d-flex gap-10 items-center">
+                    <select :value="newApp"
+                            @change="setField"
+                            data-field="newApp"
+                            class="vTextField w-150">
+                        <option value="">Select app...</option>
+                        {% for app in available_apps %}<option value="{{ app }}">{{ app }}</option>{% endfor %}
+                    </select>
+                    <c-button type="submit" variant="default" ::disabled="addDisabled">
+                        Add
+                    </c-button>
+                </form>
+            </div>
         </c-module>
         <!-- Schedule -->
         <c-module class="mt-20">
-        <c-slot name="title">Schedule</c-slot>
-        <form @submit.prevent="setSchedule">
-            <div class="grid-2">
-                <div>
-                    <c-form_field label="Start Time" id="start_datetime">
-                    <div class="d-flex gap-10">
-                        <input type="datetime-local"
-                               name="start_datetime"
-                               id="start_datetime"
-                               :value="startDatetime"
-                               @input="setField"
-                               data-field="startDatetime"
-                               class="vTextField flex-1">
-                        <select name="start_timezone"
-                                id="start_timezone"
-                                :value="startTimezone"
-                                @change="setField"
-                                data-field="startTimezone"
-                                class="vTextField">
-                            {% for value, label in timezone_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-                        </select>
+            <c-slot name="title">
+                Schedule
+            </c-slot>
+            <form @submit.prevent="setSchedule">
+                <div class="grid-2">
+                    <div>
+                        <c-form_field label="Start Time" id="start_datetime">
+                            <div class="d-flex gap-10">
+                                <input type="datetime-local"
+                                       name="start_datetime"
+                                       id="start_datetime"
+                                       :value="startDatetime"
+                                       @input="setField"
+                                       data-field="startDatetime"
+                                       class="vTextField flex-1">
+                                <select name="start_timezone"
+                                        id="start_timezone"
+                                        :value="startTimezone"
+                                        @change="setField"
+                                        data-field="startTimezone"
+                                        class="vTextField">
+                                    {% for value, label in timezone_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </c-form_field>
                     </div>
-                    </c-form_field>
-                </div>
-                <div>
-                    <c-form_field label="End Time" id="end_datetime">
-                    <div class="d-flex gap-10">
-                        <input type="datetime-local"
-                               name="end_datetime"
-                               id="end_datetime"
-                               :value="endDatetime"
-                               @input="setField"
-                               data-field="endDatetime"
-                               class="vTextField flex-1">
-                        <select name="end_timezone"
-                                id="end_timezone"
-                                :value="endTimezone"
-                                @change="setField"
-                                data-field="endTimezone"
-                                class="vTextField">
-                            {% for value, label in timezone_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-                        </select>
+                    <div>
+                        <c-form_field label="End Time" id="end_datetime">
+                            <div class="d-flex gap-10">
+                                <input type="datetime-local"
+                                       name="end_datetime"
+                                       id="end_datetime"
+                                       :value="endDatetime"
+                                       @input="setField"
+                                       data-field="endDatetime"
+                                       class="vTextField flex-1">
+                                <select name="end_timezone"
+                                        id="end_timezone"
+                                        :value="endTimezone"
+                                        @change="setField"
+                                        data-field="endTimezone"
+                                        class="vTextField">
+                                    {% for value, label in timezone_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </c-form_field>
                     </div>
-                    </c-form_field>
                 </div>
-            </div>
-            <c-button_row class="mt-10">
-            <c-button type="submit" variant="default" ::disabled="loading">Save Schedule</c-button>
-            </c-button_row>
-        </form>
+                <c-button_row class="mt-10">
+                    <c-button type="submit" variant="default" ::disabled="loading">
+                        Save Schedule
+                    </c-button>
+                </c-button_row>
+            </form>
         </c-module>
         <!-- Quotient Integration -->
         <c-module class="mt-20">
-        <c-slot name="title">Quotient Integration</c-slot>
-        {% if quotient_metadata %}
-            <div class="d-flex gap-20 items-center flex-wrap">
-                <span><strong>Last Synced:</strong> {{ quotient_metadata.last_synced|date:"Y-m-d H:i:s" }}</span>
-                {% if quotient_metadata.event_name %}
-                    <span><strong>Event:</strong> {{ quotient_metadata.event_name }}</span>
-                {% endif %}
-                <span><strong>Teams:</strong> {{ quotient_metadata.team_count }}</span>
-                <span><strong>Boxes:</strong> {{ quotient_metadata.boxes|length }}</span>
-            </div>
-        {% else %}
-            <p class="text-muted">Metadata not synced yet.</p>
-        {% endif %}
-        <c-button_row>
-        <c-button variant="default" @click="syncQuotient" ::disabled="loading">Sync Metadata</c-button>
-        </c-button_row>
+            <c-slot name="title">
+                Quotient Integration
+            </c-slot>
+            {% if quotient_metadata %}
+                <div class="d-flex gap-20 items-center flex-wrap">
+                    <span><strong>Last Synced:</strong> {{ quotient_metadata.last_synced|date:"Y-m-d H:i:s" }}</span>
+                    {% if quotient_metadata.event_name %}
+                        <span><strong>Event:</strong> {{ quotient_metadata.event_name }}</span>
+                    {% endif %}
+                    <span><strong>Teams:</strong> {{ quotient_metadata.team_count }}</span>
+                    <span><strong>Boxes:</strong> {{ quotient_metadata.boxes|length }}</span>
+                </div>
+            {% else %}
+                <p class="text-muted">Metadata not synced yet.</p>
+            {% endif %}
+            <c-button_row>
+                <c-button variant="default" @click="syncQuotient" ::disabled="loading">
+                    Sync Metadata
+                </c-button>
+            </c-button_row>
         </c-module>
         <!-- Readiness Check -->
         <c-module class="mt-20">
-        <c-slot name="title">Readiness Check</c-slot>
-        <p class="text-muted mb-15">Run all checks to verify the system is ready for competition.</p>
-        <c-button_row>
-        <c-button variant="default" @click="runReadinessChecks" ::disabled="readinessLoading">
-        <span x-show="notReadinessLoading">Run Checks</span>
-        <span x-show="readinessLoading">Running...</span>
-        </c-button>
-        </c-button_row>
-        <template x-if="hasReadinessResults">
-            <div class="mt-15">
-                <template x-for="(r, idx) in readinessResults" :key="idx">
-                    <div class="d-flex items-center gap-10 py-5 border-bottom">
-                        <span x-show="r.isPass" class="text-success font-bold" aria-label="Pass">✓</span>
-                        <span x-show="r.isFail" class="text-danger font-bold" aria-label="Fail">✗</span>
-                        <span x-show="r.isWarn" class="text-warning font-bold" aria-label="Warning">⚠</span>
-                        <span class="font-semibold" x-text="r.step"></span>
-                        <span class="text-muted text-sm" x-text="r.detail"></span>
-                        <template x-if="r.isLinkAction">
-                            <a :href="r.actionUrl"
-                               class="btn btn-sm btn-outline-primary ms-auto"
-                               x-text="r.actionLabel"></a>
-                        </template>
-                        <template x-if="r.isFixAction">
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-warning ms-auto"
-                                    @click="doReadinessFix"
-                                    :data-fix="r.fixKey"
-                                    :disabled="readinessFixing"
-                                    x-text="r.actionLabel"></button>
-                        </template>
-                    </div>
-                </template>
-            </div>
-        </template>
-        <template x-if="readinessOk">
-            <c-alert variant="success" class="mt-15"><span x-text="readinessSummary"></span></c-alert>
-        </template>
-        <template x-if="readinessNotOk">
-            <c-alert variant="warning" class="mt-15"><span x-text="readinessSummary"></span></c-alert>
-        </template>
+            <c-slot name="title">
+                Readiness Check
+            </c-slot>
+            <p class="text-muted mb-15">Run all checks to verify the system is ready for competition.</p>
+            <c-button_row>
+                <c-button variant="default"
+                          @click="runReadinessChecks"
+                          ::disabled="readinessLoading">
+                    <span x-show="notReadinessLoading">Run Checks</span>
+                    <span x-show="readinessLoading">Running...</span>
+                </c-button>
+            </c-button_row>
+            <template x-if="hasReadinessResults">
+                <div class="mt-15">
+                    <template x-for="(r, idx) in readinessResults" :key="idx">
+                        <div class="d-flex items-center gap-10 py-5 border-bottom">
+                            <span x-show="r.isPass" class="text-success font-bold" aria-label="Pass">✓</span>
+                            <span x-show="r.isFail" class="text-danger font-bold" aria-label="Fail">✗</span>
+                            <span x-show="r.isWarn" class="text-warning font-bold" aria-label="Warning">⚠</span>
+                            <span class="font-semibold" x-text="r.step"></span>
+                            <span class="text-muted text-sm" x-text="r.detail"></span>
+                            <template x-if="r.isLinkAction">
+                                <a :href="r.actionUrl"
+                                   class="btn btn-sm btn-outline-primary ms-auto"
+                                   x-text="r.actionLabel"></a>
+                            </template>
+                            <template x-if="r.isFixAction">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-warning ms-auto"
+                                        @click="doReadinessFix"
+                                        :data-fix="r.fixKey"
+                                        :disabled="readinessFixing"
+                                        x-text="r.actionLabel"></button>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <template x-if="readinessOk">
+                <c-alert variant="success" class="mt-15">
+                    <span x-text="readinessSummary"></span>
+                </c-alert>
+            </template>
+            <template x-if="readinessNotOk">
+                <c-alert variant="warning" class="mt-15">
+                    <span x-text="readinessSummary"></span>
+                </c-alert>
+            </template>
         </c-module>
         <!-- Competition Controls -->
         <c-module class="mt-20">
-        <c-slot name="title">Competition Controls</c-slot>
-        <c-button_row>
-        <c-button variant="primary" @click="startCompetition" ::disabled="loading">Start Competition</c-button>
-        <c-button variant="warning" @click="stopCompetition" ::disabled="loading">Stop Competition</c-button>
-        </c-button_row>
-        <c-progress_bar />
+            <c-slot name="title">
+                Competition Controls
+            </c-slot>
+            <c-button_row>
+                <c-button variant="primary" @click="startCompetition" ::disabled="loading">
+                    Start Competition
+                </c-button>
+                <c-button variant="warning" @click="stopCompetition" ::disabled="loading">
+                    Stop Competition
+                </c-button>
+            </c-button_row>
+            <c-progress_bar />
         </c-module>
         <!-- Post-Competition -->
         <c-module class="mt-20">
-        <c-slot name="title">Post-Competition</c-slot>
-        <form @submit.prevent="resetPasswords">
-            <c-form_field label="Team Numbers" id="team_numbers" help_text="Leave empty to reset all 50 teams. Generates new passwords and revokes sessions.">
-            <input type="text"
-                   name="team_numbers"
-                   id="team_numbers"
-                   :value="teamNumbers"
-                   @input="setField"
-                   data-field="teamNumbers"
-                   placeholder="1,3,5-10 (empty = all)"
-                   class="vTextField">
-            </c-form_field>
-            <c-button_row class="mt-10">
-            <c-button type="submit" variant="warning" ::disabled="loading">Reset Passwords</c-button>
-            </c-button_row>
-        </form>
-        <template x-if="csvContent">
-            <c-action_box heading="Password CSV Generated" class="mt-20">
-            <textarea readonly
-                      class="w-full vTextField h-120 font-mono text-sm"
-                      x-text="csvContent"></textarea>
-            <c-button_row class="mt-10">
-            <c-button type="button" variant="default" @click="downloadCsv">Download CSV</c-button>
-            </c-button_row>
-            </c-action_box>
-        </template>
-        <div class="mt-20">
-            <c-link href="{% url 'admin_competition_danger' %}" variant="danger">
-            Cleanup &amp; Danger Zone →
-            </c-link>
-        </div>
+            <c-slot name="title">
+                Post-Competition
+            </c-slot>
+            <form @submit.prevent="resetPasswords">
+                <c-form_field label="Team Numbers"
+                              id="team_numbers"
+                              help_text="Leave empty to reset all 50 teams. Generates new passwords and revokes sessions.">
+                    <input type="text"
+                           name="team_numbers"
+                           id="team_numbers"
+                           :value="teamNumbers"
+                           @input="setField"
+                           data-field="teamNumbers"
+                           placeholder="1,3,5-10 (empty = all)"
+                           class="vTextField">
+                </c-form_field>
+                <c-button_row class="mt-10">
+                    <c-button type="submit" variant="warning" ::disabled="loading">
+                        Reset Passwords
+                    </c-button>
+                </c-button_row>
+            </form>
+            <template x-if="csvContent">
+                <c-action_box heading="Password CSV Generated" class="mt-20">
+                    <textarea readonly
+                              class="w-full vTextField h-120 font-mono text-sm"
+                              x-text="csvContent"></textarea>
+                    <c-button_row class="mt-10">
+                        <c-button type="button" variant="default" @click="downloadCsv">
+                            Download CSV
+                        </c-button>
+                    </c-button_row>
+                </c-action_box>
+            </template>
+            <div class="mt-20">
+                <c-link href="{% url 'admin_competition_danger' %}" variant="danger">
+                    Cleanup &amp; Danger Zone →
+                </c-link>
+            </div>
         </c-module>
         <c-toast />
     </div>

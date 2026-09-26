@@ -14,94 +14,108 @@
     {% else %}
         Edit Check
     {% endif %}
-    " subtitle="Define a check with rubric criteria" />
+    "
+                   subtitle="Define a check with rubric criteria" />
     {% if messages %}
         {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
     {% endif %}
     <c-module>
-    <form method="post"
-          {% if mode == "edit" %}action="{% url 'orange_team:check_edit' orange_check.pk %}"{% endif %}
-          x-data="criteriaForm"
-          @submit="onSubmit">
-        {% csrf_token %}
-        <c-fieldset heading="Check Details">
-        <c-form_field label="Title" required="true" id="id_title">
-        <input type="text"
-               class="vTextField"
-               id="id_title"
-               name="title"
-               maxlength="200"
-               value="{{ orange_check.title|default:'' }}"
-               required>
-        </c-form_field>
-        <c-form_field label="Description" id="id_description" help_text="Steps/instructions for the orange teamer">
-        <textarea class="vLargeTextField"
-                  id="id_description"
-                  name="description"
-                  rows="4">{{ orange_check.description|default:'' }}</textarea>
-        </c-form_field>
-        <c-form_field label="Scheduled At" id="id_scheduled_at" help_text="When assignments go live (optional)">
-        <input type="datetime-local"
-               class="vTextField"
-               id="id_scheduled_at"
-               name="scheduled_at"
-               {% if orange_check.scheduled_at %}value="{{ orange_check.scheduled_at|date:'Y-m-d\TH:i' }}"{% endif %}>
-        </c-form_field>
-        </c-fieldset>
-        <c-fieldset heading="Rubric Criteria">
-        <template x-for="(criterion, index) in criteria" :key="index">
-            <div class="form-row d-flex items-end gap-10">
-                <div class="flex-grow-1">
-                    <label :for="criterion.labelId" class="required">Label:</label>
+        <form method="post"
+              {% if mode == "edit" %}action="{% url 'orange_team:check_edit' orange_check.pk %}"{% endif %}
+              x-data="criteriaForm"
+              @submit="onSubmit">
+            {% csrf_token %}
+            <c-fieldset heading="Check Details">
+                <c-form_field label="Title" required="true" id="id_title">
                     <input type="text"
                            class="vTextField"
-                           :id="criterion.labelId"
-                           :name="criterion.labelName"
-                           :value="criterion.label"
-                           @input="setCriterionField"
-                           :data-index="index"
-                           data-prop="label"
+                           id="id_title"
+                           name="title"
+                           maxlength="200"
+                           value="{{ orange_check.title|default:'' }}"
                            required>
-                </div>
-                <div class="input-sm-wrap">
-                    <label :for="criterion.pointsId" class="required">Points:</label>
-                    <input type="number"
+                </c-form_field>
+                <c-form_field label="Description"
+                              id="id_description"
+                              help_text="Steps/instructions for the orange teamer">
+                    <textarea class="vLargeTextField"
+                              id="id_description"
+                              name="description"
+                              rows="4">{{ orange_check.description|default:'' }}</textarea>
+                </c-form_field>
+                <c-form_field label="Scheduled At"
+                              id="id_scheduled_at"
+                              help_text="When assignments go live (optional)">
+                    <input type="datetime-local"
                            class="vTextField"
-                           :id="criterion.pointsId"
-                           :name="criterion.pointsName"
-                           :value="criterion.points"
-                           @input="setCriterionField"
-                           :data-index="index"
-                           data-prop="points"
-                           min="1"
-                           required>
+                           id="id_scheduled_at"
+                           name="scheduled_at"
+                           {% if orange_check.scheduled_at %}value="{{ orange_check.scheduled_at|date:'Y-m-d\TH:i' }}"{% endif %}>
+                </c-form_field>
+            </c-fieldset>
+            <c-fieldset heading="Rubric Criteria">
+                <template x-for="(criterion, index) in criteria" :key="index">
+                    <div class="form-row d-flex items-end gap-10">
+                        <div class="flex-grow-1">
+                            <label :for="criterion.labelId" class="required">Label:</label>
+                            <input type="text"
+                                   class="vTextField"
+                                   :id="criterion.labelId"
+                                   :name="criterion.labelName"
+                                   :value="criterion.label"
+                                   @input="setCriterionField"
+                                   :data-index="index"
+                                   data-prop="label"
+                                   required>
+                        </div>
+                        <div class="input-sm-wrap">
+                            <label :for="criterion.pointsId" class="required">Points:</label>
+                            <input type="number"
+                                   class="vTextField"
+                                   :id="criterion.pointsId"
+                                   :name="criterion.pointsName"
+                                   :value="criterion.points"
+                                   @input="setCriterionField"
+                                   :data-index="index"
+                                   data-prop="points"
+                                   min="1"
+                                   required>
+                        </div>
+                        <div class="mb-5">
+                            <c-button type="button"
+                                      variant="danger"
+                                      x-show="canRemove"
+                                      x-on:click="removeCriterion"
+                                      :data-index="index">
+                                Remove
+                            </c-button>
+                        </div>
+                    </div>
+                </template>
+                <div class="mt-10">
+                    <c-button type="button" variant="default" x-on:click="addCriterion">
+                        Add Criterion
+                    </c-button>
                 </div>
-                <div class="mb-5">
-                    <c-button type="button" variant="danger" x-show="canRemove" x-on:click="removeCriterion" :data-index="index">Remove</c-button>
-                </div>
-            </div>
-        </template>
-        <div class="mt-10">
-            <c-button type="button" variant="default" x-on:click="addCriterion">Add Criterion</c-button>
-        </div>
-        </c-fieldset>
-        <c-button_row class="justify-end">
-        <c-link href="
+            </c-fieldset>
+            <c-button_row class="justify-end">
+                <c-link href="
         {% if mode == 'edit' %}
             {% url 'orange_team:check_detail' orange_check.pk %}
         {% else %}
             {% url 'orange_team:check_list' %}
         {% endif %}
-        " variant="cancel">Cancel</c-link>
-        <c-button type="submit" variant="primary" ::disabled="submitting">
-        {% if mode == "create" %}
-            Create Check
-        {% else %}
-            Save Changes
-        {% endif %}
-        </c-button>
-        </c-button_row>
-    </form>
+        "
+                        variant="cancel">Cancel</c-link>
+                <c-button type="submit" variant="primary" ::disabled="submitting">
+                    {% if mode == "create" %}
+                        Create Check
+                    {% else %}
+                        Save Changes
+                    {% endif %}
+                </c-button>
+            </c-button_row>
+        </form>
     </c-module>
     {% if existing_criteria %}{{ existing_criteria|json_script:"criteria-data" }}{% endif %}
     <script>

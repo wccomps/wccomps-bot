@@ -5,136 +5,174 @@
 {% endblock orange_title %}
 {% block orange_content %}
     <c-page_header title="{{ orange_check.title }}">
-    <c-slot name="subtitle">
-    {% if orange_check.status == "draft" %}
-        <c-badge variant="neutral">Draft</c-badge>
-    {% elif orange_check.status == "scheduled" %}
-        <c-badge variant="info">Scheduled</c-badge>
-    {% elif orange_check.status == "active" %}
-        <c-badge variant="success">Active</c-badge>
-    {% elif orange_check.status == "closed" %}
-        <c-badge variant="warning">Closed</c-badge>
-    {% endif %}
-    </c-slot>
+        <c-slot name="subtitle">
+            {% if orange_check.status == "draft" %}
+                <c-badge variant="neutral">
+                    Draft
+                </c-badge>
+            {% elif orange_check.status == "scheduled" %}
+                <c-badge variant="info">
+                    Scheduled
+                </c-badge>
+            {% elif orange_check.status == "active" %}
+                <c-badge variant="success">
+                    Active
+                </c-badge>
+            {% elif orange_check.status == "closed" %}
+                <c-badge variant="warning">
+                    Closed
+                </c-badge>
+            {% endif %}
+        </c-slot>
     </c-page_header>
     {% if messages %}
         {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
     {% endif %}
     <c-module>
-    <c-slot name="toolbar">
-    <c-link href="{% url 'orange_team:check_edit' orange_check.pk %}" variant="change">Edit</c-link>
-    <c-form action="{% url 'orange_team:check_duplicate' orange_check.pk %}" class="d-inline">
-    {% csrf_token %}
-    <c-button type="submit" variant="default" ::disabled="submitting">Duplicate</c-button>
-    </c-form>
-    </c-slot>
-    <c-fieldset heading="Details">
-    <p>
-        <strong>Description:</strong> {{ orange_check.description|default:"None" }}
-    </p>
-    {% if orange_check.scheduled_at %}
-        <p>
-            <strong>Scheduled At:</strong> {{ orange_check.scheduled_at|date:"M d, Y H:i" }}
-        </p>
-    {% endif %}
-    <p>
-        <strong>Created by:</strong> {{ orange_check.created_by.username|default:"Unknown" }}
-    </p>
-    <p>
-        <strong>Created:</strong> {{ orange_check.created_at|date:"M d, Y H:i" }}
-    </p>
-    </c-fieldset>
-    <c-fieldset heading="Rubric Criteria">
-    {% if orange_check.criteria.all %}
-        <c-table id="criteria-list" aria_label="Rubric criteria">
-        <c-slot name="headers">
-        <tr>
-            <c-table_header sortable="false">Label</c-table_header>
-            <c-table_header sortable="false">Points</c-table_header>
-        </tr>
+        <c-slot name="toolbar">
+            <c-link href="{% url 'orange_team:check_edit' orange_check.pk %}"
+                    variant="change">Edit</c-link>
+            <c-form action="{% url 'orange_team:check_duplicate' orange_check.pk %}"
+                    class="d-inline">
+                {% csrf_token %}
+                <c-button type="submit" variant="default" ::disabled="submitting">
+                    Duplicate
+                </c-button>
+            </c-form>
         </c-slot>
-        {% for criterion in orange_check.criteria.all %}
-            <tr>
-                <td>{{ criterion.label }}</td>
-                <td>{{ criterion.points }}</td>
-            </tr>
-        {% endfor %}
-        <tr>
-            <td>
-                <strong>Total</strong>
-            </td>
-            <td>
-                <strong>{{ orange_check.max_score }}</strong>
-            </td>
-        </tr>
-        </c-table>
-    {% else %}
-        <c-empty_state title="No criteria defined" description="Edit this check to add criteria." />
-    {% endif %}
-    </c-fieldset>
+        <c-fieldset heading="Details">
+            <p>
+                <strong>Description:</strong> {{ orange_check.description|default:"None" }}
+            </p>
+            {% if orange_check.scheduled_at %}
+                <p>
+                    <strong>Scheduled At:</strong> {{ orange_check.scheduled_at|date:"M d, Y H:i" }}
+                </p>
+            {% endif %}
+            <p>
+                <strong>Created by:</strong> {{ orange_check.created_by.username|default:"Unknown" }}
+            </p>
+            <p>
+                <strong>Created:</strong> {{ orange_check.created_at|date:"M d, Y H:i" }}
+            </p>
+        </c-fieldset>
+        <c-fieldset heading="Rubric Criteria">
+            {% if orange_check.criteria.all %}
+                <c-table id="criteria-list" aria_label="Rubric criteria">
+                    <c-slot name="headers">
+                        <tr>
+                            <c-table_header sortable="false">
+                                Label
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Points
+                            </c-table_header>
+                        </tr>
+                    </c-slot>
+                    {% for criterion in orange_check.criteria.all %}
+                        <tr>
+                            <td>{{ criterion.label }}</td>
+                            <td>{{ criterion.points }}</td>
+                        </tr>
+                    {% endfor %}
+                    <tr>
+                        <td>
+                            <strong>Total</strong>
+                        </td>
+                        <td>
+                            <strong>{{ orange_check.max_score }}</strong>
+                        </td>
+                    </tr>
+                </c-table>
+            {% else %}
+                <c-empty_state title="No criteria defined"
+                               description="Edit this check to add criteria." />
+            {% endif %}
+        </c-fieldset>
     </c-module>
     {# Assignments #}
     <c-module>
-    <h2>Assignments</h2>
-    {% if orange_check.assignments.all %}
-        <c-table id="assignment-list" aria_label="Team assignments">
-        <c-slot name="headers">
-        <tr>
-            <c-table_header sortable="false">Team</c-table_header>
-            <c-table_header sortable="false">Assigned To</c-table_header>
-            <c-table_header sortable="false">Status</c-table_header>
-            <c-table_header sortable="false">Score</c-table_header>
-        </tr>
-        </c-slot>
-        {% for assignment in orange_check.assignments.all %}
-            <tr>
-                <td>Team {{ assignment.team.team_number }}</td>
-                <td>{{ assignment.user.username }}</td>
-                <td>
-                    {% if assignment.status == "pending" %}
-                        <c-badge variant="warning">Pending</c-badge>
-                    {% elif assignment.status == "in_progress" %}
-                        <c-badge variant="info">In Progress</c-badge>
-                    {% elif assignment.status == "submitted" %}
-                        <c-badge variant="claimed">Submitted</c-badge>
-                    {% elif assignment.status == "approved" %}
-                        <c-badge variant="success">Approved</c-badge>
-                    {% elif assignment.status == "rejected" %}
-                        <c-badge variant="danger">Rejected</c-badge>
-                    {% endif %}
-                </td>
-                <td>{{ assignment.score|default:"—" }} / {{ orange_check.max_score }}</td>
-            </tr>
-        {% endfor %}
-        </c-table>
-    {% else %}
-        <c-empty_state title="No assignments" description="Assign checked-in users to distribute this check across teams." />
-    {% endif %}
+        <h2>Assignments</h2>
+        {% if orange_check.assignments.all %}
+            <c-table id="assignment-list" aria_label="Team assignments">
+                <c-slot name="headers">
+                    <tr>
+                        <c-table_header sortable="false">
+                            Team
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Assigned To
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Status
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Score
+                        </c-table_header>
+                    </tr>
+                </c-slot>
+                {% for assignment in orange_check.assignments.all %}
+                    <tr>
+                        <td>Team {{ assignment.team.team_number }}</td>
+                        <td>{{ assignment.user.username }}</td>
+                        <td>
+                            {% if assignment.status == "pending" %}
+                                <c-badge variant="warning">
+                                    Pending
+                                </c-badge>
+                            {% elif assignment.status == "in_progress" %}
+                                <c-badge variant="info">
+                                    In Progress
+                                </c-badge>
+                            {% elif assignment.status == "submitted" %}
+                                <c-badge variant="claimed">
+                                    Submitted
+                                </c-badge>
+                            {% elif assignment.status == "approved" %}
+                                <c-badge variant="success">
+                                    Approved
+                                </c-badge>
+                            {% elif assignment.status == "rejected" %}
+                                <c-badge variant="danger">
+                                    Rejected
+                                </c-badge>
+                            {% endif %}
+                        </td>
+                        <td>{{ assignment.score|default:"—" }} / {{ orange_check.max_score }}</td>
+                    </tr>
+                {% endfor %}
+            </c-table>
+        {% else %}
+            <c-empty_state title="No assignments"
+                           description="Assign checked-in users to distribute this check across teams." />
+        {% endif %}
     </c-module>
     {# Assign form #}
     {% if orange_check.status == "draft" or orange_check.status == "scheduled" %}
         <c-module>
-        <h2>Assign Users</h2>
-        {% if checked_in_users %}
-            <c-form action="{% url 'orange_team:check_assign' orange_check.pk %}">
-            {% csrf_token %}
-            <c-fieldset heading="Checked-In Users">
-            {% for user in checked_in_users %}
-                <div class="form-row">
-                    <label>
-                        <input type="checkbox" name="user_ids" value="{{ user.pk }}">
-                        {{ user.username }}
-                    </label>
-                </div>
-            {% endfor %}
-            </c-fieldset>
-            <c-button_row>
-            <c-button type="submit" variant="primary" ::disabled="submitting">Assign Teams</c-button>
-            </c-button_row>
-            </c-form>
-        {% else %}
-            <p class="text-muted">No users are currently checked in.</p>
-        {% endif %}
+            <h2>Assign Users</h2>
+            {% if checked_in_users %}
+                <c-form action="{% url 'orange_team:check_assign' orange_check.pk %}">
+                    {% csrf_token %}
+                    <c-fieldset heading="Checked-In Users">
+                        {% for user in checked_in_users %}
+                            <div class="form-row">
+                                <label>
+                                    <input type="checkbox" name="user_ids" value="{{ user.pk }}">
+                                    {{ user.username }}
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </c-fieldset>
+                    <c-button_row>
+                        <c-button type="submit" variant="primary" ::disabled="submitting">
+                            Assign Teams
+                        </c-button>
+                    </c-button_row>
+                </c-form>
+            {% else %}
+                <p class="text-muted">No users are currently checked in.</p>
+            {% endif %}
         </c-module>
     {% endif %}
 {% endblock orange_content %}

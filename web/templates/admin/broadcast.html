@@ -7,65 +7,73 @@
     <div x-data="broadcastAdmin">
         <c-page_header title="Broadcast Message" />
         <c-module>
-        <c-slot name="title">Send Broadcast</c-slot>
-        <form @submit.prevent="sendBroadcast">
-            <c-fieldset heading="Compose" aligned="true">
-            <c-form_field label="Target" id="target">
-            <select name="target"
-                    :value="target"
-                    @change="setField"
-                    data-field="target"
-                    class="vTextField">
-                <option value="announcements">Announcements Channel</option>
-                <option value="all-teams">All Team Channels</option>
-                <option value="custom">Specific Teams</option>
-            </select>
-            </c-form_field>
-            <template x-if="isCustomTarget">
-                <c-form_field label="Team Numbers" id="team_numbers" help_text="Comma-separated numbers or ranges: 1,3,5-10">
-                <input type="text"
-                       name="team_numbers"
-                       :value="teamNumbers"
-                       @input="setField"
-                       data-field="teamNumbers"
-                       class="vTextField"
-                       placeholder="1,3,5-10,15">
-                </c-form_field>
-            </template>
-            <c-form_field label="Message" id="message">
-            <textarea name="message"
-                      :value="message"
-                      @input="setField"
-                      data-field="message"
-                      class="vTextField"
-                      rows="6"
-                      placeholder="Enter your message here..."></textarea>
-            </c-form_field>
-            <div class="form-row">
-                <input type="checkbox"
-                       id="mention_team"
-                       :checked="mentionTeam"
-                       @change="setChecked"
-                       data-field="mentionTeam">
-                <label for="mention_team">Mention @Blueteam role</label>
-            </div>
-            </c-fieldset>
-            <c-button_row class="justify-end">
-            <c-link href="{% url 'admin_competition' %}" variant="cancel">Cancel</c-link>
-            <c-button type="submit" variant="primary" ::disabled="sendDisabled">Send Broadcast</c-button>
-            </c-button_row>
-        </form>
-        <c-action_box heading="Preview" class="mt-20">
-        <div class="whitespace-pre-wrap" x-text="previewText"></div>
-        </c-action_box>
+            <c-slot name="title">
+                Send Broadcast
+            </c-slot>
+            <form @submit.prevent="sendBroadcast">
+                <c-fieldset heading="Compose" aligned="true">
+                    <c-form_field label="Target" id="target">
+                        <select name="target"
+                                :value="target"
+                                @change="setField"
+                                data-field="target"
+                                class="vTextField">
+                            <option value="announcements">Announcements Channel</option>
+                            <option value="all-teams">All Team Channels</option>
+                            <option value="custom">Specific Teams</option>
+                        </select>
+                    </c-form_field>
+                    <template x-if="isCustomTarget">
+                        <c-form_field label="Team Numbers"
+                                      id="team_numbers"
+                                      help_text="Comma-separated numbers or ranges: 1,3,5-10">
+                            <input type="text"
+                                   name="team_numbers"
+                                   :value="teamNumbers"
+                                   @input="setField"
+                                   data-field="teamNumbers"
+                                   class="vTextField"
+                                   placeholder="1,3,5-10,15">
+                        </c-form_field>
+                    </template>
+                    <c-form_field label="Message" id="message">
+                        <textarea name="message"
+                                  :value="message"
+                                  @input="setField"
+                                  data-field="message"
+                                  class="vTextField"
+                                  rows="6"
+                                  placeholder="Enter your message here..."></textarea>
+                    </c-form_field>
+                    <div class="form-row">
+                        <input type="checkbox"
+                               id="mention_team"
+                               :checked="mentionTeam"
+                               @change="setChecked"
+                               data-field="mentionTeam">
+                        <label for="mention_team">Mention @Blueteam role</label>
+                    </div>
+                </c-fieldset>
+                <c-button_row class="justify-end">
+                    <c-link href="{% url 'admin_competition' %}" variant="cancel">Cancel</c-link>
+                    <c-button type="submit" variant="primary" ::disabled="sendDisabled">
+                        Send Broadcast
+                    </c-button>
+                </c-button_row>
+            </form>
+            <c-action_box heading="Preview" class="mt-20">
+                <div class="whitespace-pre-wrap" x-text="previewText"></div>
+            </c-action_box>
         </c-module>
         <c-module class="mt-20">
-        <c-slot name="title">Active Teams ({{ teams|length }})</c-slot>
-        <div class="max-h-300 overflow-y-auto">
-            <ul class="team-list">
-                {% for team in teams %}<li>Team {{ team.team_number }}</li>{% endfor %}
-            </ul>
-        </div>
+            <c-slot name="title">
+                Active Teams ({{ teams|length }})
+            </c-slot>
+            <div class="max-h-300 overflow-y-auto">
+                <ul class="team-list">
+                    {% for team in teams %}<li>Team {{ team.team_number }}</li>{% endfor %}
+                </ul>
+            </div>
         </c-module>
         <c-toast message="message_alert" />
     </div>

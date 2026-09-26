@@ -7,133 +7,147 @@
     <div x-data="packetAdmin">
         <c-page_header title="Packets" />
         <c-module>
-        <c-slot name="toolbar">
-        <c-link href="{% url 'upload_packet' %}" variant="add">Upload New Packet</c-link>
-        </c-slot>
-        {% if messages %}
-            {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-        {% endif %}
+            <c-slot name="toolbar">
+                <c-link href="{% url 'upload_packet' %}" variant="add">Upload New Packet</c-link>
+            </c-slot>
+            {% if messages %}
+                {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
+            {% endif %}
         </c-module>
         <!-- Active Packet -->
         {% if active_packet %}
             <c-fieldset heading="Active Packet">
-            <div class="status-bar">
-                <div class="d-flex justify-between items-center flex-wrap gap-10">
-                    <div class="d-flex items-center gap-10 flex-wrap">
-                        <c-badge variant="{{ active_packet.status }}">{{ active_packet.get_status_display }}</c-badge>
-                        <strong>{{ active_packet.title }}</strong>
-                        <span class="text-muted">{{ active_packet.filename }} ({{ active_packet.file_size|filesizeformat }})</span>
-                        <span class="text-muted">|</span>
-                        <span>{{ active_stats.total }} teams</span>
-                        {% if active_stats.sent %}
+                <div class="status-bar">
+                    <div class="d-flex justify-between items-center flex-wrap gap-10">
+                        <div class="d-flex items-center gap-10 flex-wrap">
+                            <c-badge variant="{{ active_packet.status }}">
+                                {{ active_packet.get_status_display }}
+                            </c-badge>
+                            <strong>{{ active_packet.title }}</strong>
+                            <span class="text-muted">{{ active_packet.filename }} ({{ active_packet.file_size|filesizeformat }})</span>
                             <span class="text-muted">|</span>
-                            <span>{{ active_stats.sent }} sent</span>
-                        {% endif %}
-                        {% if active_stats.pending and active_packet.status == "distributing" %}
-                            <span class="text-muted">|</span>
-                            <span class="text-warning">{{ active_stats.pending }} pending</span>
-                        {% endif %}
-                        {% if active_stats.failed > 0 %}
-                            <span class="text-muted">|</span>
-                            <span class="text-danger">{{ active_stats.failed }} failed</span>
-                        {% endif %}
-                        {% if active_stats.downloaded %}
-                            <span class="text-muted">|</span>
-                            <span>{{ active_stats.downloaded }} downloaded</span>
-                        {% endif %}
-                    </div>
-                    <div class="d-flex gap-10">
-                        {% if active_packet.status == "draft" %}
-                            <c-button variant="primary" @click="distributePacket" ::disabled="loading">
-                            Distribute
-                            </c-button>
-                        {% endif %}
-                        {% if active_stats.pending > 0 and active_packet.status == "distributing" %}
-                            <c-button variant="warning" @click="retryPending" ::disabled="loading">
-                            Retry Pending
-                            </c-button>
-                        {% endif %}
-                        {% if active_stats.failed > 0 %}
-                            <c-button variant="warning" @click="resendFailed" ::disabled="loading">
-                            Resend Failed
-                            </c-button>
-                        {% endif %}
-                        {% if active_packet.status not in "cancelled" %}
-                            <c-button variant="danger" @click="cancelPacket" ::disabled="loading">
-                            Cancel
-                            </c-button>
-                        {% endif %}
-                        <c-link href="{% url 'packet_detail' active_packet.id %}" variant="change">Distributions</c-link>
+                            <span>{{ active_stats.total }} teams</span>
+                            {% if active_stats.sent %}
+                                <span class="text-muted">|</span>
+                                <span>{{ active_stats.sent }} sent</span>
+                            {% endif %}
+                            {% if active_stats.pending and active_packet.status == "distributing" %}
+                                <span class="text-muted">|</span>
+                                <span class="text-warning">{{ active_stats.pending }} pending</span>
+                            {% endif %}
+                            {% if active_stats.failed > 0 %}
+                                <span class="text-muted">|</span>
+                                <span class="text-danger">{{ active_stats.failed }} failed</span>
+                            {% endif %}
+                            {% if active_stats.downloaded %}
+                                <span class="text-muted">|</span>
+                                <span>{{ active_stats.downloaded }} downloaded</span>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex gap-10">
+                            {% if active_packet.status == "draft" %}
+                                <c-button variant="primary" @click="distributePacket" ::disabled="loading">
+                                    Distribute
+                                </c-button>
+                            {% endif %}
+                            {% if active_stats.pending > 0 and active_packet.status == "distributing" %}
+                                <c-button variant="warning" @click="retryPending" ::disabled="loading">
+                                    Retry Pending
+                                </c-button>
+                            {% endif %}
+                            {% if active_stats.failed > 0 %}
+                                <c-button variant="warning" @click="resendFailed" ::disabled="loading">
+                                    Resend Failed
+                                </c-button>
+                            {% endif %}
+                            {% if active_packet.status not in "cancelled" %}
+                                <c-button variant="danger" @click="cancelPacket" ::disabled="loading">
+                                    Cancel
+                                </c-button>
+                            {% endif %}
+                            <c-link href="{% url 'packet_detail' active_packet.id %}"
+                                    variant="change">Distributions</c-link>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <c-progress_bar />
-            <!-- Toast -->
-            <template x-if="message">
-                <div x-transition class="mt-10">
-                    <c-alert :variant="messageType">
-                    <span x-text="message"></span>
-                    </c-alert>
+                <c-progress_bar />
+                <!-- Toast -->
+                <template x-if="message">
+                    <div x-transition class="mt-10">
+                        <c-alert :variant="messageType">
+                            <span x-text="message"></span>
+                        </c-alert>
+                    </div>
+                </template>
+                <!-- Test Email -->
+                <div class="d-flex gap-10 items-end mt-15 flex-wrap">
+                    <c-form_field label="Test Email" id="test-team">
+                        <select id="test-team" x-ref="testTeam" class="vTextField">
+                            {% for team in teams %}<option value="{{ team.id }}">Team {{ team.team_number }}</option>{% endfor %}
+                        </select>
+                    </c-form_field>
+                    <c-form_field label="Email" id="test-email">
+                        <input type="email"
+                               id="test-email"
+                               x-ref="testEmail"
+                               placeholder="test@example.com"
+                               class="vTextField">
+                    </c-form_field>
+                    <c-button variant="default" @click="doTestEmail" ::disabled="loading">
+                        Send Test
+                    </c-button>
                 </div>
-            </template>
-            <!-- Test Email -->
-            <div class="d-flex gap-10 items-end mt-15 flex-wrap">
-                <c-form_field label="Test Email" id="test-team">
-                <select id="test-team" x-ref="testTeam" class="vTextField">
-                    {% for team in teams %}<option value="{{ team.id }}">Team {{ team.team_number }}</option>{% endfor %}
-                </select>
-                </c-form_field>
-                <c-form_field label="Email" id="test-email">
-                <input type="email"
-                       id="test-email"
-                       x-ref="testEmail"
-                       placeholder="test@example.com"
-                       class="vTextField">
-                </c-form_field>
-                <c-button variant="default" @click="doTestEmail" ::disabled="loading">
-                Send Test
-                </c-button>
-            </div>
-            {% if active_packet.notes %}<p class="text-muted text-sm mt-10">{{ active_packet.notes }}</p>{% endif %}
+                {% if active_packet.notes %}<p class="text-muted text-sm mt-10">{{ active_packet.notes }}</p>{% endif %}
             </c-fieldset>
         {% else %}
             <c-fieldset heading="Active Packet">
-            <c-empty_state title="No active packet" description="Upload a packet to distribute to teams" />
+                <c-empty_state title="No active packet"
+                               description="Upload a packet to distribute to teams" />
             </c-fieldset>
         {% endif %}
         <!-- History -->
         {% if history %}
             <c-fieldset heading="History">
-            <c-table aria_label="Past packets">
-            <c-slot name="headers">
-            <tr>
-                <c-table_header sortable="false">Title</c-table_header>
-                <c-table_header sortable="false">Status</c-table_header>
-                <c-table_header sortable="false">Stats</c-table_header>
-                <c-table_header sortable="false">Created</c-table_header>
-            </tr>
-            </c-slot>
-            {% for item in history %}
-                <tr>
-                    <td>
-                        <c-link href="{% url 'packet_detail' item.packet.id %}">{{ item.packet.title }}</c-link>
-                        <br>
-                        <small class="text-muted">{{ item.packet.filename }} ({{ item.packet.file_size|filesizeformat }})</small>
-                    </td>
-                    <td>
-                        <c-badge variant="{{ item.packet.status }}">{{ item.packet.get_status_display }}</c-badge>
-                    </td>
-                    <td>
-                        <small>{{ item.stats.sent }} sent, {{ item.stats.downloaded }} downloaded
-                            {% if item.stats.failed %}, <span class="text-danger">{{ item.stats.failed }} failed</span>{% endif %}
-                        </small>
-                    </td>
-                    <td>
-                        <small>{{ item.packet.created_at|date:"Y-m-d H:i" }} by {{ item.packet.uploaded_by }}</small>
-                    </td>
-                </tr>
-            {% endfor %}
-            </c-table>
+                <c-table aria_label="Past packets">
+                    <c-slot name="headers">
+                        <tr>
+                            <c-table_header sortable="false">
+                                Title
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Status
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Stats
+                            </c-table_header>
+                            <c-table_header sortable="false">
+                                Created
+                            </c-table_header>
+                        </tr>
+                    </c-slot>
+                    {% for item in history %}
+                        <tr>
+                            <td>
+                                <c-link href="{% url 'packet_detail' item.packet.id %}">{{ item.packet.title }}</c-link>
+                                <br>
+                                <small class="text-muted">{{ item.packet.filename }} ({{ item.packet.file_size|filesizeformat }})</small>
+                            </td>
+                            <td>
+                                <c-badge variant="{{ item.packet.status }}">
+                                    {{ item.packet.get_status_display }}
+                                </c-badge>
+                            </td>
+                            <td>
+                                <small>{{ item.stats.sent }} sent, {{ item.stats.downloaded }} downloaded
+                                    {% if item.stats.failed %}, <span class="text-danger">{{ item.stats.failed }} failed</span>{% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                <small>{{ item.packet.created_at|date:"Y-m-d H:i" }} by {{ item.packet.uploaded_by }}</small>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </c-table>
             </c-fieldset>
         {% endif %}
     </div>
