@@ -5,7 +5,7 @@
 {% endblock title %}
 {% block admin_content %}
     <c-page_header title="Upload Packet"
-                   parent_url="{% url 'ops_packets_list' %}"
+                   parent_url="{% url 'packets_list' %}"
                    parent_label="Packets" />
     {% if messages %}
         {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}

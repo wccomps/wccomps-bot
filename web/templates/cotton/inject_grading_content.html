@@ -29,12 +29,11 @@
                             <td>
                                 <input type="number"
                                        name="points_team_{{ item.team.team_number }}"
-                                       class="vTextField"
+                                       class="vTextField w-150"
                                        value="{% if item.points is not None %}{{ item.points }}{% endif %}"
                                        min="0"
                                        step="0.01"
-                                       placeholder
-                                       class="w-150">
+                                       placeholder>
                             </td>
                             <td>
                                 {% if item.grade %}
