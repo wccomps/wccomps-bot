@@ -20,7 +20,7 @@ def format_boxes_display(boxes: list[str] | str | None) -> str:
     return ", ".join(boxes)
 
 
-def validate_file_size(file: UploadedFile) -> UploadedFile:
+def validate_file_size(file: UploadedFile[bytes]) -> UploadedFile[bytes]:
     """Validate that uploaded file is not larger than 50MB."""
     max_size_mb = 50
     if file.size and file.size > max_size_mb * 1024 * 1024:

@@ -334,7 +334,7 @@ def school_info_edit(request: HttpRequest, team_number: int) -> HttpResponse:
     )
 
 
-def _parse_school_info_csv(csv_file: UploadedFile) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
+def _parse_school_info_csv(csv_file: UploadedFile[bytes]) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
     """Parse and validate a school-info CSV, returning preview data and session rows.
 
     Returns:
@@ -434,7 +434,7 @@ def school_info_import(request: HttpRequest) -> HttpResponse:
         if "upload" in request.POST:
             form = CSVUploadForm(request.POST, request.FILES)
             if form.is_valid():
-                csv_file = cast(UploadedFile, request.FILES["csv_file"])
+                csv_file = cast(UploadedFile[bytes], request.FILES["csv_file"])
                 preview_data, session_rows = _parse_school_info_csv(csv_file)
                 if session_rows:
                     request.session["csv_import_data"] = {"teams_to_create": session_rows}

@@ -63,6 +63,8 @@ dev = [
 python_version = "3.14"
 plugins = ["mypy_django_plugin.main"]
 mypy_path = "web"
+# mypy 2 defaults to a SQLite cache, which fails with "disk I/O error" on virtiofs (no WAL shared memory)
+sqlite_cache = false
 files = ["bot", "web/core", "web/team", "web/ticketing", "web/quotient", "web/wccomps", "web/scoring", "web/orange_team", "web/packets", "web/registration"]
 exclude = "(/tests/|/test_|tests\\.py|integration_tests/|conftest\\.py)"
 
@@ -153,7 +155,15 @@ max_line_length = 120
 format_css = true
 format_js = false  # Disabled: breaks Django template tags inside <script>
 # H030/H031: meta description/keywords are SEO tags - not applicable to emails or PDFs
-ignore = "H030,H031"
+# H053: duplicate ids - false positives from cotton id props (<c-filter_field id=...>) and <c-vars id>,
+#       which djlint counts as HTML ids alongside the element they end up on
+ignore = "H030,H031,H053"
+
+[tool.djlint.per-file-ignores]
+# Cotton: <c-vars class id> declares props (not HTML attrs); inline styles use template variables
+"cotton/" = "H021,H026"
+# &#10; is the only way to put newlines in a placeholder attribute
+"packets/ops_upload_packet.html" = "H023"
 
 [tool.ruff]
 target-version = "py314"

@@ -150,7 +150,7 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
                 "status_display": ticket.status.upper().replace("_", " "),
             }
         )
-    page_obj.object_list = enriched
+    page_obj.object_list = enriched  # type: ignore[assignment]  # templates iterate enriched dicts, keep pagination
 
     # Get unique assignees for filter dropdown (ops only)
     assignees = User.objects.filter(assigned_tickets__isnull=False).distinct().order_by("username") if is_ops else []

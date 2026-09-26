@@ -89,7 +89,7 @@ def ops_review_tickets(request: HttpRequest) -> HttpResponse:
                 "expected_points": cat_info.get("points", 0),
             }
         )
-    page_obj.object_list = enriched
+    page_obj.object_list = enriched  # type: ignore[assignment]  # templates iterate enriched dicts, keep pagination
 
     context = {
         "page_obj": page_obj,

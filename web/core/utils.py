@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from django.contrib import messages
 from django.core.paginator import Page, Paginator
-from django.db.models import QuerySet
+from django.db.models import Model, QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 
@@ -77,21 +77,21 @@ def get_team_from_groups(
     return TeamGroupInfo(None, None, False)
 
 
-class FilterSortPage(TypedDict):
+class FilterSortPage[M: Model](TypedDict):
     """Result of filter_sort_paginate()."""
 
-    page_obj: Page[object]
+    page_obj: Page[M]
     current_sort: str
 
 
-def filter_sort_paginate(
+def filter_sort_paginate[M: Model](
     request: HttpRequest,
-    queryset: QuerySet,  # type: ignore[type-arg]
+    queryset: QuerySet[M],
     *,
     valid_sort_fields: list[str],
     default_sort: str = "-created_at",
     page_size: int = 50,
-) -> FilterSortPage:
+) -> FilterSortPage[M]:
     """Validate sort field, apply ordering, and paginate a queryset.
 
     Reads ``sort`` and ``page`` from ``request.GET``.  The caller is

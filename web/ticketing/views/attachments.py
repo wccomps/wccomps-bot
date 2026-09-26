@@ -27,7 +27,9 @@ INLINE_SAFE_MIME_TYPES = {
 }
 
 
-def _save_attachment(ticket: Ticket, uploaded_file: UploadedFile | None, uploaded_by: str) -> HttpResponse | None:
+def _save_attachment(
+    ticket: Ticket, uploaded_file: UploadedFile[bytes] | None, uploaded_by: str
+) -> HttpResponse | None:
     """
     Validate and save an attachment. Returns HttpResponse on error, None on success.
     """

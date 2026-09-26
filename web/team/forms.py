@@ -89,9 +89,9 @@ class CSVUploadForm(forms.Form):
         ),
     )
 
-    def clean_csv_file(self) -> UploadedFile:
+    def clean_csv_file(self) -> UploadedFile[bytes]:
         """Validate CSV file format and contents."""
-        csv_file = cast(UploadedFile, self.cleaned_data["csv_file"])
+        csv_file = cast(UploadedFile[bytes], self.cleaned_data["csv_file"])
 
         # Check file extension
         if not csv_file.name or not csv_file.name.endswith(".csv"):
@@ -104,7 +104,7 @@ class CSVUploadForm(forms.Form):
         return csv_file
 
 
-def parse_csv_file(csv_file: UploadedFile) -> CSVParseResult:
+def parse_csv_file(csv_file: UploadedFile[bytes]) -> CSVParseResult:
     """
     Parse CSV file and validate contents.
 
