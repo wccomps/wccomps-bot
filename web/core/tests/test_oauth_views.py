@@ -148,9 +148,16 @@ class TestLinkCallback:
         session["pending_link_token"] = token.token
         session.save()
 
+        # GET only asks for confirmation; nothing is linked yet
+        response = client.get(f"/auth/link-callback?token={token.token}")
+        assert response.status_code == 200
+        assert b"Confirm Discord Link" in response.content
+        assert b"discorduser" in response.content
+        assert not DiscordLink.objects.filter(discord_id=987654321).exists()
+
         # Mock the Authentik API call to avoid real API errors
         with patch("core.authentik_manager.AuthentikManager"):
-            response = client.get(f"/auth/link-callback?token={token.token}")
+            response = client.post("/auth/link-callback", {"token": token.token})
 
         assert response.status_code == 200
         assert b"Successfully Linked" in response.content
@@ -201,7 +208,7 @@ class TestLinkCallback:
 
         # Mock the Authentik API call to avoid real API errors
         with patch("core.authentik_manager.AuthentikManager"):
-            response = client.get(f"/auth/link-callback?token={token.token}")
+            response = client.post("/auth/link-callback", {"token": token.token})
 
         assert response.status_code == 200
         assert b"Team full" in response.content
@@ -210,6 +217,73 @@ class TestLinkCallback:
         attempt = LinkAttempt.objects.get(discord_id=987654321)
         assert not attempt.success
         assert "full" in attempt.failure_reason.lower()
+
+
+class TestLinkHijackProtection:
+    """A /link URL made by someone else must not link their Discord account to the viewer's account."""
+
+    @pytest.fixture
+    def attacker_token(self):
+        return LinkToken.objects.create(
+            token="attacker_token_abc",
+            discord_id=555000555,
+            discord_username="attacker",
+            used=False,
+            expires_at=timezone.now() + timedelta(minutes=15),
+        )
+
+    def test_callback_without_session_token_is_refused(self, gold_team_user, attacker_token):
+        """Victim sent straight to link-callback (browser never started the flow)."""
+        client = Client()
+        client.force_login(gold_team_user)
+
+        for response in (
+            client.get(f"/auth/link-callback?token={attacker_token.token}"),
+            client.post("/auth/link-callback", {"token": attacker_token.token}),
+        ):
+            assert b"Security verification failed" in response.content
+        assert not DiscordLink.objects.filter(discord_id=attacker_token.discord_id).exists()
+
+    def test_opening_a_shared_link_only_shows_confirmation(self, gold_team_user, attacker_token):
+        """Victim opens the attacker's /auth/link URL: they must see whose Discord account it is."""
+        client = Client()
+        client.force_login(gold_team_user)
+
+        # The shared URL starts the flow in the victim's own browser, then SSO lands on the callback
+        start = client.get(f"/auth/link?token={attacker_token.token}")
+        assert start.status_code == 302 and start.url.startswith("/auth/login/")
+        response = client.get(f"/auth/link-callback?token={attacker_token.token}")
+
+        assert b"Confirm Discord Link" in response.content
+        assert b"attacker" in response.content
+        assert b"only continue if you ran /link yourself" in response.content.lower()
+        assert not DiscordLink.objects.filter(discord_id=attacker_token.discord_id).exists()
+
+    def test_confirm_post_requires_csrf_token(self, gold_team_user, attacker_token):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(gold_team_user)
+        session = client.session
+        session["pending_link_token"] = attacker_token.token
+        session.save()
+
+        response = client.post("/auth/link-callback", {"token": attacker_token.token})
+
+        assert response.status_code == 403
+        assert not DiscordLink.objects.filter(discord_id=attacker_token.discord_id).exists()
+
+    def test_confirm_page_form_carries_csrf_token(self, gold_team_user, attacker_token):
+        client = Client()
+        client.force_login(gold_team_user)
+        session = client.session
+        session["pending_link_token"] = attacker_token.token
+        session.save()
+
+        html = client.get(f"/auth/link-callback?token={attacker_token.token}").content.decode()
+
+        form = html[html.index("<form") : html.index("</form>")]
+        assert 'method="post"' in form
+        assert "csrfmiddlewaretoken" in form
+        assert attacker_token.token in form
 
 
 class TestLinkTokenExpiry:

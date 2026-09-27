@@ -44,10 +44,13 @@ def validate_link_token(url_token: str | None, session_token: str | None, userna
             },
         )
 
-    # Session CSRF check (defense-in-depth)
-    if session_token and session_token != url_token:
+    # The browser completing the link must be the one that opened /auth/link. Without this, a
+    # logged-in user sent straight to /auth/link-callback?token=<someone else's> got that person's
+    # Discord account linked to their own portal account (and roles/permissions with it).
+    if not session_token or session_token != url_token:
+        session_hint = f"'{session_token[:8]}...'" if session_token else "none"
         logger.warning(
-            f"Session token mismatch: session '{session_token[:8]}...' != url '{url_token[:8]}...' for user {username}"
+            f"Link token not started in this browser: session {session_hint}, url '{url_token[:8]}...' for {username}"
         )
         return LinkResult(
             success=False,
@@ -60,9 +63,6 @@ def validate_link_token(url_token: str | None, session_token: str | None, userna
                 ),
             },
         )
-
-    if not session_token:
-        logger.info(f"Session token not found (likely cycled during OAuth) for user {username}")
 
     try:
         link_token = LinkToken.objects.get(token=url_token, used=False)

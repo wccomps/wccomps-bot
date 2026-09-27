@@ -26,7 +26,7 @@ from .auth_utils import (
     get_role_based_landing_url,
     require_permission,
 )
-from .forms import SchoolInfoEditForm
+from .forms import LinkConfirmForm, SchoolInfoEditForm
 from .utils import get_team_from_groups
 
 
@@ -128,8 +128,12 @@ def link_callback(request: HttpRequest) -> HttpResponse:
     def _render_error(result: LinkResult) -> HttpResponse:
         return render(request, cast(str, result.error_template), result.error_context)
 
-    # Validate token from URL + session
-    url_token = request.GET.get("token")
+    # Validate token (URL on GET, confirmation form on POST) against the one this browser started with
+    if request.method == "POST":
+        confirm_form = LinkConfirmForm(request.POST)
+        url_token = confirm_form.cleaned_data["token"] if confirm_form.is_valid() else None
+    else:
+        url_token = request.GET.get("token")
     session_token = request.session.get("pending_link_token")
     token_result = validate_link_token(url_token, session_token, authentik_username)
     if isinstance(token_result, LinkResult):
@@ -142,6 +146,21 @@ def link_callback(request: HttpRequest) -> HttpResponse:
 
     # Get team information
     team, team_number, is_team_account = get_team_from_groups(groups)
+
+    # Nothing is linked until the user confirms which Discord account they are linking (POST + CSRF).
+    # Opening someone else's /link URL would otherwise silently hand them this account's roles.
+    if request.method != "POST":
+        return render(
+            request,
+            "link_confirm.html",
+            {
+                "token": link_token.token,
+                "discord_username": link_token.discord_username,
+                "authentik_username": authentik_username,
+                "team_name": f"Team {team.team_number}" if team else None,
+                "is_team_account": is_team_account,
+            },
+        )
 
     # Enforce one-to-one link policy for non-team accounts
     policy_error = enforce_account_link_policy(

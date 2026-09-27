@@ -126,3 +126,7 @@ class TeamsBulkActionForm(forms.Form):
             return parse_team_range(raw)
         except ValueError as e:
             raise forms.ValidationError(str(e)) from e
+
+
+class LinkConfirmForm(forms.Form):
+    token = forms.CharField(max_length=64)
