@@ -13,7 +13,7 @@ from bot.permissions import check_blue_team
 from bot.ticket_dashboard import post_ticket_to_dashboard
 from team.models import DiscordLink
 from ticketing.models import CommentRateLimit, Ticket, TicketAttachment, TicketCategory, TicketComment, TicketHistory
-from ticketing.utils import acreate_ticket_atomic, get_user_for_ticket
+from ticketing.utils import TicketRateLimitError, acreate_ticket_atomic, get_user_for_ticket
 
 logger = logging.getLogger(__name__)
 
@@ -214,16 +214,21 @@ class TicketingCog(commands.Cog):
 
         # Create ticket atomically to prevent race conditions
         category_obj = await TicketCategory.objects.aget(pk=category_id)
-        ticket = await acreate_ticket_atomic(
-            team=link.team,
-            category=category_obj,
-            title=cat_info["display_name"],
-            description=description,
-            hostname=hostname or "",
-            ip_address=resolved_ip,
-            service_name=service or "",
-            actor_username=f"discord:{interaction.user}",
-        )
+        try:
+            ticket = await acreate_ticket_atomic(
+                team=link.team,
+                category=category_obj,
+                title=cat_info["display_name"],
+                description=description,
+                hostname=hostname or "",
+                ip_address=resolved_ip,
+                service_name=service or "",
+                actor_username=f"discord:{interaction.user}",
+            )
+        except TicketRateLimitError as e:
+            logger.warning(f"Ticket rate limit hit by {interaction.user} for {link.team.team_name}")
+            await interaction.response.send_message(str(e), ephemeral=True)
+            return
 
         # Create thread in team's category
         try:
