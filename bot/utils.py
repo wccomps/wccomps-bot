@@ -7,6 +7,7 @@ import discord
 from asgiref.sync import sync_to_async
 from django.conf import settings
 
+from core.utils import missing_discord_settings
 from team.models import MAX_TEAMS, Team
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,22 @@ async def log_to_ops_channel(bot: discord.Client, message: str, embed: discord.E
 
 
 # -- Team Utilities --
+
+
+async def report_missing_discord_settings(bot: discord.Client) -> None:
+    """Log and post to the ops channel any required Discord IDs that are unset.
+
+    Unset IDs used to fail silently (roles/channels "not found"), so this runs at startup.
+    """
+    missing = missing_discord_settings()
+    if not missing:
+        return
+    message = (
+        f"⚠️ Discord settings missing from .env (set to 0): {', '.join(missing)}. "
+        "Role sync, /link roles and announcements that depend on them will not work."
+    )
+    logger.error(message)
+    await log_to_ops_channel(bot, message)
 
 
 async def get_team_or_respond(

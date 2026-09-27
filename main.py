@@ -172,6 +172,11 @@ class PortalBot(commands.Bot):
             self.queue_processor = DiscordQueueProcessor(self)
             self.queue_processor.start()
 
+            # First ready only (on_ready also fires on reconnects): flag unset Discord IDs
+            from bot.utils import report_missing_discord_settings
+
+            await report_missing_discord_settings(self)
+
         # Start competition timer
         if not self.competition_timer:
             self.competition_timer = CompetitionTimer(self)

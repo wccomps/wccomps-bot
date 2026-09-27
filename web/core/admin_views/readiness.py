@@ -67,6 +67,16 @@ type CheckResult = tuple[str, str, dict[str, str] | None]
 # ---------------------------------------------------------------------------
 
 
+def _check_discord_settings() -> CheckResult:
+    """Required Discord role/channel/guild IDs must be set in .env (they default to 0)."""
+    from core.utils import missing_discord_settings
+
+    missing = missing_discord_settings()
+    if missing:
+        return ("fail", f"Missing from .env: {', '.join(missing)}", None)
+    return ("pass", "All required Discord IDs are set", None)
+
+
 def _check_team_accounts_exist() -> CheckResult:
     """Verify all active team accounts exist in Authentik."""
     active_teams = Team.objects.filter(is_active=True)
@@ -347,6 +357,7 @@ def _check_multiple_teams() -> CheckResult:
 
 ALL_CHECKS: list[tuple[str, Callable[[], CheckResult]]] = [
     # Phase 1: Authentik
+    ("Discord IDs configured", _check_discord_settings),
     ("Team accounts exist", _check_team_accounts_exist),
     ("Group membership correct", _check_team_group_membership),
     ("App bindings configured", _check_blueteam_bindings),

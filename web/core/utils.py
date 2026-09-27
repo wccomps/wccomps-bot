@@ -178,3 +178,29 @@ def role_sync_summary(stats: Mapping[str, object], *, dry_run: bool) -> str:
         f"{stats.get('unlinked_holders', 0)} unlinked role holders, {stats.get('errors', 0)} errors "
         "(roles are never removed automatically)"
     )
+
+
+# Discord IDs the app can't work without: Django setting name -> .env variable name.
+# All default to 0; a 0 used to be silently treated as "channel/role not found" (see
+# commit 37f6f6b, after which production ran for months with no role IDs set).
+# DISCORD_LINK_CHANNEL_ID / DISCORD_WELCOME_CHANNEL_ID are optional: 0 turns those panels off.
+REQUIRED_DISCORD_SETTINGS: dict[str, str] = {
+    "COMPETITION_GUILD_ID": "DISCORD_GUILD_ID",
+    "VOLUNTEER_GUILD_ID": "VOLUNTEER_GUILD_ID",
+    "DISCORD_LOG_CHANNEL_ID": "DISCORD_LOG_CHANNEL_ID",
+    "DISCORD_TICKET_QUEUE_CHANNEL_ID": "DISCORD_TICKET_QUEUE_CHANNEL_ID",
+    "DISCORD_ANNOUNCEMENT_CHANNEL_ID": "DISCORD_ANNOUNCEMENT_CHANNEL_ID",
+    "BLUETEAM_ROLE_ID": "BLUETEAM_ROLE_ID",
+    "BLACKTEAM_ROLE_ID": "BLACKTEAM_ROLE_ID",
+    "WHITETEAM_ROLE_ID": "WHITETEAM_ROLE_ID",
+    "ORANGETEAM_ROLE_ID": "ORANGETEAM_ROLE_ID",
+    "REDTEAM_ROLE_ID": "REDTEAM_ROLE_ID",
+    "GOLDTEAM_ROLE_ID": "GOLDTEAM_ROLE_ID",
+}
+
+
+def missing_discord_settings() -> list[str]:
+    """.env variable names of required Discord IDs that are unset (0)."""
+    from django.conf import settings
+
+    return [env for name, env in REQUIRED_DISCORD_SETTINGS.items() if not getattr(settings, name, 0)]
