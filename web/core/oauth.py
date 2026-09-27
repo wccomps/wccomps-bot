@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 from django.core import signing
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -83,6 +84,23 @@ def oauth_login(request: HttpRequest) -> HttpResponse:
 
     auth_url = f"{config['authorization_endpoint']}?{urlencode(params)}"
     return redirect(auth_url)
+
+
+def _retire_user(user: User) -> None:
+    """Free a username held by a portal account whose Authentik identity is gone.
+
+    The account keeps its history under a new name, but can't be logged in to and holds no groups.
+    """
+    old_username = user.username
+    suffix = f"~replaced-{user.pk}"
+    max_length = User._meta.get_field("username").max_length or 150
+    user.username = old_username[: max_length - len(suffix)] + suffix
+    user.is_active = False
+    user.save(update_fields=["username", "is_active"])
+    UserGroups.objects.filter(user=user).update(groups=[])
+    logger.warning(
+        f"Username '{old_username}' now belongs to a new Authentik identity; old account renamed to '{user.username}'"
+    )
 
 
 def oauth_callback(request: HttpRequest) -> HttpResponse:
@@ -229,22 +247,15 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
                 user.username = username
                 user.save(update_fields=["username"])
     except UserGroups.DoesNotExist:
-        # Check if user exists with this username (edge case)
-        user, created = User.objects.get_or_create(
-            username=username,
-            defaults={"email": email},
-        )
-        if not created and email:
-            user.email = email
-            user.save(update_fields=["email"])
-        # A user deleted and recreated in Authentik comes back with a new sub but the same
-        # username: re-point their existing row instead of creating a second one for this user
-        user_groups, relinked = UserGroups.objects.update_or_create(
-            user=user,
-            defaults={"authentik_id": authentik_id, "groups": groups},
-        )
-        if not created and not relinked:
-            logger.warning(f"Re-linked portal user '{username}' to a new Authentik identity (account recreated)")
+        # Identity is the Authentik sub, never the username. Usernames get reused (accounts
+        # recreated, SCIM, enrollment), and matching on them would hand a new identity someone
+        # else's portal account, Discord links and history. Move any holder of the name aside.
+        with transaction.atomic():
+            previous = User.objects.select_for_update().filter(username=username).first()
+            if previous:
+                _retire_user(previous)
+            user = User.objects.create(username=username, email=email)
+            user_groups = UserGroups.objects.create(user=user, authentik_id=authentik_id, groups=groups)
 
     # Always update groups on login
     user_groups.groups = groups

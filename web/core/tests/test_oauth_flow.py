@@ -284,26 +284,14 @@ class TestOAuthCallback:
         user.refresh_from_db()
         assert user.username == "newusername"
 
-    def test_callback_relinks_account_recreated_in_authentik(self, oauth_state_session):
-        """A user deleted and recreated in Authentik (same username, new sub) keeps their portal account.
-
-        Previously this created a second UserGroups row for the same user and failed with an IntegrityError.
-        """
-        client, state = oauth_state_session
-
-        user = User.objects.create_user(username="recreated")
-        UserGroups.objects.create(user=user, authentik_id="old-authentik-id", groups=["WCComps_Discord_Admin"])
-
+    @staticmethod
+    def _login(client, state, userinfo):
         mock_token_response = MagicMock()
         mock_token_response.json.return_value = {"access_token": "test-token"}
         mock_token_response.raise_for_status = MagicMock()
 
         mock_userinfo_response = MagicMock()
-        mock_userinfo_response.json.return_value = {
-            "sub": "new-authentik-id",
-            "preferred_username": "recreated",
-            "groups": ["WCComps_GoldTeam"],
-        }
+        mock_userinfo_response.json.return_value = userinfo
         mock_userinfo_response.raise_for_status = MagicMock()
 
         with (
@@ -325,15 +313,49 @@ class TestOAuthCallback:
             mock_client.__exit__ = MagicMock(return_value=False)
             mock_httpx.return_value = mock_client
 
-            response = client.get(f"/auth/callback/?code=test-code&state={state}")
+            return client.get(f"/auth/callback/?code=test-code&state={state}")
+
+    def test_reused_username_gets_a_fresh_account_not_the_old_one(self, oauth_state_session):
+        """Identity is the Authentik sub: a new identity with an old username inherits nothing.
+
+        Covers accounts recreated in Authentik, and usernames reused via SCIM or enrollment. Previously
+        this crashed with an IntegrityError; matching on username instead would be an account takeover.
+        """
+        from team.models import DiscordLink
+
+        client, state = oauth_state_session
+        old = User.objects.create_user(username="reused")
+        UserGroups.objects.create(user=old, authentik_id="old-authentik-id", groups=["WCComps_Discord_Admin"])
+        DiscordLink.objects.create(discord_id=111, discord_username="old-discord", user=old, is_active=True)
+
+        response = self._login(
+            client, state, {"sub": "new-authentik-id", "preferred_username": "reused", "groups": ["WCComps_GoldTeam"]}
+        )
 
         assert response.status_code == 302
-        assert User.objects.filter(username="recreated").count() == 1
-        user_groups = UserGroups.objects.get(user=user)
-        assert user_groups.authentik_id == "new-authentik-id"
-        # Groups come from the new login, not the old account
-        assert user_groups.groups == ["WCComps_GoldTeam"]
-        assert int(client.session["_auth_user_id"]) == user.pk
+        new = User.objects.get(username="reused")
+        assert new.pk != old.pk
+        assert int(client.session["_auth_user_id"]) == new.pk
+        assert UserGroups.objects.get(user=new).authentik_id == "new-authentik-id"
+        assert not DiscordLink.objects.filter(user=new).exists()
+
+        old.refresh_from_db()
+        assert old.username == f"reused~replaced-{old.pk}"
+        assert not old.is_active
+        assert UserGroups.objects.get(user=old).groups == []
+        assert DiscordLink.objects.get(discord_id=111).user == old
+
+    def test_reused_username_does_not_inherit_django_flags(self, oauth_state_session):
+        """A pre-existing account without an Authentik identity (e.g. createsuperuser) isn't reused either."""
+        client, state = oauth_state_session
+        old = User.objects.create_superuser(username="admin", password="unused-test-password")  # noqa: S106
+
+        self._login(client, state, {"sub": "someone-new", "preferred_username": "admin", "groups": []})
+
+        new = User.objects.get(username="admin")
+        assert new.pk != old.pk
+        assert not new.is_superuser
+        assert not new.is_staff
 
     def test_callback_rejects_invalid_state(self):
         """Callback should reject request with forged/invalid state."""
