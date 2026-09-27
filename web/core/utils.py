@@ -1,6 +1,6 @@
 """Utility functions for WCComps core functionality."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import NamedTuple, TypedDict
 from zoneinfo import ZoneInfo
@@ -164,3 +164,17 @@ def bulk_approve(  # type: ignore[explicit-any]
         messages.info(request, f"No unapproved {item_label}s found to approve")
 
     return redirect(redirect_url)
+
+
+def role_sync_summary(stats: Mapping[str, object], *, dry_run: bool) -> str:
+    """One-line role sync result, shared by the bot (ops channel) and the web Sync Roles page.
+
+    Lives here, not in bot/, because the web container doesn't ship the bot package.
+    """
+    added = "would be added" if dry_run else "added"
+    return (
+        f"{'[DRY RUN] ' if dry_run else ''}Role sync complete: {stats.get('roles_added', 0)} {added}, "
+        f"{stats.get('extra_linked', 0)} linked users with extra roles, "
+        f"{stats.get('unlinked_holders', 0)} unlinked role holders, {stats.get('errors', 0)} errors "
+        "(roles are never removed automatically)"
+    )

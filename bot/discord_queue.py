@@ -14,6 +14,7 @@ from django.utils import timezone
 from bot.discord_manager import DiscordManager
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, TEAM_CHAT_CHANNEL_KEYWORD
 from core.models import DiscordTask
+from core.utils import role_sync_summary
 from team.models import Team
 from ticketing.models import Ticket, TicketComment
 
@@ -552,6 +553,8 @@ class DiscordQueueProcessor:
             task.payload["result"] = {
                 "roles_added": stats["roles_added"],
                 "roles_removed": stats["roles_removed"],
+                "extra_linked": stats.get("extra_linked", 0),
+                "unlinked_holders": stats.get("unlinked_holders", 0),
                 "errors": stats["errors"],
                 "changes_count": len(stats["changes"]),
                 "changes": stats["changes"],
@@ -564,14 +567,7 @@ class DiscordQueueProcessor:
         await store_results()
 
         # Log results to ops channel
-        mode = "[DRY RUN] " if dry_run else ""
-        summary = (
-            f"{mode}Role sync complete: {stats['roles_added']} would be added, "
-            f"{stats['roles_removed']} would be removed, {stats['errors']} errors"
-            if dry_run
-            else f"Role sync complete: {stats['roles_added']} added, "
-            f"{stats['roles_removed']} removed, {stats['errors']} errors"
-        )
+        summary = role_sync_summary(stats, dry_run=dry_run)
         await log_to_ops_channel(self.bot, summary)
 
         logger.info(f"Role sync completed: {summary}")

@@ -15,15 +15,17 @@
                 <ul class="text-muted mb-10">
                     <li>Users in Authentik groups (e.g., WCComps_GoldTeam) will get corresponding Discord roles</li>
                     <li>Users must have linked their Discord account to be synced</li>
-                    <li>Users removed from Authentik groups will lose Discord roles</li>
+                    <li>Roles are only ever added. Anyone holding a role they shouldn't is listed for manual review, never removed</li>
                 </ul>
                 <c-button_row class="mt-20">
                     <c-button variant="primary" @click="requestSyncPreview" ::disabled="loading">
                         <span x-show="notLoading">Preview Changes (Dry Run)</span>
-                        <span x-show="loading">Previewing...</span>
+                        <span x-show="loading">Working...</span>
+                    </c-button>
+                    <c-button variant="default" @click="requestSyncLive" ::disabled="loading">
+                        Sync (Add Roles Only)
                     </c-button>
                 </c-button_row>
-                <p class="help-text mt-10">Live sync is temporarily disabled. Only dry run preview is available.</p>
             </div>
         </c-module>
         <c-module class="mt-20">
@@ -37,7 +39,7 @@
         <template x-if="hasChanges">
             <c-module class="mt-20">
                 <c-slot name="title">
-                    Changes Made
+                    Results
                 </c-slot>
                 <ul class="list-none">
                     <template x-for="change in changes" :key="change">
@@ -58,11 +60,12 @@
                 get notLoading() { return !this.loading; },
                 get hasChanges() { return this.changes.length > 0; },
                 requestSyncPreview() { this.requestSync(true); },
+                requestSyncLive() { this.requestSync(false); },
 
                 async requestSync(dryRun) {
                     const confirmMsg = dryRun ?
                         'Preview role changes? No changes will be made.' :
-                        'Start role synchronization? This will modify Discord roles.';
+                        'Add missing Discord roles for linked users? Nothing is removed.';
 
                     if (!confirm(confirmMsg)) {
                         return;

@@ -7,8 +7,9 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from core.auth_utils import require_permission
-from core.forms import BroadcastForm
+from core.forms import BroadcastForm, SyncRolesForm
 from core.models import AuditLog, DiscordTask
+from core.utils import role_sync_summary
 from team.models import Team
 
 from .competition import _has_admin_or_gold_access
@@ -85,7 +86,8 @@ def admin_sync_roles_action(request: HttpRequest) -> HttpResponse:
     if not _has_admin_or_gold_access(user):
         return JsonResponse({"error": "Access denied"}, status=403)
 
-    dry_run = True
+    form = SyncRolesForm(request.POST)
+    dry_run = form.cleaned_data["dry_run"] if form.is_valid() else True
 
     # Create a task for the bot to perform the sync
     task = DiscordTask.create_sync_roles(requested_by=authentik_username, dry_run=dry_run)
@@ -127,11 +129,8 @@ def admin_task_status(request: HttpRequest, task_id: int) -> HttpResponse:
     if task.status == "completed":
         result = task.payload.get("result", {})
         if task.task_type == "sync_roles":
-            response["message"] = (
-                f"Sync complete: {result.get('roles_added', 0)} added, "
-                f"{result.get('roles_removed', 0)} removed, "
-                f"{result.get('errors', 0)} errors"
-            )
+            response["message"] = role_sync_summary(result, dry_run=bool(result.get("dry_run")))
+            response["changes"] = result.get("changes", [])
         else:
             response["message"] = "Task completed"
     elif task.status == "failed":
