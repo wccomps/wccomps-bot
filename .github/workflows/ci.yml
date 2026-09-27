@@ -76,3 +76,48 @@ jobs:
           DJANGO_SETTINGS_MODULE: portal.settings
           PYTHONPATH: ${{ github.workspace }}/web:${{ github.workspace }}
           SECRET_KEY: test-secret-key-for-ci
+
+  # Container images for the planned move to the deoxys Kubernetes cluster.
+  # PRs only build (to catch broken Dockerfiles); pushes to main also publish to GHCR.
+  # Production (Docker Compose on metapod) still runs the rsynced tree, so this changes nothing live.
+  images:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [web, bot]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/wccomps-portal-${{ matrix.component }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build (and push on main)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.${{ matrix.component }}
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
