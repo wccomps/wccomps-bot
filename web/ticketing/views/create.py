@@ -27,8 +27,10 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
     groups = get_authentik_groups(user)
     team, _, is_team = get_team_from_groups(groups)
 
-    # Allow admins to create tickets for any team
-    is_admin = has_permission(user, "gold_team") or has_permission(user, "admin")
+    # Allow admins (incl. ticketing admins, filing on a team's behalf) to create tickets for any team
+    is_admin = (
+        has_permission(user, "gold_team") or has_permission(user, "admin") or has_permission(user, "ticketing_admin")
+    )
     teams = None
 
     if is_admin:
