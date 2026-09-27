@@ -459,8 +459,11 @@
     </style>
     <script src="{% static 'js/utils.js' %}"></script>
     <script defer
-            src="https://unpkg.com/@alpinejs/collapse@3.14.8/dist/cdn.min.js"></script>
-    <script defer src="https://unpkg.com/@alpinejs/csp@3.14.8/dist/cdn.min.js"></script>
+            src="{% static 'vendor/alpinejs-collapse.min.js' %}"
+            integrity="sha384-NArNwzWsUSF+kY2lgW4YriEkjLqi+J+za6HrENUn/3nZqkBnWbxV22kCJEK5Uu6n"></script>
+    <script defer
+            src="{% static 'vendor/alpinejs-csp.min.js' %}"
+            integrity="sha384-ToFwPnlRgZIoDDSatKvWLkecUR4Py5dma633TT4TVBQfs4nHKXXexI3v72xi5LnC"></script>
     <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('nav', () => ({
@@ -646,9 +649,8 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">
     <meta name="htmx-config" content='{"allowEval": false}'>
-    <script src="https://unpkg.com/htmx.org@2.0.4"
-            integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
-            crossorigin="anonymous"></script>
+    <script src="{% static 'vendor/htmx.min.js' %}"
+            integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"></script>
     <style>
         /* Subtle opacity fade during htmx requests */
         .htmx-request {
