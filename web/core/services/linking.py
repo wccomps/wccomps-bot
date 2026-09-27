@@ -46,7 +46,9 @@ def validate_link_token(url_token: str | None, session_token: str | None, userna
 
     # Session CSRF check (defense-in-depth)
     if session_token and session_token != url_token:
-        logger.warning(f"Session token mismatch: session '{session_token}' != url '{url_token}' for user {username}")
+        logger.warning(
+            f"Session token mismatch: session '{session_token[:8]}...' != url '{url_token[:8]}...' for user {username}"
+        )
         return LinkResult(
             success=False,
             error_template="link_error.html",
