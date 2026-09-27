@@ -28,6 +28,11 @@
             {% csrf_token %}
             <c-module>
                 {% if error %}<c-alert variant="error">{{ error }}</c-alert>{% endif %}
+                {% if not box_names %}
+                    <c-alert variant="warning">
+                        Scoring engine is unavailable, so hostnames and services can't be listed. Type them in instead.
+                    </c-alert>
+                {% endif %}
                 <c-fieldset heading="Ticket Details">
                     {% if teams %}
                         <c-form_field label="Team" required="true" id="team_id">
@@ -82,26 +87,39 @@
                     <!-- Hostname with quick-add buttons -->
                     <div class="dynamic-field" :class="showHostname" id="field-hostname">
                         <c-form_field label="Hostname" id="hostname">
-                            <div class="d-flex flex-wrap gap-10">
-                                {% for box_name in box_names %}
-                                    <button type="button"
-                                            class="button box-toggle"
-                                            @click="selectHostname"
-                                            data-hostname="{{ box_name }}">{{ box_name }}</button>
-                                {% endfor %}
-                            </div>
-                            <input type="hidden"
-                                   name="hostname"
-                                   id="hostname"
-                                   :value="selectedHostname"
-                                   :required="hostnameRequired">
+                            {% if box_names %}
+                                <div class="d-flex flex-wrap gap-10">
+                                    {% for box_name in box_names %}
+                                        <button type="button"
+                                                class="button box-toggle"
+                                                @click="selectHostname"
+                                                data-hostname="{{ box_name }}">{{ box_name }}</button>
+                                    {% endfor %}
+                                </div>
+                                <input type="hidden"
+                                       name="hostname"
+                                       id="hostname"
+                                       :value="selectedHostname"
+                                       :required="hostnameRequired">
+                            {% else %}
+                                <input type="text"
+                                       name="hostname"
+                                       id="hostname"
+                                       class="vTextField"
+                                       maxlength="255"
+                                       :value="selectedHostname"
+                                       @input="setField"
+                                       data-field="selectedHostname"
+                                       :required="hostnameRequired"
+                                       placeholder="e.g. web01">
+                            {% endif %}
                         </c-form_field>
                     </div>
                     <!-- IP Address (auto-filled) -->
                     <div class="dynamic-field" :class="showIpAddress" id="field-ip_address">
                         <c-form_field label="IP Address"
                                       id="ip_address"
-                                      help_text="Auto-filled from hostname selection">
+                                      help_text="{% if box_names %}Auto-filled from hostname selection{% else %}Enter the box's IP address{% endif %}">
                             <input type="text"
                                    name="ip_address"
                                    id="ip_address"
@@ -111,7 +129,7 @@
                                    data-field="ipAddress"
                                    :required="ipRequired"
                                    maxlength="45"
-                                   placeholder="Select a hostname above">
+                                   placeholder="{% if box_names %}Select a hostname above{% else %}e.g. 10.0.1.5{% endif %}">
                         </c-form_field>
                     </div>
                     <!-- Service -->
@@ -119,14 +137,27 @@
                          :class="showServiceName"
                          id="field-service_name">
                         <c-form_field label="Service" id="service_name">
-                            <select name="service_name"
-                                    id="service_name"
-                                    x-ref="serviceSelect"
-                                    :value="selectedService"
-                                    @change="onServiceChange"
-                                    :required="serviceRequired">
-                                <option value="">Select a service...</option>
-                            </select>
+                            {% if service_choices %}
+                                <select name="service_name"
+                                        id="service_name"
+                                        x-ref="serviceSelect"
+                                        :value="selectedService"
+                                        @change="onServiceChange"
+                                        :required="serviceRequired">
+                                    <option value="">Select a service...</option>
+                                </select>
+                            {% else %}
+                                <input type="text"
+                                       name="service_name"
+                                       id="service_name"
+                                       class="vTextField"
+                                       maxlength="100"
+                                       :value="selectedService"
+                                       @input="setField"
+                                       data-field="selectedService"
+                                       :required="serviceRequired"
+                                       placeholder="e.g. HTTP">
+                            {% endif %}
                         </c-form_field>
                     </div>
                     <!-- Description -->
@@ -248,7 +279,8 @@
                 onHostnameChange() {
                     if (this.selectedHostname && boxIpMap[this.selectedHostname]) {
                         this.ipAddress = boxIpMap[this.selectedHostname];
-                    } else {
+                    } else if (Object.keys(boxIpMap).length) {
+                        // Without Quotient data the IP is typed by hand; don't wipe it
                         this.ipAddress = '';
                     }
                     if (this.selectedService) {
