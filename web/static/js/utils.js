@@ -9,7 +9,10 @@
 
 function getCSRFToken() {
     const c = document.cookie.split('; ').find(c => c.startsWith('csrftoken='));
-    return c ? c.split('=')[1] : '';
+    if (c) return c.split('=')[1];
+    // Fallback: base_site.html renders the token (cookie may be missing in a fresh session)
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : '';
 }
 
 function _toFormData(data) {
