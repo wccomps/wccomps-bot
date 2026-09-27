@@ -337,7 +337,11 @@ def reassign_ticket_atomic(
     user: User | None = None,
 ) -> tuple[Ticket | None, str | None]:
     """
-    Reassign a claimed ticket to another support member atomically.
+    Change a ticket's assignee atomically. Works for claimed, resolved and cancelled tickets;
+    only the assignee changes (status, points and resolution are untouched).
+
+    Open tickets are not reassigned: callers claim them for the new assignee instead
+    (claim_ticket_atomic with that user), as the Discord /tickets reassign command does.
 
     Args:
         ticket_id: ID of ticket to reassign
@@ -355,8 +359,8 @@ def reassign_ticket_atomic(
         if not ticket:
             return None, "Ticket not found."
 
-        if ticket.status != Ticket.STATUS_CLAIMED:
-            return None, f"Can only reassign claimed tickets. This ticket is {ticket.status}."
+        if ticket.status == Ticket.STATUS_OPEN:
+            return None, "Open tickets must be claimed for the new assignee, not reassigned."
 
         previous_assignee = ticket.assigned_to.username if ticket.assigned_to else None
 
