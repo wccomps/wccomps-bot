@@ -12,6 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from bot.discord_manager import DiscordManager
+from bot.heartbeat import record as record_heartbeat
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, TEAM_CHAT_CHANNEL_KEYWORD, recycle_db_connection
 from core.models import DiscordTask
 from core.utils import role_sync_summary
@@ -75,6 +76,7 @@ class DiscordQueueProcessor:
             try:
                 await recycle_db_connection()
                 await self._process_pending_tasks()
+                record_heartbeat("queue", self.bot)
             except Exception as e:
                 logger.exception(f"Error in queue processor: {e}")
 
