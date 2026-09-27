@@ -9,7 +9,7 @@ from asgiref.sync import sync_to_async
 from django.utils import timezone
 
 from bot.competition_actions import start_competition, stop_competition, update_status_channel
-from bot.utils import log_to_ops_channel
+from bot.utils import log_to_ops_channel, recycle_db_connection
 from core.models import CompetitionConfig
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ class CompetitionTimer:
         """Main loop to check competition start/end times."""
         while self.running:
             try:
+                await recycle_db_connection()
                 await self._check_competition_times()
             except Exception as e:
                 logger.exception(f"Error in competition timer check: {e}")

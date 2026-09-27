@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from bot.discord_manager import DiscordManager
-from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, TEAM_CHAT_CHANNEL_KEYWORD
+from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, TEAM_CHAT_CHANNEL_KEYWORD, recycle_db_connection
 from core.models import DiscordTask
 from core.utils import role_sync_summary
 from team.models import Team
@@ -73,6 +73,7 @@ class DiscordQueueProcessor:
         """Main processing loop (runs as async task)."""
         while self.running:
             try:
+                await recycle_db_connection()
                 await self._process_pending_tasks()
             except Exception as e:
                 logger.exception(f"Error in queue processor: {e}")
