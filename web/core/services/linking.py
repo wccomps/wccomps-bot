@@ -139,14 +139,14 @@ def enforce_account_link_policy(
     return None
 
 
-def store_discord_id_in_authentik(username: str, discord_id: int) -> None:
+def store_discord_id_in_authentik(username: str, discord_id: int, authentik_id: str) -> None:
     """Optionally store discord_id in Authentik user attributes. Failures are non-fatal."""
     try:
         from core.authentik_manager import AuthentikManager
 
         manager = AuthentikManager()
-        manager.update_user_discord_id(username, discord_id)
-        logger.info(f"Stored discord_id {discord_id} in Authentik for user {username}")
+        if manager.update_user_discord_id(username, discord_id, authentik_id):
+            logger.info(f"Stored discord_id {discord_id} in Authentik for user {username}")
     except Exception as e:
         logger.warning(
             f"Could not store discord_id in Authentik (permissions issue): {e}. "

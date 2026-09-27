@@ -86,20 +86,24 @@ def oauth_login(request: HttpRequest) -> HttpResponse:
     return redirect(auth_url)
 
 
-def _retire_user(user: User) -> None:
-    """Free a username held by a portal account whose Authentik identity is gone.
+def _free_username(username: str, keep_pk: int | None = None) -> None:
+    """Rename any other portal account holding this username. Call inside a transaction.
 
-    The account keeps its history under a new name, but can't be logged in to and holds no groups.
+    Only the name changes: the account stays tied to its own Authentik sub, whose groups the
+    periodic refresh keeps current (empty once that identity is deleted).
     """
-    old_username = user.username
-    suffix = f"~replaced-{user.pk}"
+    holders = User.objects.select_for_update().filter(username=username)
+    if keep_pk is not None:
+        holders = holders.exclude(pk=keep_pk)
+    holder = holders.first()
+    if not holder:
+        return
+    suffix = f"~replaced-{holder.pk}"
     max_length = User._meta.get_field("username").max_length or 150
-    user.username = old_username[: max_length - len(suffix)] + suffix
-    user.is_active = False
-    user.save(update_fields=["username", "is_active"])
-    UserGroups.objects.filter(user=user).update(groups=[])
+    holder.username = username[: max_length - len(suffix)] + suffix
+    holder.save(update_fields=["username"])
     logger.warning(
-        f"Username '{old_username}' now belongs to a new Authentik identity; old account renamed to '{user.username}'"
+        f"Username '{username}' now belongs to another Authentik identity; renamed its holder to '{holder.username}'"
     )
 
 
@@ -229,38 +233,22 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             {"error_title": "Authentication Failed", "error_message": "Invalid user data."},
         )
 
-    # Find or create user by authentik_id (handles username changes)
-    try:
-        user_groups = UserGroups.objects.select_related("user").get(authentik_id=authentik_id)
-        user = user_groups.user
-        # Keep the portal username equal to the current Authentik username: some Authentik API
-        # calls (e.g. storing the Discord ID at /link) address the user by that name
-        if user.username != username:
-            with transaction.atomic():
-                previous = User.objects.select_for_update().filter(username=username).exclude(pk=user.pk).first()
-                if previous:
-                    _retire_user(previous)
-                user.username = username
-                user.save(update_fields=["username"])
-        # The sub proves the identity: undo a retirement if this identity was only renamed, not deleted
-        if not user.is_active:
-            user.is_active = True
-            user.save(update_fields=["is_active"])
-            logger.warning(f"Reactivated portal user '{username}': their Authentik identity logged in again")
-    except UserGroups.DoesNotExist:
-        # Identity is the Authentik sub, never the username. Usernames get reused (accounts
-        # recreated, SCIM, enrollment), and matching on them would hand a new identity someone
-        # else's portal account, Discord links and history. Move any holder of the name aside.
-        with transaction.atomic():
-            previous = User.objects.select_for_update().filter(username=username).first()
-            if previous:
-                _retire_user(previous)
+    # Accounts are keyed by the Authentik sub only: usernames get reused, and matching on
+    # them would hand a new identity someone else's account
+    with transaction.atomic():
+        user_groups = UserGroups.objects.select_related("user").filter(authentik_id=authentik_id).first()
+        if user_groups is None:
+            _free_username(username)
             user = User.objects.create(username=username, email=email)
             user_groups = UserGroups.objects.create(user=user, authentik_id=authentik_id, groups=groups)
-
-    # Always update groups on login
-    user_groups.groups = groups
-    user_groups.save(update_fields=["groups"])
+        else:
+            user = user_groups.user
+            if user.username != username:
+                _free_username(username, keep_pk=user.pk)
+                user.username = username
+                user.save(update_fields=["username"])
+        user_groups.groups = groups
+        user_groups.save(update_fields=["groups"])
 
     # Log user in
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")

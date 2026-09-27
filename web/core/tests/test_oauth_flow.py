@@ -316,11 +316,7 @@ class TestOAuthCallback:
             return client.get(f"/auth/callback/?code=test-code&state={state}")
 
     def test_reused_username_gets_a_fresh_account_not_the_old_one(self, oauth_state_session):
-        """Identity is the Authentik sub: a new identity with an old username inherits nothing.
-
-        Covers accounts recreated in Authentik, and usernames reused via SCIM or enrollment. Previously
-        this crashed with an IntegrityError; matching on username instead would be an account takeover.
-        """
+        """Identity is the Authentik sub: a new identity with an old username inherits nothing."""
         from team.models import DiscordLink
 
         client, state = oauth_state_session
@@ -341,8 +337,8 @@ class TestOAuthCallback:
 
         old.refresh_from_db()
         assert old.username == f"reused~replaced-{old.pk}"
-        assert not old.is_active
-        assert UserGroups.objects.get(user=old).groups == []
+        # Still tied to its own sub, so the periodic refresh decides its groups
+        assert UserGroups.objects.get(user=old).authentik_id == "old-authentik-id"
         assert DiscordLink.objects.get(discord_id=111).user == old
 
     def test_reused_username_does_not_inherit_django_flags(self, oauth_state_session):
@@ -358,7 +354,7 @@ class TestOAuthCallback:
         assert not new.is_staff
 
     def test_renamed_user_takes_their_new_name_from_a_stale_holder(self, oauth_state_session):
-        """Portal username must match Authentik's: /link stores the Discord ID on the Authentik user by name."""
+        """Portal username follows Authentik's: /link looks the Authentik user up by it."""
         client, state = oauth_state_session
         me = User.objects.create_user(username="old-name")
         UserGroups.objects.create(user=me, authentik_id="my-id", groups=[])
@@ -371,19 +367,18 @@ class TestOAuthCallback:
         stale.refresh_from_db()
         assert me.username == "new-name"
         assert stale.username == f"new-name~replaced-{stale.pk}"
-        assert not stale.is_active
+        assert UserGroups.objects.get(user=stale).authentik_id == "deleted-id"
 
-    def test_retired_account_is_restored_when_its_identity_logs_in(self, oauth_state_session):
-        """Retiring moves a stale name aside; if that identity was only renamed, its next login restores it."""
+    def test_moved_aside_account_takes_its_current_name_on_login(self, oauth_state_session):
+        """An account whose name was taken, but whose identity was only renamed, logs in normally."""
         client, state = oauth_state_session
-        user = User.objects.create_user(username="carol~replaced-1", is_active=False)
+        user = User.objects.create_user(username="carol~replaced-1")
         UserGroups.objects.create(user=user, authentik_id="carol-id", groups=[])
 
         response = self._login(client, state, {"sub": "carol-id", "preferred_username": "dave", "groups": ["G"]})
 
         assert response.status_code == 302
         user.refresh_from_db()
-        assert user.is_active
         assert user.username == "dave"
         assert client.get("/").wsgi_request.user.pk == user.pk
 

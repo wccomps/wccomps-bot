@@ -342,7 +342,7 @@ class TestAuthentikManager:
         """Test successfully updating user's Discord ID."""
         mock_get_response = Mock()
         mock_get_response.json.return_value = {
-            "results": [{"pk": 42, "attributes": {"existing_key": "value"}}],
+            "results": [{"pk": 42, "uid": "u-1", "attributes": {"existing_key": "value"}}],
         }
 
         mock_patch_response = Mock()
@@ -350,7 +350,7 @@ class TestAuthentikManager:
         manager.client.get.return_value = mock_get_response
         manager.client.patch.return_value = mock_patch_response
 
-        result = manager.update_user_discord_id("testuser", 123456789)
+        result = manager.update_user_discord_id("testuser", 123456789, "u-1")
 
         assert result is True
         manager.client.patch.assert_called_once()
@@ -364,7 +364,7 @@ class TestAuthentikManager:
         """Test handling failure when updating Discord ID."""
         manager.client.get.side_effect = httpx.ConnectError("Network error")
 
-        result = manager.update_user_discord_id("testuser", 123456789)
+        result = manager.update_user_discord_id("testuser", 123456789, "u-1")
 
         assert result is False
 
