@@ -22,6 +22,11 @@ class PermissionCacheEntry(TypedDict):
 _permission_cache: dict[int, PermissionCacheEntry] = {}
 
 
+def clear_permission_cache() -> None:
+    """Drop cached groups so the next check reads the refreshed UserGroups."""
+    _permission_cache.clear()
+
+
 def _get_authentik_groups_sync(discord_user_id: int) -> list[str]:
     """
     Get Authentik groups for a Discord user.

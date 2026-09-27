@@ -1,7 +1,8 @@
 """Pytest fixtures for bot command testing."""
 
+from collections.abc import Iterator
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
@@ -11,6 +12,13 @@ from django.contrib.auth.models import User
 from core.models import UserGroups
 from team.models import DiscordLink, Team
 from ticketing.models import TicketCategory
+
+
+@pytest.fixture(autouse=True)
+def refresh_groups_now() -> Iterator[AsyncMock]:
+    """Competition actions refresh groups from Authentik; keep tests off the network."""
+    with patch("bot.competition_actions.refresh_groups_now", new_callable=AsyncMock) as mock:
+        yield mock
 
 
 @pytest_asyncio.fixture
