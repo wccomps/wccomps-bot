@@ -120,35 +120,41 @@ class TestAuthentikManager:
             assert "Server operation" in str(error)
 
     def test_get_application_by_slug_success(self, manager: AuthentikManager) -> None:
-        """Test successful application retrieval by slug."""
+        """Looks the app up directly by slug (the list endpoint hides apps; see #43)."""
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "results": [
-                {
-                    "pk": "app-123",
-                    "slug": "netbird",
-                    "name": "NetBird VPN",
-                }
-            ]
-        }
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"pk": "app-123", "slug": "netbird", "name": "NetBird VPN"}
         manager.client.get.return_value = mock_response
 
         app = manager.get_application_by_slug("netbird")
 
         assert app is not None
         assert app["pk"] == "app-123"
-        assert app["slug"] == "netbird"
-        manager.client.get.assert_called_once()
+        manager.client.get.assert_called_once_with("https://auth.test.local/api/v3/core/applications/netbird/")
 
     def test_get_application_by_slug_not_found(self, manager: AuthentikManager) -> None:
-        """Test application not found returns None."""
+        """A 404 from the retrieve endpoint means the slug doesn't exist."""
         mock_response = Mock()
-        mock_response.json.return_value = {"results": []}
+        mock_response.status_code = 404
         manager.client.get.return_value = mock_response
 
         app = manager.get_application_by_slug("nonexistent")
 
         assert app is None
+        mock_response.raise_for_status.assert_not_called()
+
+    def test_get_application_by_slug_does_not_depend_on_list_endpoint(self, manager: AuthentikManager) -> None:
+        """Authentik's list endpoint filters per user and can omit apps the account can access."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"pk": "app-9", "slug": "quotient2"}
+        manager.client.get.return_value = mock_response
+
+        manager.get_application_by_slug("quotient2")
+
+        called_url = manager.client.get.call_args.args[0]
+        assert called_url.endswith("/api/v3/core/applications/quotient2/")
+        assert "params" not in manager.client.get.call_args.kwargs
 
     def test_get_application_by_slug_http_error(self, manager: AuthentikManager) -> None:
         """Test HTTP error handling during application retrieval."""
