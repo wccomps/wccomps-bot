@@ -237,11 +237,14 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         if not created and email:
             user.email = email
             user.save(update_fields=["email"])
-        user_groups = UserGroups.objects.create(
+        # A user deleted and recreated in Authentik comes back with a new sub but the same
+        # username: re-point their existing row instead of creating a second one for this user
+        user_groups, relinked = UserGroups.objects.update_or_create(
             user=user,
-            authentik_id=authentik_id,
-            groups=groups,
+            defaults={"authentik_id": authentik_id, "groups": groups},
         )
+        if not created and not relinked:
+            logger.warning(f"Re-linked portal user '{username}' to a new Authentik identity (account recreated)")
 
     # Always update groups on login
     user_groups.groups = groups

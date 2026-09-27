@@ -284,6 +284,57 @@ class TestOAuthCallback:
         user.refresh_from_db()
         assert user.username == "newusername"
 
+    def test_callback_relinks_account_recreated_in_authentik(self, oauth_state_session):
+        """A user deleted and recreated in Authentik (same username, new sub) keeps their portal account.
+
+        Previously this created a second UserGroups row for the same user and failed with an IntegrityError.
+        """
+        client, state = oauth_state_session
+
+        user = User.objects.create_user(username="recreated")
+        UserGroups.objects.create(user=user, authentik_id="old-authentik-id", groups=["WCComps_Discord_Admin"])
+
+        mock_token_response = MagicMock()
+        mock_token_response.json.return_value = {"access_token": "test-token"}
+        mock_token_response.raise_for_status = MagicMock()
+
+        mock_userinfo_response = MagicMock()
+        mock_userinfo_response.json.return_value = {
+            "sub": "new-authentik-id",
+            "preferred_username": "recreated",
+            "groups": ["WCComps_GoldTeam"],
+        }
+        mock_userinfo_response.raise_for_status = MagicMock()
+
+        with (
+            patch("core.oauth._get_oauth_config") as mock_config,
+            patch("core.oauth.httpx.Client") as mock_httpx,
+        ):
+            mock_config.return_value = {
+                "client_id": "test-client-id",
+                "client_secret": "test-secret",
+                "authorization_endpoint": "https://auth.example.com/authorize/",
+                "token_endpoint": "https://auth.example.com/token/",
+                "userinfo_endpoint": "https://auth.example.com/userinfo/",
+                "end_session_endpoint": "https://auth.example.com/end-session/",
+            }
+            mock_client = MagicMock()
+            mock_client.post.return_value = mock_token_response
+            mock_client.get.return_value = mock_userinfo_response
+            mock_client.__enter__ = MagicMock(return_value=mock_client)
+            mock_client.__exit__ = MagicMock(return_value=False)
+            mock_httpx.return_value = mock_client
+
+            response = client.get(f"/auth/callback/?code=test-code&state={state}")
+
+        assert response.status_code == 302
+        assert User.objects.filter(username="recreated").count() == 1
+        user_groups = UserGroups.objects.get(user=user)
+        assert user_groups.authentik_id == "new-authentik-id"
+        # Groups come from the new login, not the old account
+        assert user_groups.groups == ["WCComps_GoldTeam"]
+        assert int(client.session["_auth_user_id"]) == user.pk
+
     def test_callback_rejects_invalid_state(self):
         """Callback should reject request with forged/invalid state."""
         client = Client()
