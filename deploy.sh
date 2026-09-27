@@ -33,8 +33,10 @@ fi
 
 echo "Checks"
 
-uv lock --upgrade --quiet
-uv sync --quiet
+# Ship exactly the reviewed, committed lockfile. Upgrades arrive as Dependabot PRs
+# (.github/dependabot.yml), not silently at deploy time.
+uv lock --check --quiet || fail "uv.lock is out of date with pyproject.toml" "Run 'uv lock' and merge the updated uv.lock via a PR, then deploy."
+uv sync --frozen --quiet
 step "deps"
 
 # Auto-fix formatting (ruff=Python, djlint=HTML — no overlap, safe to parallel)
@@ -173,7 +175,7 @@ echo ""
 echo "Deploy"
 
 # Dry-run rsync to see what files changed — determines deploy strategy.
-# --checksum + dropping '.'-prefixed (attribute-only) lines: `uv lock` rewrites uv.lock every deploy,
+# --checksum + dropping '.'-prefixed (attribute-only) lines: a rewritten-but-identical file (e.g. uv.lock)
 # and a new mtime alone must not force a full rebuild.
 CHANGES=$({ rsync -az --checksum --delete --exclude-from=.rsyncignore -e ssh . "$REMOTE_HOST:$REMOTE_PATH" \
     --dry-run --itemize-changes || echo "first-deploy"; } | grep -v '^\.' || true)
