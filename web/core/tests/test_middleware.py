@@ -190,6 +190,29 @@ class TestCanonicalHostRedirect:
 
         assert response.status_code == 200
 
+    def test_redirect_is_logged_for_usage_measurement(self, middleware, caplog):
+        request = RequestFactory().post(
+            "/tickets/create/", HTTP_HOST="ticket.wccomps.org", HTTP_REFERER="https://ticket.wccomps.org/tickets/"
+        )
+
+        with caplog.at_level("INFO", logger="wccomps.access"):
+            middleware(request)
+
+        messages = [r.getMessage() for r in caplog.records if r.name == "wccomps.access"]
+        assert messages == [
+            'legacy-host-redirect ticket.wccomps.org "POST /tickets/create/" 308 https://ticket.wccomps.org/tickets/'
+        ]
+
+    def test_oauth_callback_on_legacy_host_is_logged(self, middleware, caplog):
+        """Callbacks on legacy hosts are what the old Authentik redirect URIs are for; count them."""
+        request = RequestFactory().get("/auth/callback/", {"code": "c", "state": "s"}, HTTP_HOST="bot.wccomps.org")
+
+        with caplog.at_level("INFO", logger="wccomps.access"):
+            middleware(request)
+
+        messages = [r.getMessage() for r in caplog.records if r.name == "wccomps.access"]
+        assert messages == ['legacy-host-callback bot.wccomps.org "GET /auth/callback/" - -']
+
     def test_settings_legacy_hosts_are_trusted_and_routed(self):
         """Every legacy host must stay in CSRF_TRUSTED_ORIGINS while redirects are active."""
         from django.conf import settings as real_settings

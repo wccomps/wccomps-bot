@@ -61,7 +61,10 @@ class SubdomainRedirectMiddleware:
     def __call__(self, request: HttpRequest) -> HttpResponse:
         host = request.get_host().split(":")[0]
 
-        if self.canonical_host and host in self.legacy_hosts and request.path not in self.CANONICAL_EXEMPT_PATHS:
+        if self.canonical_host and host in self.legacy_hosts:
+            if request.path in self.CANONICAL_EXEMPT_PATHS:
+                self._log_legacy_use("legacy-host-callback", host, request, "-")
+                return self.get_response(request)
             if request.path == "/" and host in self.subdomain_redirects:
                 query = request.META.get("QUERY_STRING", "")
                 target = self.subdomain_redirects[host] + (f"?{query}" if query else "")
@@ -69,11 +72,24 @@ class SubdomainRedirectMiddleware:
                 target = request.get_full_path()
             # 301 for GET/HEAD; 308 for everything else so the method and body survive
             preserve = request.method not in ("GET", "HEAD")
-            return HttpResponsePermanentRedirect(f"https://{self.canonical_host}{target}", preserve_request=preserve)
+            response = HttpResponsePermanentRedirect(
+                f"https://{self.canonical_host}{target}", preserve_request=preserve
+            )
+            self._log_legacy_use("legacy-host-redirect", host, request, str(response.status_code))
+            return response
 
         if request.path == "/" and host in self.subdomain_redirects:
             return redirect(self.subdomain_redirects[host])
         return self.get_response(request)
+
+    @staticmethod
+    def _log_legacy_use(event: str, host: str, request: HttpRequest, status: str) -> None:
+        """Record legacy-host traffic so retiring those hosts can be based on data.
+
+        Paths only: query strings on these URLs can carry link tokens and OAuth codes.
+        """
+        referer = request.META.get("HTTP_REFERER", "").split("?", 1)[0] or "-"
+        logger.info('%s %s "%s %s" %s %s', event, host, request.method, request.path, status, referer)
 
 
 class AuthentikRequiredMiddleware:
