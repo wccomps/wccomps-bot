@@ -19,6 +19,22 @@ from ticketing.models import Ticket, TicketAttachment, TicketComment, TicketHist
 logger = logging.getLogger(__name__)
 
 
+def _ticketing_staff_usernames() -> list[str]:
+    """Usernames that can work tickets, for the assign box's suggestions."""
+    from functools import reduce
+    from operator import or_
+
+    from django.db.models import Q
+
+    from core.models import UserGroups
+    from core.permission_constants import PERMISSION_MAP
+
+    in_any_group = reduce(or_, (Q(groups__contains=[g]) for g in PERMISSION_MAP["ticketing_support"]))
+    return list(
+        UserGroups.objects.filter(in_any_group).order_by("user__username").values_list("user__username", flat=True)
+    )
+
+
 def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
     """Unified ticket detail view for both team members and ops staff."""
     user = cast(User, request.user)
@@ -85,6 +101,8 @@ def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
         context["variable_points"] = cat_info.get("variable_points", False)
         context["categories"] = get_all_categories()
         context["history"] = history
+        if is_ticketing_support or is_ticketing_admin:
+            context["staff_usernames"] = _ticketing_staff_usernames()
 
         # Preserve filter state from referrer for back navigation
         context["status_filter"] = request.GET.get("status", "")

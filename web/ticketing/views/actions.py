@@ -221,18 +221,24 @@ def ticket_reassign(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, f"User '{new_assignee_username}' not found")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    # Use shared atomic reassign function
-    from ticketing.utils import reassign_ticket_atomic
+    from ticketing.utils import claim_ticket_atomic, reassign_ticket_atomic
 
-    ticket, error = reassign_ticket_atomic(
+    # Open tickets are claimed on the new assignee's behalf (same as Discord /tickets reassign);
+    # any other status just changes the assignee.
+    claimed_for_them = ticket_obj.status == Ticket.STATUS_OPEN
+    atomic_op = claim_ticket_atomic if claimed_for_them else reassign_ticket_atomic
+    ticket, error = atomic_op(
         ticket_id=ticket_obj.id,
         actor_username=authentik_username,
         user=new_assignee_user,
     )
 
     if error or ticket is None:
-        messages.error(request, error or "Failed to reassign ticket")
+        messages.error(request, error or "Failed to assign ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
+
+    if claimed_for_them:
+        DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor=authentik_username)
 
     # Add new assignee to thread if they have Discord linked and ticket has a thread
     if ticket.discord_thread_id:

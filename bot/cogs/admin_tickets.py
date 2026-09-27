@@ -489,10 +489,7 @@ class AdminTicketsCog(commands.Cog):
             await interaction.followup.send(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        if ticket.status in ["resolved", "cancelled"]:
-            await interaction.followup.send(f"Cannot reassign {ticket.status} ticket", ephemeral=True)
-            return
-
+        # Resolved/cancelled tickets can be reassigned too (#36); only the assignee changes.
         old_assignee = ticket.assigned_to.username if ticket.assigned_to else "Unassigned"
 
         if volunteer:

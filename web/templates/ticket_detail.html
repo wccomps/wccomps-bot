@@ -167,29 +167,42 @@
                                 Resolve Ticket
                             </c-button>
                         </c-form>
-                        {% if is_ticketing_support or is_ticketing_admin %}
-                            <div class="border-top mt-15 pt-15">
-                                <c-form action="{% url 'ticket_reassign' ticket.ticket_number %}"
-                                        class="d-flex gap-10 items-center m-0">
-                                    {% csrf_token %}
-                                    <input type="text"
-                                           name="new_assignee_username"
-                                           placeholder="Reassign to..."
-                                           aria-label="Reassign to username"
-                                           required
-                                           class="py-5 px-10 w-150">
-                                    <c-button type="submit" variant="default" ::disabled="submitting">
-                                        Reassign
-                                    </c-button>
-                                </c-form>
-                            </div>
-                        {% endif %}
                     </c-fieldset>
                 {% else %}
                     <p class="text-muted p-10">
                         Assigned to <strong>{{ ticket.assigned_to.username }}</strong>. Only they or an admin can resolve it.
                     </p>
                 {% endif %}
+            {% endif %}
+            {% if is_ticketing_support or is_ticketing_admin %}
+                <c-fieldset heading="Assignment">
+                    <c-form action="{% url 'ticket_reassign' ticket.ticket_number %}"
+                            class="d-flex gap-10 items-center m-0">
+                        {% csrf_token %}
+                        <input type="text"
+                               name="new_assignee_username"
+                               list="staff-usernames"
+                               placeholder="{% if ticket.status == 'open' %}Assign to...{% else %}Reassign to...{% endif %}"
+                               aria-label="Assign to username"
+                               required
+                               class="py-5 px-10 w-150">
+                        <datalist id="staff-usernames">
+                            {% for name in staff_usernames %}<option value="{{ name }}"></option>{% endfor %}
+                        </datalist>
+                        <c-button type="submit" variant="default" ::disabled="submitting">
+                            {% if ticket.status == "open" %}
+                                Assign
+                            {% else %}
+                                Reassign
+                            {% endif %}
+                        </c-button>
+                    </c-form>
+                    {% if ticket.status == "open" %}
+                        <p class="help mt-5">Assigning an open ticket claims it for that person.</p>
+                    {% elif ticket.status == "resolved" or ticket.status == "cancelled" %}
+                        <p class="help mt-5">Only the assignee changes; status and points stay as they are.</p>
+                    {% endif %}
+                </c-fieldset>
             {% endif %}
             <!-- Ticket Details -->
             <c-fieldset heading="Ticket Information">
