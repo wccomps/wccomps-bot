@@ -21,6 +21,7 @@ from ..models import (
     RedTeamScreenshot,
 )
 from ..quotient_sync import get_cached_team_count
+from ..screenshots import read_screenshot, screenshot_response
 
 
 def _normalize_red_score_post(post_data: QueryDict) -> QueryDict:
@@ -311,12 +312,12 @@ def submit_red_score(request: HttpRequest) -> HttpResponse:
             else:
                 try:
                     for screenshot in screenshots:
-                        file_data = screenshot.read()
+                        file_data, filename, mime_type = read_screenshot(screenshot)
                         RedTeamScreenshot.objects.create(
                             finding=finding,
                             file_data=file_data,
-                            filename=screenshot.name or "screenshot.png",
-                            mime_type=screenshot.content_type or "image/png",
+                            filename=filename,
+                            mime_type=mime_type,
                         )
                 except Exception as e:
                     transaction.set_rollback(True)
@@ -438,9 +439,7 @@ def red_screenshot_download(request: HttpRequest, screenshot_id: int) -> HttpRes
     if not screenshot.file_data:
         raise Http404("File data not available (file was lost)")
 
-    response = HttpResponse(screenshot.file_data, content_type=screenshot.mime_type)
-    response["Content-Disposition"] = f'inline; filename="{screenshot.filename}"'
-    return response
+    return screenshot_response(bytes(screenshot.file_data), screenshot.filename)
 
 
 # IP Pool Management Views

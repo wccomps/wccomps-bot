@@ -16,6 +16,7 @@ from team.models import Team
 from ..calculator import calculate_suggested_recovery_points, suggest_red_score_matches
 from ..forms import IncidentMatchForm, IncidentReportForm
 from ..models import IncidentReport, IncidentScreenshot
+from ..screenshots import read_screenshot, screenshot_response
 from ._helpers import _get_user_team
 
 
@@ -64,12 +65,12 @@ def submit_incident_report(request: HttpRequest) -> HttpResponse:
             else:
                 try:
                     for screenshot in screenshots:
-                        file_data = screenshot.read()
+                        file_data, filename, mime_type = read_screenshot(screenshot)
                         IncidentScreenshot.objects.create(
                             incident=incident,
                             file_data=file_data,
-                            filename=screenshot.name or "screenshot.png",
-                            mime_type=screenshot.content_type or "image/png",
+                            filename=filename,
+                            mime_type=mime_type,
                         )
                 except Exception as e:
                     transaction.set_rollback(True)
@@ -191,9 +192,7 @@ def incident_screenshot_download(request: HttpRequest, screenshot_id: int) -> Ht
     if not screenshot.file_data:
         raise Http404("File data not available (file was lost)")
 
-    response = HttpResponse(screenshot.file_data, content_type=screenshot.mime_type)
-    response["Content-Disposition"] = f'inline; filename="{screenshot.filename}"'
-    return response
+    return screenshot_response(bytes(screenshot.file_data), screenshot.filename)
 
 
 @require_permission(
