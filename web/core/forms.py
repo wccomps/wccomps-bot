@@ -130,3 +130,12 @@ class TeamsBulkActionForm(forms.Form):
 
 class LinkConfirmForm(forms.Form):
     token = forms.CharField(max_length=64)
+
+
+class SyncRolesForm(forms.Form):
+    dry_run = forms.CharField(required=False)
+
+    def clean_dry_run(self) -> bool:
+        # Anything but an explicit "false" is a preview
+        value: str = self.cleaned_data.get("dry_run") or ""
+        return value.strip().lower() != "false"

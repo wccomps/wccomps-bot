@@ -21,6 +21,8 @@ class RoleSyncStats(TypedDict, total=False):
     roles_added: int
     roles_removed: int
     errors: int
+    extra_linked: int  # linked users holding a role their Authentik groups don't grant
+    unlinked_holders: int  # unlinked users holding a synced role (can't verify)
     changes: list[str]
 
 
@@ -316,6 +318,8 @@ class AuthentikRoleSyncManager:
             "roles_added": 0,
             "roles_removed": 0,
             "errors": 0,
+            "extra_linked": 0,
+            "unlinked_holders": 0,
             "changes": [],
         }
 
@@ -352,8 +356,8 @@ class AuthentikRoleSyncManager:
 
         # Get all Authentik group memberships and Discord links from database
         @sync_to_async
-        def get_authentik_data() -> dict[str, set[int]]:
-            """Get mapping of Authentik group name -> set of Discord IDs."""
+        def get_authentik_data() -> tuple[dict[str, set[int]], set[int]]:
+            """Get Authentik group name -> linked Discord IDs, plus every linked Discord ID."""
             from core.models import UserGroups
             from team.models import DiscordLink
 
@@ -361,6 +365,7 @@ class AuthentikRoleSyncManager:
 
             # Get all active Discord links with their users
             discord_links = DiscordLink.objects.filter(is_active=True).select_related("user")
+            linked_discord_ids = {link.discord_id for link in discord_links}
 
             for link in discord_links:
                 try:
@@ -371,9 +376,9 @@ class AuthentikRoleSyncManager:
                 except UserGroups.DoesNotExist:
                     continue
 
-            return group_to_discord_ids
+            return group_to_discord_ids, linked_discord_ids
 
-        group_to_discord_ids = await get_authentik_data()
+        group_to_discord_ids, linked_discord_ids = await get_authentik_data()
 
         for group_name, discord_ids in group_to_discord_ids.items():
             logger.info(f"  {group_name}: {len(discord_ids)} linked Discord users")
@@ -394,6 +399,7 @@ class AuthentikRoleSyncManager:
                     group_name,
                     role_id,
                     group_to_discord_ids[group_name],
+                    linked_discord_ids,
                     stats,
                     dry_run,
                 )
@@ -421,80 +427,47 @@ class AuthentikRoleSyncManager:
         group_name: str,
         role_id: int,
         should_have_role_discord_ids: set[int],
+        linked_discord_ids: set[int],
         stats: RoleSyncStats,
         dry_run: bool,
     ) -> None:
-        """Sync a single Authentik group to Discord role.
+        """Sync one Authentik group to its Discord role. Only ever ADDS the role.
 
-        Args:
-            competition_guild: Target guild where roles should be synced
-            group_name: Authentik group name (for logging)
-            role_id: Discord role ID to sync
-            should_have_role_discord_ids: Set of Discord user IDs who should have this role
-            stats: Statistics dict to update
-            dry_run: If True, only report what would be done
+        Most volunteers haven't linked yet, so removing roles from everyone not proven to be in
+        the group would strip real staff. Holders who shouldn't have the role are reported instead:
+        linked users outside the group (extra permissions) and unlinked users (can't verify yet).
         """
         competition_role = competition_guild.get_role(role_id)
-
         if not competition_role:
-            logger.warning(f"Competition role {role_id} not found in {competition_guild.name}")
+            msg = f"Discord role for {group_name} is not configured or not found (role ID {role_id})"
+            logger.warning(msg)
+            stats["errors"] = stats["errors"] + 1
+            stats["changes"].append(f"⚠ {msg}")
             return
 
-        logger.info("-" * 80)
-        logger.info(
-            f"Syncing: {group_name} (Authentik) -> {competition_role.name} (ID: {role_id}, {competition_guild.name})"
-        )
-        logger.info(f"Users in Authentik group with linked Discord: {len(should_have_role_discord_ids)}")
-
-        members_checked = 0
-        members_skipped_bot = 0
-        members_no_action = 0
-        mode_prefix = "[DRY RUN] " if dry_run else ""
-
+        prefix = "[DRY RUN] " if dry_run else ""
         for member in competition_guild.members:
             if member.bot:
-                members_skipped_bot += 1
                 continue
-
-            members_checked += 1
-
             try:
-                should_have_role = member.id in should_have_role_discord_ids
                 has_role = competition_role in member.roles
-
-                if should_have_role and not has_role:
-                    # Add role
-                    change_msg = f"Added {competition_role.name} to {member.name} ({member.display_name})"
-                    if dry_run:
-                        logger.info(f"{mode_prefix}Would add {competition_role.name} to {member.name}")
-                        stats["changes"].append(f"[DRY RUN] ✓ {change_msg}")
-                    else:
-                        await member.add_roles(
-                            competition_role,
-                            reason=f"Authentik sync: member of {group_name}",
-                        )
-                        logger.info(f"✓ {change_msg}")
-                        stats["changes"].append(f"✓ {change_msg}")
-                    stats["roles_added"] = stats["roles_added"] + 1
-
-                elif not should_have_role and has_role:
-                    # Remove role
-                    change_msg = f"Removed {competition_role.name} from {member.name} ({member.display_name})"
-                    if dry_run:
-                        logger.info(f"{mode_prefix}Would remove {competition_role.name} from {member.name}")
-                        stats["changes"].append(f"[DRY RUN] ✗ {change_msg}")
-                    else:
-                        await member.remove_roles(
-                            competition_role,
-                            reason=f"Authentik sync: not member of {group_name}",
-                        )
-                        logger.info(f"✗ {change_msg}")
-                        stats["changes"].append(f"✗ {change_msg}")
-                    stats["roles_removed"] = stats["roles_removed"] + 1
-
-                else:
-                    members_no_action += 1
-
+                who = f"{member.name} ({member.display_name})"
+                if member.id in should_have_role_discord_ids:
+                    if not has_role:
+                        if not dry_run:
+                            await member.add_roles(competition_role, reason=f"Authentik sync: member of {group_name}")
+                        stats["roles_added"] = stats["roles_added"] + 1
+                        stats["changes"].append(f"{prefix}✓ Added {competition_role.name} to {who}")
+                elif has_role and member.id in linked_discord_ids:
+                    stats["extra_linked"] = stats.get("extra_linked", 0) + 1
+                    stats["changes"].append(
+                        f"{prefix}✗ Extra: {who} has {competition_role.name} but is not in {group_name} (not removed)"
+                    )
+                elif has_role:
+                    stats["unlinked_holders"] = stats.get("unlinked_holders", 0) + 1
+                    stats["changes"].append(
+                        f"{prefix}? Unverified: {who} has {competition_role.name} but has not linked (not removed)"
+                    )
             except discord.errors.Forbidden as e:
                 error_msg = f"Missing permissions to modify roles for {member.name} (ID: {member.id}): {e}"
                 logger.exception(error_msg)
@@ -505,11 +478,3 @@ class AuthentikRoleSyncManager:
                 logger.error(error_msg, exc_info=True)
                 stats["errors"] = stats["errors"] + 1
                 stats["changes"].append(f"⚠ {error_msg}")
-
-        logger.info(f"Group sync complete: {group_name} -> {competition_role.name}")
-        logger.info(f"  Total members in guild: {len(competition_guild.members)}")
-        logger.info(f"  Bot members skipped: {members_skipped_bot}")
-        logger.info(f"  Human members checked: {members_checked}")
-        logger.info(f"  Members already in correct state: {members_no_action}")
-        logger.info(f"  Members with changes: {members_checked - members_no_action}")
-        logger.info("-" * 80)
