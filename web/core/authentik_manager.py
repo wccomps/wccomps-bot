@@ -358,12 +358,14 @@ class AuthentikManager:
         logger.info(f"Disable applications complete: {success_count}/{len(app_slugs)} succeeded")
         return results
 
-    def update_user_discord_id(self, username: str, discord_id: int) -> bool:
+    def update_user_discord_id(self, username: str, discord_id: int, uid: str) -> bool:
         """Store Discord ID in Authentik user attributes, preserving existing attributes.
 
         Args:
             username: Authentik username to look up
             discord_id: Discord user ID (snowflake)
+            uid: The user's Authentik uid (OIDC sub). Nothing is written unless the user found
+                by username has it: a stale username may since belong to someone else.
         """
         try:
             # Look up user by username to get the integer PK
@@ -378,6 +380,9 @@ class AuthentikManager:
                 return False
 
             user = users[0]
+            if user.get("uid") != uid:
+                logger.warning(f"Authentik user {username} is a different identity now; not storing discord_id")
+                return False
             user_pk = user["pk"]
 
             # Update attributes (preserve existing, add discord_id)

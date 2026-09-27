@@ -9,6 +9,7 @@ from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 from django.core import signing
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -83,6 +84,27 @@ def oauth_login(request: HttpRequest) -> HttpResponse:
 
     auth_url = f"{config['authorization_endpoint']}?{urlencode(params)}"
     return redirect(auth_url)
+
+
+def _free_username(username: str, keep_pk: int | None = None) -> None:
+    """Rename any other portal account holding this username. Call inside a transaction.
+
+    Only the name changes: the account stays tied to its own Authentik sub, whose groups the
+    periodic refresh keeps current (empty once that identity is deleted).
+    """
+    holders = User.objects.select_for_update().filter(username=username)
+    if keep_pk is not None:
+        holders = holders.exclude(pk=keep_pk)
+    holder = holders.first()
+    if not holder:
+        return
+    suffix = f"~replaced-{holder.pk}"
+    max_length = User._meta.get_field("username").max_length or 150
+    holder.username = username[: max_length - len(suffix)] + suffix
+    holder.save(update_fields=["username"])
+    logger.warning(
+        f"Username '{username}' now belongs to another Authentik identity; renamed its holder to '{holder.username}'"
+    )
 
 
 def oauth_callback(request: HttpRequest) -> HttpResponse:
@@ -211,41 +233,22 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             {"error_title": "Authentication Failed", "error_message": "Invalid user data."},
         )
 
-    # Find or create user by authentik_id (handles username changes)
-    try:
-        user_groups = UserGroups.objects.select_related("user").get(authentik_id=authentik_id)
-        user = user_groups.user
-        # Update username if changed in Authentik
-        if user.username != username:
-            # Check if another user has this username
-            conflicting_user = User.objects.filter(username=username).exclude(pk=user.pk).first()
-            if conflicting_user:
-                logger.error(
-                    f"Username conflict: authentik_id={authentik_id} wants username '{username}' "
-                    f"but it's taken by user id={conflicting_user.pk}"
-                )
-                # Continue with old username rather than crash
-            else:
+    # Accounts are keyed by the Authentik sub only: usernames get reused, and matching on
+    # them would hand a new identity someone else's account
+    with transaction.atomic():
+        user_groups = UserGroups.objects.select_related("user").filter(authentik_id=authentik_id).first()
+        if user_groups is None:
+            _free_username(username)
+            user = User.objects.create(username=username, email=email)
+            user_groups = UserGroups.objects.create(user=user, authentik_id=authentik_id, groups=groups)
+        else:
+            user = user_groups.user
+            if user.username != username:
+                _free_username(username, keep_pk=user.pk)
                 user.username = username
                 user.save(update_fields=["username"])
-    except UserGroups.DoesNotExist:
-        # Check if user exists with this username (edge case)
-        user, created = User.objects.get_or_create(
-            username=username,
-            defaults={"email": email},
-        )
-        if not created and email:
-            user.email = email
-            user.save(update_fields=["email"])
-        user_groups = UserGroups.objects.create(
-            user=user,
-            authentik_id=authentik_id,
-            groups=groups,
-        )
-
-    # Always update groups on login
-    user_groups.groups = groups
-    user_groups.save(update_fields=["groups"])
+        user_groups.groups = groups
+        user_groups.save(update_fields=["groups"])
 
     # Log user in
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")

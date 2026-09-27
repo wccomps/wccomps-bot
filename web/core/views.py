@@ -171,7 +171,7 @@ def link_callback(request: HttpRequest) -> HttpResponse:
 
     # For non-team accounts, try to store discord_id in Authentik
     if not is_team_account:
-        store_discord_id_in_authentik(authentik_username, discord_id)
+        store_discord_id_in_authentik(authentik_username, discord_id, authentik_user_id)
 
     # Create or update DiscordLink (with race-condition protection for teams)
     link_error = execute_link(discord_id, discord_username, user, team, is_team_account)

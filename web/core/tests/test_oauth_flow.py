@@ -284,6 +284,104 @@ class TestOAuthCallback:
         user.refresh_from_db()
         assert user.username == "newusername"
 
+    @staticmethod
+    def _login(client, state, userinfo):
+        mock_token_response = MagicMock()
+        mock_token_response.json.return_value = {"access_token": "test-token"}
+        mock_token_response.raise_for_status = MagicMock()
+
+        mock_userinfo_response = MagicMock()
+        mock_userinfo_response.json.return_value = userinfo
+        mock_userinfo_response.raise_for_status = MagicMock()
+
+        with (
+            patch("core.oauth._get_oauth_config") as mock_config,
+            patch("core.oauth.httpx.Client") as mock_httpx,
+        ):
+            mock_config.return_value = {
+                "client_id": "test-client-id",
+                "client_secret": "test-secret",
+                "authorization_endpoint": "https://auth.example.com/authorize/",
+                "token_endpoint": "https://auth.example.com/token/",
+                "userinfo_endpoint": "https://auth.example.com/userinfo/",
+                "end_session_endpoint": "https://auth.example.com/end-session/",
+            }
+            mock_client = MagicMock()
+            mock_client.post.return_value = mock_token_response
+            mock_client.get.return_value = mock_userinfo_response
+            mock_client.__enter__ = MagicMock(return_value=mock_client)
+            mock_client.__exit__ = MagicMock(return_value=False)
+            mock_httpx.return_value = mock_client
+
+            return client.get(f"/auth/callback/?code=test-code&state={state}")
+
+    def test_reused_username_gets_a_fresh_account_not_the_old_one(self, oauth_state_session):
+        """Identity is the Authentik sub: a new identity with an old username inherits nothing."""
+        from team.models import DiscordLink
+
+        client, state = oauth_state_session
+        old = User.objects.create_user(username="reused")
+        UserGroups.objects.create(user=old, authentik_id="old-authentik-id", groups=["WCComps_Discord_Admin"])
+        DiscordLink.objects.create(discord_id=111, discord_username="old-discord", user=old, is_active=True)
+
+        response = self._login(
+            client, state, {"sub": "new-authentik-id", "preferred_username": "reused", "groups": ["WCComps_GoldTeam"]}
+        )
+
+        assert response.status_code == 302
+        new = User.objects.get(username="reused")
+        assert new.pk != old.pk
+        assert int(client.session["_auth_user_id"]) == new.pk
+        assert UserGroups.objects.get(user=new).authentik_id == "new-authentik-id"
+        assert not DiscordLink.objects.filter(user=new).exists()
+
+        old.refresh_from_db()
+        assert old.username == f"reused~replaced-{old.pk}"
+        # Still tied to its own sub, so the periodic refresh decides its groups
+        assert UserGroups.objects.get(user=old).authentik_id == "old-authentik-id"
+        assert DiscordLink.objects.get(discord_id=111).user == old
+
+    def test_reused_username_does_not_inherit_django_flags(self, oauth_state_session):
+        """A pre-existing account without an Authentik identity (e.g. createsuperuser) isn't reused either."""
+        client, state = oauth_state_session
+        old = User.objects.create_superuser(username="admin", password="unused-test-password")  # noqa: S106
+
+        self._login(client, state, {"sub": "someone-new", "preferred_username": "admin", "groups": []})
+
+        new = User.objects.get(username="admin")
+        assert new.pk != old.pk
+        assert not new.is_superuser
+        assert not new.is_staff
+
+    def test_renamed_user_takes_their_new_name_from_a_stale_holder(self, oauth_state_session):
+        """Portal username follows Authentik's: /link looks the Authentik user up by it."""
+        client, state = oauth_state_session
+        me = User.objects.create_user(username="old-name")
+        UserGroups.objects.create(user=me, authentik_id="my-id", groups=[])
+        stale = User.objects.create_user(username="new-name")
+        UserGroups.objects.create(user=stale, authentik_id="deleted-id", groups=["WCComps_GoldTeam"])
+
+        self._login(client, state, {"sub": "my-id", "preferred_username": "new-name", "groups": []})
+
+        me.refresh_from_db()
+        stale.refresh_from_db()
+        assert me.username == "new-name"
+        assert stale.username == f"new-name~replaced-{stale.pk}"
+        assert UserGroups.objects.get(user=stale).authentik_id == "deleted-id"
+
+    def test_moved_aside_account_takes_its_current_name_on_login(self, oauth_state_session):
+        """An account whose name was taken, but whose identity was only renamed, logs in normally."""
+        client, state = oauth_state_session
+        user = User.objects.create_user(username="carol~replaced-1")
+        UserGroups.objects.create(user=user, authentik_id="carol-id", groups=[])
+
+        response = self._login(client, state, {"sub": "carol-id", "preferred_username": "dave", "groups": ["G"]})
+
+        assert response.status_code == 302
+        user.refresh_from_db()
+        assert user.username == "dave"
+        assert client.get("/").wsgi_request.user.pk == user.pk
+
     def test_callback_rejects_invalid_state(self):
         """Callback should reject request with forged/invalid state."""
         client = Client()
