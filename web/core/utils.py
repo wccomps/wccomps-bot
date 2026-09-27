@@ -1,5 +1,6 @@
 """Utility functions for WCComps core functionality."""
 
+import ipaddress
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import NamedTuple, TypedDict
@@ -12,6 +13,20 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 
 from team.models import MAX_TEAMS, Team
+
+
+def client_ip(request: HttpRequest) -> str:
+    """The real client address: Cloudflare's CF-Connecting-IP, else the connecting peer.
+
+    Behind the Cloudflare tunnel and Traefik, REMOTE_ADDR is always the proxy. Cloudflare
+    overwrites CF-Connecting-IP on every request, so it can't be spoofed from the internet.
+    A missing or malformed header falls back to REMOTE_ADDR.
+    """
+    header = request.META.get("HTTP_CF_CONNECTING_IP", "").strip()
+    try:
+        return str(ipaddress.ip_address(header))
+    except ValueError:
+        return request.META.get("REMOTE_ADDR") or "0.0.0.0"  # noqa: S104 - an address value, not a bind
 
 
 def parse_datetime_to_utc(datetime_str: str, tz_name: str = "America/Los_Angeles") -> datetime:

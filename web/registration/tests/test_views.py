@@ -3,7 +3,6 @@
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
-from django.core.cache import cache
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -15,7 +14,6 @@ class RegistrationViewTestCase(TestCase):
 
     def setUp(self):
         """Set up test client and create an active season with event."""
-        cache.clear()
         self.client = Client()
         self.season = Season.objects.create(name="2026 Season", year=2026, is_active=True)
         self.event = Event.objects.create(

@@ -3,13 +3,13 @@
 import random
 
 from django.contrib import messages
-from django.core.cache import cache
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from core.auth_utils import require_permission
+from core.utils import client_ip
 from team.models import Team
 
 from .forms import EventForm, RegistrationForm, RejectRegistrationForm, SeasonForm
@@ -17,6 +17,7 @@ from .models import (
     Event,
     EventTeamAssignment,
     RegistrationEventEnrollment,
+    RegistrationRateLimit,
     Season,
     TeamRegistration,
 )
@@ -25,17 +26,15 @@ from .models import (
 def register(request: HttpRequest) -> HttpResponse:
     """Public registration form (no authentication required)."""
     if request.method == "POST":
-        # Rate limit: 10 submissions per hour per IP
-        ip = request.META.get("REMOTE_ADDR", "unknown")
-        cache_key = f"register_ratelimit:{ip}"
-        submissions: int = cache.get(cache_key, 0)
-        if submissions >= 10:
+        # Rate limit: 10 submissions per hour per client IP
+        ip = client_ip(request)
+        if RegistrationRateLimit.over_limit(ip):
             messages.error(request, "Too many registration submissions. Please try again later.")
             return render(request, "registration/register.html", {"form": RegistrationForm()}, status=429)
 
         form = RegistrationForm(request.POST)
         if form.is_valid():
-            cache.set(cache_key, submissions + 1, 3600)  # Only count successful submissions
+            RegistrationRateLimit.record(ip)  # Only count successful submissions
             form.save()
             messages.success(request, "Registration submitted successfully! You will receive an email once reviewed.")
             return redirect("registration_register")

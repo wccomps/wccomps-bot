@@ -1,6 +1,7 @@
 """Models for team registration."""
 
 import secrets
+from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -230,3 +231,36 @@ class EventTeamAssignment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.registration.school_name} → Team {self.team.team_number:02d} ({self.event.name})"
+
+
+class RegistrationRateLimit(models.Model):
+    """One successful public registration submission, for per-client rate limiting.
+
+    Stored in the database so every gunicorn worker shares the count.
+    """
+
+    LIMIT = 10
+    WINDOW = timedelta(hours=1)
+
+    ip = models.GenericIPAddressField(unpack_ipv4=True)
+    attempted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["ip", "-attempted_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Registration from {self.ip} at {self.attempted_at}"
+
+    @classmethod
+    def over_limit(cls, ip: str) -> bool:
+        """Whether this client has used up its submissions for the current window."""
+        since = timezone.now() - cls.WINDOW
+        return cls.objects.filter(ip=ip, attempted_at__gte=since).count() >= cls.LIMIT
+
+    @classmethod
+    def record(cls, ip: str) -> None:
+        """Count a submission, pruning rows that have aged out of every window."""
+        cls.objects.filter(attempted_at__lt=timezone.now() - cls.WINDOW).delete()
+        cls.objects.create(ip=ip)
