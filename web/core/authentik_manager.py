@@ -567,6 +567,29 @@ class AuthentikManager:
             logger.exception(f"Failed to reset password for {username}: {e}")
             return (False, "Password reset failed - check server logs")
 
+    def _list_all(self, path: str, params: dict[str, str]) -> list[dict[str, object]]:
+        """Fetch every page of an Authentik list endpoint. Raises on any HTTP error."""
+        results: list[dict[str, object]] = []
+        page: int | None = 1
+        while page:
+            response = self.client.get(
+                f"{self.base_url}{path}", params={**params, "page": str(page), "page_size": "100"}
+            )
+            if response.is_error:
+                raise self._handle_response_error(response, f"List {path}")
+            data = response.json()
+            results.extend(data["results"])
+            page = data["pagination"]["next"] or None
+        return results
+
+    def list_all_users(self) -> list[dict[str, object]]:
+        """Every Authentik user, with ``uid``, ``is_active`` and direct group pks in ``groups``."""
+        return self._list_all("/api/v3/core/users/", {"include_groups": "false"})
+
+    def list_all_groups(self) -> list[dict[str, object]]:
+        """Every Authentik group, with ``pk``, ``name`` and parent pks in ``parents``."""
+        return self._list_all("/api/v3/core/groups/", {"include_users": "false"})
+
     def get_user_with_groups(self, username: str) -> dict[str, object] | None:
         """Get an Authentik user with their group memberships.
 

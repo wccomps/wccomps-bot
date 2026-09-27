@@ -6,6 +6,7 @@ from typing import TypedDict
 import discord
 from asgiref.sync import sync_to_async
 
+from bot.cogs.authentik_groups import refresh_groups_now
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import toggle_all_blueteam_accounts
 from core.models import CompetitionConfig
@@ -60,6 +61,9 @@ async def start_competition() -> StartResult:
 
     # Enable all blueteam accounts
     accounts_enabled, accounts_failed = await toggle_all_blueteam_accounts(is_active=True)
+
+    # Team accounts' groups follow is_active; don't make teams wait for the next periodic refresh
+    await refresh_groups_now()
 
     # Sync Quotient metadata
     try:
@@ -117,6 +121,9 @@ async def stop_competition() -> StopResult:
 
     # Disable all blueteam accounts
     accounts_disabled, accounts_failed = await toggle_all_blueteam_accounts(is_active=False)
+
+    # Team accounts' groups follow is_active; don't make teams wait for the next periodic refresh
+    await refresh_groups_now()
 
     # Update config - clear end_time only, preserve start_time
     @sync_to_async

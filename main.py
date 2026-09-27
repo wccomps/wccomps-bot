@@ -95,6 +95,7 @@ class PortalBot(commands.Bot):
         await self.load_extension("bot.cogs.admin_tickets")
         await self.load_extension("bot.cogs.admin_competition")
         await self.load_extension("bot.cogs.quotient_sync")
+        await self.load_extension("bot.cogs.authentik_groups")
 
         logger.info("Cogs loaded")
 
