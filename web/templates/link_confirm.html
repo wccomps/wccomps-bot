@@ -1,0 +1,34 @@
+{% extends "admin/base_site.html" %}
+{% load cotton %}
+{% block title %}
+    Confirm Discord Link - WCComps Portal
+{% endblock title %}
+{% block content %}
+    <div id="content-main">
+        <c-page_header title="Confirm Discord Link" />
+        <c-module>
+            <c-alert variant="warning">
+                Only continue if you ran /link yourself in Discord as <strong>{{ discord_username }}</strong>. If someone sent you
+                this link, stop here: continuing gives their Discord account your portal access.
+            </c-alert>
+            <c-detail_grid>
+                <c-detail_row label="Discord Account">
+                    {{ discord_username }}
+                </c-detail_row>
+                <c-detail_row label="Portal Account">
+                    {{ authentik_username }}
+                </c-detail_row>
+                {% if is_team_account %}<c-detail_row label="Team">{{ team_name }}</c-detail_row>{% endif %}
+            </c-detail_grid>
+            <form method="post" action="{% url 'link_callback' %}">
+                {% csrf_token %}
+                <input type="hidden" name="token" value="{{ token }}">
+                <c-button_row>
+                    <c-button type="submit" variant="primary">
+                        Link {{ discord_username }}
+                    </c-button>
+                </c-button_row>
+            </form>
+        </c-module>
+    </div>
+{% endblock content %}
