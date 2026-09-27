@@ -43,7 +43,11 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
     from core.utils import filter_sort_paginate
 
     # Get filter parameters (always)
-    status_filter = request.GET.get("status", "all") or "all"
+    # Several statuses allowed (#37): checkboxes send ?status=a&status=b, and sort/page links carry
+    # them as one comma-separated value. Unknown values are ignored; none selected means all.
+    requested = {part for value in request.GET.getlist("status") for part in value.split(",")}
+    selected_statuses = [s for s, _label in Ticket.STATUS_CHOICES if s in requested]
+    status_filter = ",".join(selected_statuses) or "all"
     category_filter = request.GET.get("category", "all") or "all"
     search_query = request.GET.get("search", "").strip()
 
@@ -82,8 +86,8 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
         )
 
     # Apply shared filters
-    if status_filter != "all":
-        query = query.filter(status=status_filter)
+    if selected_statuses:
+        query = query.filter(status__in=selected_statuses)
 
     if category_filter != "all":
         with contextlib.suppress(ValueError):
@@ -164,6 +168,8 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
         "authentik_username": authentik_username,
         "page_obj": page_obj,
         "status_filter": status_filter,
+        "selected_statuses": selected_statuses,
+        "status_choices": Ticket.STATUS_CHOICES,
         "category_filter": category_filter,
         "search_query": search_query,
         "sort_by": sort_by,

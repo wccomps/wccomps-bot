@@ -58,16 +58,19 @@
                            accesskey="/">
                 </c-filter_field>
                 <c-filter_field label="Status" id="id_status">
-                    <select name="status" id="id_status" aria-label="Filter by status">
-                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
-                        <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Open</option>
-                        <option value="claimed"
-                                {% if status_filter == 'claimed' %}selected{% endif %}>Claimed</option>
-                        <option value="resolved"
-                                {% if status_filter == 'resolved' %}selected{% endif %}>Resolved</option>
-                        <option value="cancelled"
-                                {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
-                    </select>
+                    <div class="d-flex gap-10 flex-wrap items-center"
+                         role="group"
+                         aria-label="Filter by status (none selected shows all)">
+                        {% for value, label in status_choices %}
+                            <label class="d-flex items-center gap-5 text-sm">
+                                <input type="checkbox"
+                                       name="status"
+                                       value="{{ value }}"
+                                       {% if value in selected_statuses %}checked{% endif %}>
+                                {{ label }}
+                            </label>
+                        {% endfor %}
+                    </div>
                 </c-filter_field>
                 <c-filter_field label="Category" id="id_category">
                     <select name="category" id="id_category" aria-label="Filter by category">
