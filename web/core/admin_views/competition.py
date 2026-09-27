@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from typing import cast
 
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseBase, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -19,7 +20,7 @@ from core.authentik_manager import AuthentikManager
 from core.authentik_utils import (
     generate_blueteam_password,
 )
-from core.forms import ActionForm, ResetPasswordsForm, SetAppsForm, SetMaxMembersForm, SetTimeForm
+from core.forms import ActionForm, AppSlugForm, ResetPasswordsForm, SetMaxMembersForm, SetTimeForm
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
 from core.utils import ndjson_progress as _progress
 from team.models import MAX_TEAMS
@@ -69,26 +70,49 @@ def _action_set_max_members(request: HttpRequest, config: CompetitionConfig, aut
     return JsonResponse({"success": True, "message": f"Max members set to {max_members}"})
 
 
-def _action_set_apps(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle set_apps action."""
-    form = SetAppsForm(request.POST)
+def _edit_controlled_app(
+    request: HttpRequest, config: CompetitionConfig, authentik_username: str, *, add: bool
+) -> JsonResponse:
+    """Add or remove one controlled app against the CURRENT stored list.
+
+    The page used to send its whole list, so an edit from a stale page (e.g. one that reloaded
+    while another save was in flight) silently dropped apps added in between.
+    """
+    form = AppSlugForm(request.POST)
     if not form.is_valid():
-        return JsonResponse({"error": "Please provide at least one app slug"}, status=400)
+        return JsonResponse({"error": "Please provide an app slug"}, status=400)
+    slug = form.cleaned_data["app_slug"]
 
-    app_slugs = form.cleaned_data["app_slugs"]
-    slugs = [s.strip() for s in app_slugs.split(",") if s.strip()]
-    config.controlled_applications = slugs
-    config.save()
+    with transaction.atomic():
+        config = CompetitionConfig.objects.select_for_update().get(pk=config.pk)
+        apps = list(config.controlled_applications or [])
+        if add and slug not in apps:
+            apps.append(slug)
+        elif not add and slug in apps:
+            apps.remove(slug)
+        config.controlled_applications = apps
+        config.save(update_fields=["controlled_applications", "updated_at"])
 
-    AuditLog.objects.create(
-        action="competition_apps_configured",
-        admin_user=authentik_username,
-        target_entity="competition_config",
-        target_id=config.pk,
-        details={"controlled_apps": slugs},
-    )
+        AuditLog.objects.create(
+            action="competition_apps_configured",
+            admin_user=authentik_username,
+            target_entity="competition_config",
+            target_id=config.pk,
+            details={"controlled_apps": apps, "added" if add else "removed": slug},
+        )
 
-    return JsonResponse({"success": True, "message": f"Apps set to: {', '.join(slugs)}"})
+    verb = "Added" if add else "Removed"
+    return JsonResponse({"success": True, "message": f"{verb} {slug}", "apps": apps})
+
+
+def _action_add_app(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
+    """Handle add_app action."""
+    return _edit_controlled_app(request, config, authentik_username, add=True)
+
+
+def _action_remove_app(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
+    """Handle remove_app action."""
+    return _edit_controlled_app(request, config, authentik_username, add=False)
 
 
 def _action_set_start_time(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
@@ -548,7 +572,8 @@ def _action_sync_quotient(request: HttpRequest, config: CompetitionConfig, authe
 
 _COMPETITION_ACTION_HANDLERS = {
     "set_max_members": _action_set_max_members,
-    "set_apps": _action_set_apps,
+    "add_app": _action_add_app,
+    "remove_app": _action_remove_app,
     "set_start_time": _action_set_start_time,
     "set_end_time": _action_set_end_time,
     "set_schedule": _action_set_schedule,

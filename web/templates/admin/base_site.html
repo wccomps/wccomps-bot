@@ -642,6 +642,8 @@
     </script>
 {% endblock extrastyle %}
 {% block extrahead %}
+    {# Rendering the token also sets the csrftoken cookie; wcPost pages have no form of their own #}
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">
     <meta name="htmx-config" content='{"allowEval": false}'>
     <script src="https://unpkg.com/htmx.org@2.0.4"

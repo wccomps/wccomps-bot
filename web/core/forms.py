@@ -52,8 +52,14 @@ class SetMaxMembersForm(forms.Form):
     max_members = forms.IntegerField(min_value=1, max_value=20)
 
 
-class SetAppsForm(forms.Form):
-    app_slugs = forms.CharField()
+class AppSlugForm(forms.Form):
+    app_slug = forms.CharField(max_length=100)
+
+    def clean_app_slug(self) -> str:
+        slug: str = self.cleaned_data["app_slug"].strip().lower()
+        if not slug:
+            raise forms.ValidationError("App slug is required")
+        return slug
 
 
 class SetTimeForm(forms.Form):
