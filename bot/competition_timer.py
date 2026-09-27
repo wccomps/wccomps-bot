@@ -9,6 +9,7 @@ from asgiref.sync import sync_to_async
 from django.utils import timezone
 
 from bot.competition_actions import start_competition, stop_competition, update_status_channel
+from bot.heartbeat import record as record_heartbeat
 from bot.utils import log_to_ops_channel, recycle_db_connection
 from core.models import CompetitionConfig
 
@@ -43,6 +44,7 @@ class CompetitionTimer:
             try:
                 await recycle_db_connection()
                 await self._check_competition_times()
+                record_heartbeat("timer", self.bot)
             except Exception as e:
                 logger.exception(f"Error in competition timer check: {e}")
 
