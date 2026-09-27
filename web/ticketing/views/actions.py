@@ -153,7 +153,7 @@ def ticket_unclaim(request: HttpRequest, ticket_number: str) -> HttpResponse:
 
     # Check if user claimed the ticket or is admin
     is_admin = has_permission(user, "ticketing_admin")
-    has_claimed = ticket_obj.assigned_to and ticket_obj.assigned_to.username == authentik_username
+    has_claimed = ticket_obj.assigned_to_id is not None and ticket_obj.assigned_to_id == user.pk
 
     if not is_admin and not has_claimed:
         messages.error(request, "You can only unclaim tickets you have claimed")
@@ -422,7 +422,7 @@ def ticket_change_category(request: HttpRequest, ticket_number: str) -> HttpResp
 
     # Check if user has claimed the ticket or is admin
     is_admin = has_permission(user, "ticketing_admin")
-    has_claimed = ticket.assigned_to and ticket.assigned_to.username == authentik_username
+    has_claimed = ticket.assigned_to_id is not None and ticket.assigned_to_id == user.pk
 
     if not is_admin and not has_claimed:
         messages.error(request, "You must claim the ticket first")

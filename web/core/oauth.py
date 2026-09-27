@@ -233,19 +233,20 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
     try:
         user_groups = UserGroups.objects.select_related("user").get(authentik_id=authentik_id)
         user = user_groups.user
-        # Update username if changed in Authentik
+        # Keep the portal username equal to the current Authentik username: some Authentik API
+        # calls (e.g. storing the Discord ID at /link) address the user by that name
         if user.username != username:
-            # Check if another user has this username
-            conflicting_user = User.objects.filter(username=username).exclude(pk=user.pk).first()
-            if conflicting_user:
-                logger.error(
-                    f"Username conflict: authentik_id={authentik_id} wants username '{username}' "
-                    f"but it's taken by user id={conflicting_user.pk}"
-                )
-                # Continue with old username rather than crash
-            else:
+            with transaction.atomic():
+                previous = User.objects.select_for_update().filter(username=username).exclude(pk=user.pk).first()
+                if previous:
+                    _retire_user(previous)
                 user.username = username
                 user.save(update_fields=["username"])
+        # The sub proves the identity: undo a retirement if this identity was only renamed, not deleted
+        if not user.is_active:
+            user.is_active = True
+            user.save(update_fields=["is_active"])
+            logger.warning(f"Reactivated portal user '{username}': their Authentik identity logged in again")
     except UserGroups.DoesNotExist:
         # Identity is the Authentik sub, never the username. Usernames get reused (accounts
         # recreated, SCIM, enrollment), and matching on them would hand a new identity someone

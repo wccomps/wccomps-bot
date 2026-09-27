@@ -357,6 +357,36 @@ class TestOAuthCallback:
         assert not new.is_superuser
         assert not new.is_staff
 
+    def test_renamed_user_takes_their_new_name_from_a_stale_holder(self, oauth_state_session):
+        """Portal username must match Authentik's: /link stores the Discord ID on the Authentik user by name."""
+        client, state = oauth_state_session
+        me = User.objects.create_user(username="old-name")
+        UserGroups.objects.create(user=me, authentik_id="my-id", groups=[])
+        stale = User.objects.create_user(username="new-name")
+        UserGroups.objects.create(user=stale, authentik_id="deleted-id", groups=["WCComps_GoldTeam"])
+
+        self._login(client, state, {"sub": "my-id", "preferred_username": "new-name", "groups": []})
+
+        me.refresh_from_db()
+        stale.refresh_from_db()
+        assert me.username == "new-name"
+        assert stale.username == f"new-name~replaced-{stale.pk}"
+        assert not stale.is_active
+
+    def test_retired_account_is_restored_when_its_identity_logs_in(self, oauth_state_session):
+        """Retiring moves a stale name aside; if that identity was only renamed, its next login restores it."""
+        client, state = oauth_state_session
+        user = User.objects.create_user(username="carol~replaced-1", is_active=False)
+        UserGroups.objects.create(user=user, authentik_id="carol-id", groups=[])
+
+        response = self._login(client, state, {"sub": "carol-id", "preferred_username": "dave", "groups": ["G"]})
+
+        assert response.status_code == 302
+        user.refresh_from_db()
+        assert user.is_active
+        assert user.username == "dave"
+        assert client.get("/").wsgi_request.user.pk == user.pk
+
     def test_callback_rejects_invalid_state(self):
         """Callback should reject request with forged/invalid state."""
         client = Client()
