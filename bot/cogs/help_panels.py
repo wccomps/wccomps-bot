@@ -11,6 +11,7 @@ from django.conf import settings
 from core.tickets_config import get_all_categories, get_category_config
 from team.models import DiscordLink
 from ticketing.models import TicketCategory
+from ticketing.utils import TicketRateLimitError
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,9 @@ async def create_ticket(
             ephemeral=True,
         )
 
+    except TicketRateLimitError as e:
+        logger.warning(f"Ticket rate limit hit by {interaction.user.name} for {link.team.team_name}")
+        await interaction.followup.send(str(e), ephemeral=True)
     except Exception as e:
         logger.error(f"Failed to create ticket: {e}", exc_info=True)
         await interaction.followup.send(f"Failed to create ticket: {e!s}", ephemeral=True)

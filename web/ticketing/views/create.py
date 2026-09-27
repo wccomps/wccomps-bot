@@ -179,7 +179,7 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
             )
 
         # Create ticket using shared atomic function
-        from ticketing.utils import create_ticket_atomic
+        from ticketing.utils import TicketRateLimitError, create_ticket_atomic
 
         try:
             ticket = create_ticket_atomic(
@@ -191,6 +191,7 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
                 ip_address=ip_address,
                 service_name=service_name,
                 actor_username=authentik_username,
+                enforce_team_limit=not is_admin,
             )
 
             # Create Discord task to notify bot (so it can create thread)
@@ -207,6 +208,23 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
 
             return redirect("ticket_detail", ticket_number=ticket.ticket_number)
 
+        except TicketRateLimitError as e:
+            logger.warning(f"Ticket rate limit hit by {authentik_username} for {team.team_name}")
+            return render(
+                request,
+                "create_ticket.html",
+                {
+                    "team": team,
+                    "teams": teams,
+                    "categories": get_all_categories(),
+                    "service_choices": service_choices,
+                    "box_names": box_names,
+                    "box_ip_map": box_ip_map,
+                    "error": str(e),
+                    "form_data": request.POST,
+                },
+                status=429,
+            )
         except Exception:
             logger.exception("Failed to create ticket")
 

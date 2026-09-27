@@ -116,6 +116,7 @@ class AdminTicketsCog(commands.Cog):
             description=description,
             hostname=hostname,
             actor_username=f"admin:{interaction.user}",
+            enforce_team_limit=False,
         )
 
         # Create thread in team's category

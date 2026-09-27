@@ -6,6 +6,7 @@ created via _make_async(). New lifecycle functions should follow this pattern.
 
 import functools
 from collections.abc import Awaitable, Callable
+from datetime import timedelta
 
 from asgiref.sync import sync_to_async
 from django.contrib.auth.models import User
@@ -55,6 +56,23 @@ def get_user_for_ticket(
     return None
 
 
+# Every ticket posts to Discord (thread, dashboard, queue), and cancelling posts again, so a team
+# creating and cancelling in a loop can flood the server. Cancelled tickets still count.
+TEAM_TICKET_LIMIT = 8
+TEAM_TICKET_WINDOW = timedelta(minutes=10)
+
+
+class TicketRateLimitError(Exception):
+    """The team has created too many tickets recently."""
+
+    def __init__(self) -> None:
+        minutes = int(TEAM_TICKET_WINDOW.total_seconds() // 60)
+        super().__init__(
+            f"Your team has created too many tickets in the last {minutes} minutes. "
+            "Please wait a few minutes, or add details to an existing ticket instead."
+        )
+
+
 def create_ticket_atomic(
     team: Team,
     category: TicketCategory,
@@ -64,6 +82,7 @@ def create_ticket_atomic(
     ip_address: str | None = None,
     service_name: str = "",
     actor_username: str = "system",
+    enforce_team_limit: bool = True,
 ) -> Ticket:
     """
     Create a ticket with atomic ticket number generation.
@@ -79,13 +98,23 @@ def create_ticket_atomic(
         ip_address: IP address (optional)
         service_name: Service name (optional)
         actor_username: Username of person creating ticket (for history)
+        enforce_team_limit: Apply TEAM_TICKET_LIMIT (False for staff filing on a team's behalf)
 
     Returns:
         Created Ticket instance
+
+    Raises:
+        TicketRateLimitError: The team hit TEAM_TICKET_LIMIT
     """
     with transaction.atomic():
         # Lock the team row to prevent concurrent ticket creation
         team = Team.objects.select_for_update().get(pk=team.pk)
+
+        # Counted under the team lock, so concurrent requests can't all slip under the limit
+        if enforce_team_limit:
+            since = timezone.now() - TEAM_TICKET_WINDOW
+            if Ticket.objects.filter(team=team, created_at__gte=since).count() >= TEAM_TICKET_LIMIT:
+                raise TicketRateLimitError
 
         # Atomically increment counter
         team.ticket_counter = F("ticket_counter") + 1
