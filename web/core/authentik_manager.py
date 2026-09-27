@@ -148,22 +148,23 @@ class AuthentikManager:
             return slugs
 
     def get_application_by_slug(self, slug: str) -> AuthentikApplication | None:
-        """Get application details by exact slug match."""
-        url = f"{self.base_url}/api/v3/core/applications/"
+        """Get application details by exact slug.
+
+        Uses the retrieve endpoint. The list endpoint ignores ?slug= and, for non-superusers,
+        returns only apps in a per-user cached "allowed" list, which can omit apps the service
+        account can access (on 2026-09-27 it returned only 'scoring' of the 7 controlled apps).
+        """
+        url = f"{self.base_url}/api/v3/core/applications/{quote(slug, safe='')}/"
         try:
-            self._log_request("GET", url, params={"slug": slug})
-            response = self.client.get(url, params={"slug": slug})
+            self._log_request("GET", url)
+            response = self.client.get(url)
+            if response.status_code == 404:
+                logger.warning(f"Application '{slug}' not found in Authentik")
+                return None
             response.raise_for_status()
-            results: list[AuthentikApplication] = response.json().get("results", [])
-
-            # API does substring matching, so filter for exact slug
-            for app in results:
-                if app.get("slug") == slug:
-                    logger.info(f"Found application '{slug}' with pk={app.get('pk')}")
-                    return app
-
-            logger.warning(f"No exact match for slug '{slug}' (got {len(results)} partial matches)")
-            return None
+            app: AuthentikApplication = response.json()
+            logger.info(f"Found application '{slug}' with pk={app.get('pk')}")
+            return app
         except httpx.HTTPStatusError as e:
             error = self._handle_response_error(e.response, f"Get application '{slug}'")
             logger.exception(str(error))
