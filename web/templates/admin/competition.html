@@ -376,6 +376,7 @@ document.addEventListener('alpine:init', () => {
                     this.message = result.message;
                     this.messageType = 'success';
                     if (result.csv) this.csvContent = result.csv;
+                    if (result.apps) this.apps = result.apps;
                     setTimeout(() => location.reload(), 2000);
                 } else {
                     this.message = result.error || 'Action failed';
@@ -413,27 +414,20 @@ document.addEventListener('alpine:init', () => {
             this[e.target.dataset.field] = e.target.value;
         },
 
+        // Send only the app being changed; the server applies it to the current list,
+        // so a stale page (e.g. mid-reload) can't overwrite apps added elsewhere.
         addApp() {
             const app = this.newApp.trim().toLowerCase();
             if (app && !this.apps.includes(app)) {
-                this.apps.push(app);
                 this.newApp = '';
-                this.saveApps();
+                this.doAction('add_app', { app_slug: app });
             }
         },
 
         removeApp(e) {
             const app = e.currentTarget.dataset.app;
             if (!confirm('Remove ' + app + ' from controlled apps?')) return;
-            const index = this.apps.indexOf(app);
-            if (index > -1) {
-                this.apps.splice(index, 1);
-                this.saveApps();
-            }
-        },
-
-        saveApps() {
-            this.doAction('set_apps', { app_slugs: this.apps.join(',') });
+            this.doAction('remove_app', { app_slug: app });
         },
 
         setSchedule() {

@@ -1,0 +1,53 @@
+"""The controlled-apps editor can't lose apps when the page is stale."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from .conftest import _create_role_user, create_session_context
+
+pytestmark = [pytest.mark.browser, pytest.mark.django_db(transaction=True)]
+
+AVAILABLE = ["containerssh", "netbird", "quotient2", "scoring"]
+
+
+def test_stale_page_edit_keeps_apps_added_elsewhere(live_server, pw_browser):
+    """Also covers a fresh session: the page itself must provide the CSRF token."""
+    from core.models import CompetitionConfig
+
+    config = CompetitionConfig.get_config()
+    config.controlled_applications = ["scoring", "netbird"]
+    config.save()
+
+    user = _create_role_user("admin", None)
+    context = create_session_context(pw_browser, live_server, user)
+    page = context.new_page()
+    page.on("dialog", lambda dialog: dialog.accept())
+    manager = MagicMock()
+    manager.list_applications.return_value = AVAILABLE
+
+    try:
+        with patch("core.admin_views.competition.AuthentikManager", return_value=manager):
+            page.goto(f"{live_server.url}/ops/admin/competition/")
+
+            # Another save lands after this page loaded (what happened mid-reload on 2026-09-27)
+            config.refresh_from_db()
+            config.controlled_applications = [*config.controlled_applications, "containerssh"]
+            config.save()
+
+            # Add from the stale page
+            page.locator("form:has(option[value=quotient2]) select").select_option("quotient2")
+            with page.expect_response(lambda r: r.url.endswith("/ops/admin/competition/action/")):
+                page.locator("form:has(option[value=quotient2]) button[type=submit]").click()
+
+            config.refresh_from_db()
+            assert config.controlled_applications == ["scoring", "netbird", "containerssh", "quotient2"]
+
+            # Remove from the (still stale) page
+            with page.expect_response(lambda r: r.url.endswith("/ops/admin/competition/action/")):
+                page.locator("button[aria-label='Remove app'][data-app=netbird]").click()
+
+            config.refresh_from_db()
+            assert config.controlled_applications == ["scoring", "containerssh", "quotient2"]
+    finally:
+        context.close()
