@@ -9,7 +9,7 @@ from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.utils import timezone
 
-from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT
+from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection
 from core.models import BotState, DashboardUpdate
 from core.tickets_config import get_category_config
 from ticketing.models import Ticket
@@ -54,6 +54,7 @@ class UnifiedDashboard:
 
         while self.running:
             try:
+                await recycle_db_connection()
                 await self._check_and_update()
             except Exception as e:
                 logger.exception(f"Error in dashboard loop: {e}")

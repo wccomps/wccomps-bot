@@ -6,6 +6,7 @@ from typing import Final, Literal
 import discord
 from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.db import close_old_connections
 
 from core.utils import missing_discord_settings
 from team.models import MAX_TEAMS, Team
@@ -48,6 +49,17 @@ async def log_to_ops_channel(bot: discord.Client, message: str, embed: discord.E
 
 
 # -- Team Utilities --
+
+
+async def recycle_db_connection() -> None:
+    """Drop the bot's DB connection if it is broken or past CONN_MAX_AGE; the next query reconnects.
+
+    Django only does this on request_started/request_finished, and the bot serves no requests,
+    so after a Postgres restart its single connection stayed dead and every loop failed forever.
+    Must run via sync_to_async's default (thread_sensitive=True) executor: that one thread owns
+    the connection all bot ORM calls use.
+    """
+    await sync_to_async(close_old_connections)()
 
 
 async def report_missing_discord_settings(bot: discord.Client) -> None:
