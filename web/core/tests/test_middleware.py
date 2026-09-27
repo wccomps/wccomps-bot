@@ -548,10 +548,10 @@ class TestSecurityHeadersMiddleware:
         csp = response["Content-Security-Policy"]
         assert "'unsafe-eval'" not in csp
 
-    def test_csp_allows_external_script_domains(self):
-        """CSP should allow script domains used in templates."""
+    def test_csp_allows_only_needed_external_script_domains(self):
+        """Alpine/htmx are vendored (static/vendor), so unpkg is gone; Cloudflare analytics stays."""
         client = Client()
         response = client.get("/health/")
         csp = response["Content-Security-Policy"]
-        assert "https://unpkg.com" in csp
+        assert "unpkg.com" not in csp
         assert "https://static.cloudflareinsights.com" in csp

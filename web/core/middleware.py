@@ -30,7 +30,7 @@ class SecurityHeadersMiddleware:
             response["Content-Security-Policy"] = (
                 "default-src 'self'; "
                 "script-src 'self' 'unsafe-inline' "
-                "https://unpkg.com https://static.cloudflareinsights.com; "
+                "https://static.cloudflareinsights.com; "  # Alpine/htmx are vendored in static/vendor
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data:; "
                 "font-src 'self'; "
