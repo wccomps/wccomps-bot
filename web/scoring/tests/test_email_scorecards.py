@@ -156,6 +156,14 @@ class TestStreamEmailScorecards:
         return [json.loads(line) for line in content.strip().split("\n") if line.strip()]
 
     @patch("scoring.views.export._send_scorecard_email", return_value=True)
+    def test_get_sends_nothing(self, mock_send, gold_user, final_scores, school_infos):
+        client = Client()
+        client.force_login(gold_user)
+        response = client.get(reverse("scoring:stream_email_scorecards"))
+        assert response.status_code == 405
+        mock_send.assert_not_called()
+
+    @patch("scoring.views.export._send_scorecard_email", return_value=True)
     def test_streams_progress_for_each_team(self, mock_send, gold_user, final_scores, school_infos):
         client = Client()
         client.force_login(gold_user)

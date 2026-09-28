@@ -35,6 +35,14 @@ def _ticketing_staff_usernames() -> list[str]:
     )
 
 
+def _can_access(user: User, ticket: Ticket) -> bool:
+    """Ticketing staff see every ticket; a team sees its own."""
+    if has_permission(user, "ticketing_support"):
+        return True
+    team, _, _ = get_team_from_groups(get_authentik_groups(user))
+    return team is not None and ticket.team_id == team.id
+
+
 def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
     """Unified ticket detail view for both team members and ops staff."""
     user = cast(User, request.user)
@@ -47,7 +55,7 @@ def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
         or has_permission(user, "admin")
     )
     groups = get_authentik_groups(user)
-    team, _team_number, is_team = get_team_from_groups(groups)
+    team, _, _ = get_team_from_groups(groups)
     is_ticketing_admin = has_permission(user, "ticketing_admin")
     is_ticketing_support = has_permission(user, "ticketing_support")
 
@@ -64,12 +72,7 @@ def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
             },
         )
 
-    # Access check
-    if is_ops:
-        pass  # ops can view any ticket
-    elif is_team and team and ticket.team == team:
-        pass  # team member can view own team's tickets
-    else:
+    if not _can_access(user, ticket):
         return render(
             request,
             "error.html",
@@ -122,19 +125,7 @@ def ticket_comment(request: HttpRequest, ticket_number: str) -> HttpResponse:
     """Post a comment to a ticket (team members on own tickets, ops on any)."""
     user = cast(User, request.user)
     authentik_username = user.username
-    groups = get_authentik_groups(user)
-    team, _team_number, is_team = get_team_from_groups(groups)
-    is_ops = has_permission(user, "ticketing_support") or has_permission(user, "ticketing_admin")
 
-    if not is_team and not is_ops:
-        return render(
-            request,
-            "error.html",
-            {"error": "Access Denied", "message": "You do not have permission to perform this action."},
-            status=403,
-        )
-
-    # Look up ticket by ticket_number
     try:
         ticket = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
@@ -145,8 +136,7 @@ def ticket_comment(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=404,
         )
 
-    # Access check: ops can access any ticket, team can only access their own
-    if not is_ops and (not is_team or not team or ticket.team != team):
+    if not _can_access(user, ticket):
         return render(
             request,
             "error.html",
@@ -188,13 +178,13 @@ def ticket_detail_dynamic(request: HttpRequest, ticket_number: str) -> HttpRespo
     """Return dynamic ticket content (comments/history) for HTMX polling."""
     user = cast(User, request.user)
 
-    if not (has_permission(user, "ticketing_support") or has_permission(user, "ticketing_admin")):
-        return HttpResponse("Access denied", status=403)
-
     try:
         ticket = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
         return HttpResponse("Ticket not found", status=404)
+
+    if not _can_access(user, ticket):
+        return HttpResponse("Access denied", status=403)
 
     comments = TicketComment.objects.filter(ticket=ticket).order_by("posted_at")
     history = TicketHistory.objects.filter(ticket=ticket).order_by("-timestamp")[:20]

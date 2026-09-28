@@ -227,33 +227,34 @@
             {# djlint:off #}
         <c-fieldset heading="Comments" collapsible="true" collapsed="{% if not comments %}true{% else %}false{% endif %}">
             {# djlint:on #}
-            <div id="comments-list"
-                 aria-live="polite"
-                 hx-get="{% url 'ticket_detail_dynamic' ticket.ticket_number %}"
+            {# Poll from a wrapper: the swapped-in list carries no hx-* attributes. #}
+            <div hx-get="{% url 'ticket_detail_dynamic' ticket.ticket_number %}"
                  hx-trigger="every 30s"
                  hx-select="#comments-list"
-                 hx-swap="outerHTML">
-                {% if comments %}
-                    <div class="comment-list">
-                        {% for comment in comments %}
-                            <div class="comment-item">
-                                <div class="comment-header">
-                                    <span class="comment-author">
-                                        {% if comment.author %}
-                                            {{ comment.author }}
-                                        {% else %}
-                                            Unknown
-                                        {% endif %}
-                                    </span>
-                                    <span class="comment-time">{{ comment.posted_at|timesince }} ago</span>
+                 hx-swap="innerHTML">
+                <div id="comments-list" aria-live="polite">
+                    {% if comments %}
+                        <div class="comment-list">
+                            {% for comment in comments %}
+                                <div class="comment-item">
+                                    <div class="comment-header">
+                                        <span class="comment-author">
+                                            {% if comment.author %}
+                                                {{ comment.author }}
+                                            {% else %}
+                                                Unknown
+                                            {% endif %}
+                                        </span>
+                                        <span class="comment-time">{{ comment.posted_at|timesince }} ago</span>
+                                    </div>
+                                    <div class="comment-body">{{ comment.comment_text }}</div>
                                 </div>
-                                <div class="comment-body">{{ comment.comment_text }}</div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <c-empty_state title="No comments yet" description="Comments will appear here" />
-                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <c-empty_state title="No comments yet" description="Comments will appear here" />
+                    {% endif %}
+                </div>
             </div>
             {% if ticket.status != "resolved" and ticket.status != "cancelled" %}
                 <c-form action="{% url 'ticket_comment' ticket.ticket_number %}"
@@ -350,71 +351,71 @@
     <!-- History (ops only) -->
     {% if is_ops %}
         <c-fieldset heading="History" collapsible="true" collapsed="true">
-            <div id="history-list"
-                 aria-live="polite"
-                 hx-get="{% url 'ticket_detail_dynamic' ticket.ticket_number %}"
+            <div hx-get="{% url 'ticket_detail_dynamic' ticket.ticket_number %}"
                  hx-trigger="every 30s"
                  hx-select="#history-list"
-                 hx-swap="outerHTML">
-                {% if history %}
-                    <!-- Desktop table -->
-                    <div class="history-table">
-                        <c-table aria_label="Ticket history">
-                            <c-slot name="headers">
-                                <tr>
-                                    <c-table_header sortable="false">
-                                        Timestamp
-                                    </c-table_header>
-                                    <c-table_header sortable="false">
-                                        Action
-                                    </c-table_header>
-                                    <c-table_header sortable="false">
-                                        Actor
-                                    </c-table_header>
-                                    <c-table_header sortable="false">
-                                        Details
-                                    </c-table_header>
-                                </tr>
-                            </c-slot>
+                 hx-swap="innerHTML">
+                <div id="history-list" aria-live="polite">
+                    {% if history %}
+                        <!-- Desktop table -->
+                        <div class="history-table">
+                            <c-table aria_label="Ticket history">
+                                <c-slot name="headers">
+                                    <tr>
+                                        <c-table_header sortable="false">
+                                            Timestamp
+                                        </c-table_header>
+                                        <c-table_header sortable="false">
+                                            Action
+                                        </c-table_header>
+                                        <c-table_header sortable="false">
+                                            Actor
+                                        </c-table_header>
+                                        <c-table_header sortable="false">
+                                            Details
+                                        </c-table_header>
+                                    </tr>
+                                </c-slot>
+                                {% for event in history %}
+                                    <tr class="{% cycle 'row1' 'row2' %}">
+                                        <td>{{ event.timestamp|timesince }} ago</td>
+                                        <td>{{ event.action }}</td>
+                                        <td>
+                                            {% if event.actor %}
+                                                {{ event.actor }}
+                                            {% else %}
+                                                System
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ event.details|format_history_details }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </c-table>
+                        </div>
+                        <!-- Mobile cards -->
+                        <div class="history-cards">
                             {% for event in history %}
-                                <tr class="{% cycle 'row1' 'row2' %}">
-                                    <td>{{ event.timestamp|timesince }} ago</td>
-                                    <td>{{ event.action }}</td>
-                                    <td>
-                                        {% if event.actor %}
-                                            {{ event.actor }}
-                                        {% else %}
-                                            System
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ event.details|format_history_details }}</td>
-                                </tr>
-                            {% endfor %}
-                        </c-table>
-                    </div>
-                    <!-- Mobile cards -->
-                    <div class="history-cards">
-                        {% for event in history %}
-                            <div class="history-card">
-                                <div class="history-card-header">
-                                    <span>{{ event.action }} ·
-                                        {% if event.actor %}
-                                            {{ event.actor }}
-                                        {% else %}
-                                            System
-                                        {% endif %}
-                                    </span>
-                                    <span class="history-card-time">{{ event.timestamp|timesince }} ago</span>
+                                <div class="history-card">
+                                    <div class="history-card-header">
+                                        <span>{{ event.action }} ·
+                                            {% if event.actor %}
+                                                {{ event.actor }}
+                                            {% else %}
+                                                System
+                                            {% endif %}
+                                        </span>
+                                        <span class="history-card-time">{{ event.timestamp|timesince }} ago</span>
+                                    </div>
+                                    {% if event.details|format_history_details %}
+                                        <div class="history-card-details">{{ event.details|format_history_details }}</div>
+                                    {% endif %}
                                 </div>
-                                {% if event.details|format_history_details %}
-                                    <div class="history-card-details">{{ event.details|format_history_details }}</div>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-muted">No history available.</p>
-                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No history available.</p>
+                    {% endif %}
+                </div>
             </div>
         </c-fieldset>
     {% endif %}

@@ -1,6 +1,7 @@
 """Django forms for orange team views."""
 
-from typing import cast
+import re
+from typing import TypedDict, cast
 
 from django import forms
 from django.http import QueryDict
@@ -32,21 +33,34 @@ class AssignmentRejectForm(forms.Form):
     notes = forms.CharField(required=False)
 
 
-def extract_criteria(post_data: QueryDict) -> list[dict[str, str | int]]:
-    """Parse dynamic criterion_label_{i} / criterion_points_{i} fields.
+class CriterionInput(TypedDict):
+    id: int | None
+    label: str
+    points: int
+    sort_order: int
 
-    Enforces max_length=200 on labels (matches OrangeCheckCriterion.label).
+
+def extract_criteria(post_data: QueryDict) -> list[CriterionInput]:
+    """Parse criterion_label_{n} / criterion_points_{n} / criterion_id_{n} rows in n order.
+
+    n can skip values: the form keeps a row's number when an earlier row is removed.
+    Labels are cut to 200 characters (OrangeCheckCriterion.label); rows without a label
+    or a positive integer point value are dropped.
     """
-    criteria: list[dict[str, str | int]] = []
-    i = 0
-    while f"criterion_label_{i}" in post_data:
-        label = post_data.get(f"criterion_label_{i}", "").strip()[:200]
-        points_str = post_data.get(f"criterion_points_{i}", "").strip()
-        if label and points_str:
-            try:
-                points = int(points_str)
-                criteria.append({"label": label, "points": points, "sort_order": i})
-            except ValueError:
-                pass
-        i += 1
+    numbers = sorted(int(m.group(1)) for key in post_data if (m := re.fullmatch(r"criterion_label_(\d+)", key)))
+    criteria: list[CriterionInput] = []
+    for n in numbers:
+        label = post_data.get(f"criterion_label_{n}", "").strip()[:200]
+        points_str = post_data.get(f"criterion_points_{n}", "").strip()
+        id_str = post_data.get(f"criterion_id_{n}", "").strip()
+        if not label or not points_str.isdigit() or int(points_str) < 1:
+            continue
+        criteria.append(
+            {
+                "id": int(id_str) if id_str.isdigit() else None,
+                "label": label,
+                "points": int(points_str),
+                "sort_order": len(criteria),
+            }
+        )
     return criteria

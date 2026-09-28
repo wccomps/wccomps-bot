@@ -3,16 +3,21 @@
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 
-from core.auth_utils import require_permission
+from core.auth_utils import has_permission
 from team.models import Team
 
 from ..calculator import calculate_team_score, get_leaderboard
 from ..models import RedTeamScore
 
 
-@require_permission("gold_team", "white_team", "ticketing_admin")
+def _allowed(request: HttpRequest, *permissions: str) -> bool:
+    return any(has_permission(request.user, p) for p in permissions)
+
+
 def api_scores(request: HttpRequest) -> JsonResponse:
     """API endpoint for scores."""
+    if not _allowed(request, "gold_team", "white_team", "ticketing_admin"):
+        return JsonResponse({"error": "Access denied"}, status=403)
     scores = get_leaderboard()
     data = [
         {
@@ -32,9 +37,10 @@ def api_scores(request: HttpRequest) -> JsonResponse:
     return JsonResponse({"scores": data})
 
 
-@require_permission("gold_team", "white_team", "ticketing_admin")
 def api_team_detail(request: HttpRequest, team_number: int) -> JsonResponse:
     """API endpoint for team detail."""
+    if not _allowed(request, "gold_team", "white_team", "ticketing_admin"):
+        return JsonResponse({"error": "Access denied"}, status=403)
     team = get_object_or_404(Team, team_number=team_number)
     scores = calculate_team_score(team)
     return JsonResponse(
@@ -46,9 +52,10 @@ def api_team_detail(request: HttpRequest, team_number: int) -> JsonResponse:
     )
 
 
-@require_permission("red_team", "gold_team", error_message="Only Red Team or Gold Team can access attack suggestions")
 def api_attack_types(request: HttpRequest) -> JsonResponse:
     """API endpoint for attack type suggestions."""
+    if not _allowed(request, "red_team", "gold_team"):
+        return JsonResponse({"error": "Access denied"}, status=403)
     # Get distinct attack vectors from previous findings
     attack_vectors = (
         RedTeamScore.objects.values_list("attack_vector", flat=True).distinct().order_by("attack_vector")[:50]

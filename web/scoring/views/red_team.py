@@ -546,9 +546,10 @@ def ip_pool_delete(request: HttpRequest, pool_id: int) -> HttpResponse:
     return redirect("scoring:ip_pool_list")
 
 
-@require_permission("red_team", error_message="Only Red Team members can view IP pools")
 def api_user_ip_pools(request: HttpRequest) -> JsonResponse:
     """API endpoint to get user's IP pools for dropdown."""
+    if not has_permission(request.user, "red_team"):
+        return JsonResponse({"error": "Access denied"}, status=403)
     from ..models import RedTeamIPPool
 
     user = cast(User, request.user)

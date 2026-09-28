@@ -54,13 +54,16 @@
                 </c-form_field>
             </c-fieldset>
             <c-fieldset heading="Rubric Criteria">
-                <template x-for="(criterion, index) in criteria" :key="index">
+                <template x-for="(criterion, index) in criteria" :key="criterion.n">
                     <div class="form-row d-flex items-end gap-10">
+                        <input type="hidden"
+                               :name="criterion.idName"
+                               :value="criterion.id">
                         <div class="flex-grow-1">
-                            <label :for="criterion.labelId" class="required">Label:</label>
+                            <label :for="criterion.labelName" class="required">Label:</label>
                             <input type="text"
                                    class="vTextField"
-                                   :id="criterion.labelId"
+                                   :id="criterion.labelName"
                                    :name="criterion.labelName"
                                    :value="criterion.label"
                                    @input="setCriterionField"
@@ -69,10 +72,10 @@
                                    required>
                         </div>
                         <div class="input-sm-wrap">
-                            <label :for="criterion.pointsId" class="required">Points:</label>
+                            <label :for="criterion.pointsName" class="required">Points:</label>
                             <input type="number"
                                    class="vTextField"
-                                   :id="criterion.pointsId"
+                                   :id="criterion.pointsName"
                                    :name="criterion.pointsName"
                                    :value="criterion.points"
                                    @input="setCriterionField"
@@ -121,22 +124,23 @@
     <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('criteriaForm', () => {
-            {% if existing_criteria %}
-            var initial = JSON.parse(document.getElementById('criteria-data').textContent);
-            var _nextId = initial.length;
+            // n numbers a row's fields and never changes, so removing a row doesn't
+            // rename the others; id ties an edited row to its saved criterion.
+            function row(n, c) {
+                return {
+                    n: n, id: c.id, label: c.label, points: String(c.points),
+                    idName: 'criterion_id_' + n,
+                    labelName: 'criterion_label_' + n,
+                    pointsName: 'criterion_points_' + n
+                };
+            }
+            var data = document.getElementById('criteria-data');
+            var saved = data ? JSON.parse(data.textContent) : [];
+            if (!saved.length) saved = [{id: '', label: '', points: ''}];
             return {
                 submitting: false,
-                criteria: initial.map(function(c, i) {
-                    return {
-                        label: c.label,
-                        points: String(c.points),
-                        labelId: 'criterion_label_' + i,
-                        labelName: 'criterion_label_' + i,
-                        pointsId: 'criterion_points_' + i,
-                        pointsName: 'criterion_points_' + i
-                    };
-                }),
-                _nextId: _nextId,
+                criteria: saved.map(function(c, i) { return row(i, c); }),
+                _nextN: saved.length,
                 get canRemove() { return this.criteria.length > 1; },
                 setCriterionField(e) {
                     var idx = parseInt(e.target.dataset.index);
@@ -148,14 +152,7 @@
                     setTimeout(() => { this.submitting = false; }, 10000);
                 },
                 addCriterion() {
-                    this.criteria.push({
-                        label: '', points: '',
-                        labelId: 'criterion_label_' + this._nextId,
-                        labelName: 'criterion_label_' + this._nextId,
-                        pointsId: 'criterion_points_' + this._nextId,
-                        pointsName: 'criterion_points_' + this._nextId
-                    });
-                    this._nextId++;
+                    this.criteria.push(row(this._nextN++, {id: '', label: '', points: ''}));
                 },
                 removeCriterion(e) {
                     if (!confirm('Remove this criterion?')) return;
@@ -163,44 +160,6 @@
                     this.criteria.splice(index, 1);
                 }
             };
-            {% else %}
-            return {
-                submitting: false,
-                criteria: [{
-                    label: '', points: '',
-                    labelId: 'criterion_label_0',
-                    labelName: 'criterion_label_0',
-                    pointsId: 'criterion_points_0',
-                    pointsName: 'criterion_points_0'
-                }],
-                _nextId: 1,
-                get canRemove() { return this.criteria.length > 1; },
-                setCriterionField(e) {
-                    var idx = parseInt(e.target.dataset.index);
-                    this.criteria[idx][e.target.dataset.prop] = e.target.value;
-                },
-                onSubmit(e) {
-                    if (this.submitting) { e.preventDefault(); return; }
-                    this.submitting = true;
-                    setTimeout(() => { this.submitting = false; }, 10000);
-                },
-                addCriterion() {
-                    this.criteria.push({
-                        label: '', points: '',
-                        labelId: 'criterion_label_' + this._nextId,
-                        labelName: 'criterion_label_' + this._nextId,
-                        pointsId: 'criterion_points_' + this._nextId,
-                        pointsName: 'criterion_points_' + this._nextId
-                    });
-                    this._nextId++;
-                },
-                removeCriterion(e) {
-                    if (!confirm('Remove this criterion?')) return;
-                    var index = parseInt(e.currentTarget.dataset.index);
-                    this.criteria.splice(index, 1);
-                }
-            };
-            {% endif %}
         });
     });
     </script>

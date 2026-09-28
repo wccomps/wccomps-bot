@@ -423,7 +423,8 @@ class IncidentMatchForm(forms.ModelForm[IncidentReport]):
         if suggested_findings:
             # Limit choices to suggested findings
             matched_field = cast("forms.ModelChoiceField[RedTeamScore]", self.fields["matched_to_red_score"])
-            matched_field.queryset = suggested_findings
+            # Validation filters the queryset, which a sliced one does not allow.
+            matched_field.queryset = RedTeamScore.objects.filter(pk__in=[f.pk for f in suggested_findings])
             matched_field.empty_label = "No match / Manual points"
 
 

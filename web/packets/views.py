@@ -10,7 +10,7 @@ from typing import TypedDict, cast
 
 from django.contrib import messages
 from django.contrib.auth.models import User
-from django.http import Http404, HttpRequest, HttpResponse, HttpResponseBase, StreamingHttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseBase, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from registration.models import Event
@@ -77,31 +77,26 @@ def team_packet(request: HttpRequest) -> HttpResponse:
 
 
 @require_GET
+@require_permission("blue_team")
 def download_packet(request: HttpRequest, packet_id: int) -> HttpResponse:
-    """Download a packet file."""
-    packet = get_object_or_404(Packet, id=packet_id)
-
-    # Check if packet is available for download
-    if packet.status not in ["distributing", "completed"]:
-        raise Http404("Packet not available")
-
-    if not packet.web_access_enabled:
-        raise Http404("Packet not available for web access")
-
-    # Get user's team (skip download tracking for staff)
+    """Download a packet file distributed to the caller's team (gold_team: any web-enabled packet)."""
     from core.auth_utils import has_permission
 
     user = cast(User, request.user)
-    team_number = get_user_team_number(user)
-    if team_number:
-        team = get_object_or_404(Team, team_number=team_number)
-        service = PacketDistributionService()
-        service.record_packet_download(packet, team, request.user.username)
-    elif not has_permission(user, "gold_team"):
-        messages.error(request, "You are not assigned to a team.")
-        return redirect("/")
+    available = {"status__in": ["distributing", "completed"], "web_access_enabled": True}
+    if has_permission(user, "gold_team"):
+        packet = get_object_or_404(Packet, id=packet_id, **available)
+    else:
+        distribution = get_object_or_404(
+            PacketDistribution.objects.select_related("packet"),
+            packet_id=packet_id,
+            team__team_number=get_user_team_number(user),
+            web_access_enabled=True,
+            **{f"packet__{k}": v for k, v in available.items()},
+        )
+        distribution.record_download(user.username)
+        packet = distribution.packet
 
-    # Serve the file
     response = HttpResponse(bytes(packet.file_data), content_type=packet.mime_type)
     response["Content-Disposition"] = f'attachment; filename="{packet.filename}"'
     response["Content-Length"] = packet.file_size

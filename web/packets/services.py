@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
-from django.db import close_old_connections, transaction
+from django.db import close_old_connections
 from django.template.loader import render_to_string
 from registration.models import Event, EventTeamAssignment, TeamRegistration
 
@@ -253,19 +253,6 @@ class PacketDistributionService:
         except SchoolInfo.DoesNotExist:
             logger.warning(f"No SchoolInfo found for team {team.team_number}")
             return None
-
-    def record_packet_download(self, packet: Packet, team: Team, username: str) -> None:
-        """Record that a team downloaded a packet."""
-        with transaction.atomic():
-            distribution, created = PacketDistribution.objects.get_or_create(
-                packet=packet,
-                team=team,
-                defaults={"web_access_enabled": packet.web_access_enabled},
-            )
-            distribution.record_download(username)
-            logger.info(
-                f"Team {team.team_number} downloaded packet {packet.id} (download #{distribution.download_count})"
-            )
 
     def _send_one(self, dist: PacketDistribution) -> tuple[PacketDistribution, bool, str]:
         """Send a single packet email (thread-safe). Returns (dist, success, error)."""

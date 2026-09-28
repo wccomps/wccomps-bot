@@ -157,21 +157,3 @@ class PacketDistributionServiceTestCase(TestCase):
         self.packet.refresh_from_db()
         self.assertEqual(self.packet.status, "completed")
         self.assertIsNotNone(self.packet.actual_distribution_time)
-
-    def test_record_packet_download(self):
-        """Test recording packet download."""
-        team = Team.objects.get(team_number=1)
-
-        # First download creates distribution
-        self.service.record_packet_download(self.packet, team, "testuser")
-
-        distribution = PacketDistribution.objects.get(packet=self.packet, team=team)
-        self.assertEqual(distribution.download_count, 1)
-        self.assertEqual(distribution.downloaded_by, "testuser")
-
-        # Second download increments count
-        self.service.record_packet_download(self.packet, team, "testuser2")
-
-        distribution.refresh_from_db()
-        self.assertEqual(distribution.download_count, 2)
-        self.assertEqual(distribution.downloaded_by, "testuser2")
