@@ -1,4 +1,4 @@
-# Dependency upgrades arrive as reviewable PRs; deploy.sh no longer upgrades on its own.
+# Dependency upgrades arrive as reviewable PRs.
 version: 2
 updates:
   - package-ecosystem: uv

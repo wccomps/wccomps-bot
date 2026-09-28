@@ -11,5 +11,5 @@ errorlog = "-"
 loglevel = "info"
 
 # Default format minus the query string and referer: /auth/link?token=... and
-# /auth/callback/?code=... would otherwise put link tokens and OAuth codes in journald.
+# /auth/callback/?code=... would otherwise put link tokens and OAuth codes in the logs.
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s "%(a)s"'

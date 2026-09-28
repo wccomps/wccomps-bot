@@ -1,6 +1,6 @@
 # One image for both processes: they share the Django models and must run the same version.
 #   web (default): entrypoint.sh applies migrations under a lock, then gunicorn (web/gunicorn.conf.py)
-#   bot: entrypoint cleared, run from /app: `python main.py` (see docker-compose.yml)
+#   bot: entrypoint cleared, run from /app: `python main.py`
 FROM python:3.14-slim
 
 WORKDIR /app
@@ -47,7 +47,7 @@ ENV HOME=/tmp
 WORKDIR /app/web
 
 # Bake static files (web/static plus package assets like the admin's, hashed and compressed) into
-# the image. Needs no database. Compose still refreshes its volume copy in the entrypoint.
+# the image. Needs no database.
 RUN uv run --no-sync python manage.py collectstatic --noinput
 
 ENTRYPOINT ["/entrypoint.sh"]

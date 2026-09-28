@@ -77,9 +77,8 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/web:${{ github.workspace }}
           SECRET_KEY: test-secret-key-for-ci
 
-  # Container images for the planned move to the deoxys Kubernetes cluster.
+  # The production image (deployed on the deoxys cluster by wccomps/wccomps-argocd).
   # PRs only build (to catch a broken Dockerfile); pushes to main also publish to GHCR.
-  # Production (Docker Compose on metapod) still runs the rsynced tree, so this changes nothing live.
   images:
     needs: lint-and-test
     runs-on: ubuntu-latest
