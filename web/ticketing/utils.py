@@ -173,7 +173,7 @@ def claim_ticket_atomic(
         Tuple of (ticket, error_message). If error, ticket is None.
     """
     with transaction.atomic():
-        ticket = Ticket.objects.select_for_update().filter(id=ticket_id).first()
+        ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
         if not ticket:
             return None, "Ticket not found."
@@ -239,7 +239,7 @@ def resolve_ticket_atomic(
         Tuple of (ticket, error_message). If error, ticket is None.
     """
     with transaction.atomic():
-        ticket = Ticket.objects.select_for_update().filter(id=ticket_id).first()
+        ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
         if not ticket:
             return None, "Ticket not found."
@@ -330,7 +330,7 @@ def unclaim_ticket_atomic(
         Tuple of (ticket, error_message). If error, ticket is None.
     """
     with transaction.atomic():
-        ticket = Ticket.objects.select_for_update().filter(id=ticket_id).first()
+        ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
         if not ticket:
             return None, "Ticket not found."
@@ -383,7 +383,7 @@ def reassign_ticket_atomic(
         Tuple of (ticket, error_message). If error, ticket is None.
     """
     with transaction.atomic():
-        ticket = Ticket.objects.select_for_update().filter(id=ticket_id).first()
+        ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
         if not ticket:
             return None, "Ticket not found."
@@ -438,7 +438,7 @@ def cancel_ticket_atomic(
         Tuple of (ticket, error_message). If error, ticket is None.
     """
     with transaction.atomic():
-        ticket = Ticket.objects.select_for_update().filter(id=ticket_id).first()
+        ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
         if not ticket:
             return None, "Ticket not found."
@@ -481,7 +481,7 @@ def reopen_ticket_atomic(
         Tuple of (ticket, error_message). If error, ticket is None.
     """
     with transaction.atomic():
-        ticket = Ticket.objects.select_for_update().filter(id=ticket_id).first()
+        ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
         if not ticket:
             return None, "Ticket not found."

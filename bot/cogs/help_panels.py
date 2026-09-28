@@ -5,10 +5,12 @@ from collections.abc import Awaitable, Callable
 from typing import cast
 
 import discord
+from asgiref.sync import sync_to_async
 from discord.ext import commands
 from django.conf import settings
 
-from core.tickets_config import get_all_categories, get_category_config
+from bot.thread_creator import publish_new_ticket
+from core.tickets_config import TicketCategoryConfig, get_all_categories, get_category_config
 from team.models import DiscordLink
 from ticketing.models import TicketCategory
 from ticketing.utils import TicketRateLimitError
@@ -39,8 +41,6 @@ async def create_ticket(
         return
 
     try:
-        from asgiref.sync import sync_to_async
-
         cat_id_int = int(category_id)
         cat_info = await sync_to_async(get_category_config)(cat_id_int)
         if not cat_info:
@@ -76,27 +76,23 @@ async def create_ticket(
             actor_username=f"discord:{interaction.user.name}",
         )
 
-        from core.models import DiscordTask
-
-        await DiscordTask.objects.acreate(
-            task_type="ticket_created_web",
-            payload={"ticket_id": ticket.id},
-        )
-
-        await interaction.followup.send(
-            f"✅ Ticket **{ticket.ticket_number}** created!\n"
-            f"Category: **{cat_info['display_name']}**\n"
-            f"Points: **{cat_info.get('points', 0)}**\n\n"
-            f"A volunteer will respond shortly.",
-            ephemeral=True,
-        )
-
     except TicketRateLimitError as e:
         logger.warning(f"Ticket rate limit hit by {interaction.user.name} for {link.team.team_name}")
         await interaction.followup.send(str(e), ephemeral=True)
+        return
     except Exception as e:
         logger.error(f"Failed to create ticket: {e}", exc_info=True)
         await interaction.followup.send(f"Failed to create ticket: {e!s}", ephemeral=True)
+        return
+
+    await interaction.followup.send(
+        f"✅ Ticket **{ticket.ticket_number}** created!\n"
+        f"Category: **{cat_info['display_name']}**\n"
+        f"Points: **{cat_info.get('points', 0)}**\n\n"
+        f"A volunteer will respond shortly.",
+        ephemeral=True,
+    )
+    await publish_new_ticket(interaction.client, interaction.guild, ticket)
 
 
 class ServiceScoringModal(discord.ui.Modal, title="Service Scoring Validation"):
@@ -194,15 +190,12 @@ class ConsultationModal(discord.ui.Modal, title="Consultation Request"):
         max_length=255,
     )
 
-    def __init__(self, category_id: str):
+    def __init__(self, category_id: str, cat_info: TicketCategoryConfig):
         super().__init__()
         self.category_id = category_id
-        cat_info = get_category_config(int(category_id))
-        required = cat_info.get("required_fields", []) if cat_info else []
         # Remove hostname field if not required (e.g., phone consultation)
-        if "hostname" not in required:
-            if cat_info:
-                self.title = cat_info["display_name"]
+        if "hostname" not in cat_info.get("required_fields", []):
+            self.title = cat_info["display_name"]
             self.remove_item(self.hostname)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
@@ -243,8 +236,8 @@ class OtherModal(discord.ui.Modal, title="Other / General Issue"):
 class CategorySelect(discord.ui.Select["TicketCategoryView"]):
     """Select menu for choosing ticket category."""
 
-    def __init__(self) -> None:
-        categories = get_all_categories(user_creatable_only=True)
+    def __init__(self, categories: dict[int, TicketCategoryConfig]) -> None:
+        self.categories = categories
         options = []
         for cat_id, cat_info in categories.items():
             points = cat_info.get("points", 0)
@@ -267,9 +260,8 @@ class CategorySelect(discord.ui.Select["TicketCategoryView"]):
         """Handle category selection."""
         category_id = self.values[0]
 
-        # Look up category config to determine which modal to show
-        cat_info = get_category_config(int(category_id))
-        required = cat_info.get("required_fields", []) if cat_info else []
+        cat_info = self.categories[int(category_id)]
+        required = cat_info.get("required_fields", [])
 
         modal: ServiceScoringModal | BoxResetModal | ScoringServiceCheckModal | ConsultationModal | OtherModal
         if "service_name" in required and "description" in required:
@@ -282,12 +274,12 @@ class CategorySelect(discord.ui.Select["TicketCategoryView"]):
             modal = ScoringServiceCheckModal()
             modal.category_id = category_id
         elif "hostname" in required:
-            modal = ConsultationModal(category_id)
+            modal = ConsultationModal(category_id, cat_info)
         elif "description" in required:
             # Check if it's a consultation type (has optional hostname)
-            optional = cat_info.get("optional_fields", []) if cat_info else []
+            optional = cat_info.get("optional_fields", [])
             if "hostname" in optional:
-                modal = ConsultationModal(category_id)
+                modal = ConsultationModal(category_id, cat_info)
             else:
                 modal = OtherModal()
                 modal.category_id = category_id
@@ -301,9 +293,9 @@ class CategorySelect(discord.ui.Select["TicketCategoryView"]):
 class TicketCategoryView(discord.ui.View):
     """View for selecting ticket category."""
 
-    def __init__(self) -> None:
+    def __init__(self, categories: dict[int, TicketCategoryConfig]) -> None:
         super().__init__(timeout=300)  # 5 minute timeout
-        self.add_item(CategorySelect())
+        self.add_item(CategorySelect(categories))
 
 
 class LinkButton(discord.ui.Button["TeamHelpView"]):
@@ -374,9 +366,10 @@ class TeamHelpView(discord.ui.View):
 
     async def create_ticket(self, interaction: discord.Interaction) -> None:
         """Handle create ticket button click - show category selection."""
+        categories = await sync_to_async(get_all_categories)(user_creatable_only=True)
         await interaction.response.send_message(
             "Select a ticket category:",
-            view=TicketCategoryView(),
+            view=TicketCategoryView(categories),
             ephemeral=True,
         )
 
@@ -487,7 +480,8 @@ class HelpPanelsCog(commands.Cog):
 
         # Build category list
         categories_text = []
-        for cat_info in get_all_categories(user_creatable_only=True).values():
+        categories = await sync_to_async(get_all_categories)(user_creatable_only=True)
+        for cat_info in categories.values():
             points = cat_info.get("points", 0)
             categories_text.append(f"• **{cat_info['display_name']}** - {points}pt")
 

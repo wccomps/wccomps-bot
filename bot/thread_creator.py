@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 async def create_ticket_thread(
-    bot: discord.Client,
     guild: discord.Guild,
     ticket: Ticket,
     team: Team,
@@ -26,19 +25,8 @@ async def create_ticket_thread(
     to the ticket, adds all active team members, and sends an embed with a
     TicketActionView.
 
-    Args:
-        bot: The Discord client (used to look up channels when no guild cache hit).
-        guild: The Discord guild to search for channels.
-        ticket: The Ticket model instance. Must have ``team`` pre-fetched/loaded.
-        team: The Team model instance with ``discord_category_id`` set.
-        pin_message: If True, pin the initial embed message in the thread.
-
-    Returns:
-        The created :class:`discord.Thread`, or ``None`` if the category or chat
-        channel could not be found.
-
-    Raises:
-        RuntimeError: If the thread could not be created due to a Discord API error.
+    Returns the thread, or None if the category or chat channel could not be
+    found. Discord API errors propagate.
     """
     from bot.ticket_dashboard import TicketActionView, format_ticket_embed
     from bot.utils import get_team_member_discord_ids
@@ -74,14 +62,10 @@ async def create_ticket_thread(
         auto_archive_duration=THREAD_AUTO_ARCHIVE_MINUTES,
     )
 
-    # Persist thread ID and category ID on the ticket
-    @sync_to_async
-    def save_thread_id() -> None:
-        ticket.discord_thread_id = thread.id
-        ticket.discord_channel_id = category.id
-        ticket.save()
-
-    await save_thread_id()
+    # Targeted update: a full save of this instance would revert concurrent web changes.
+    ticket.discord_thread_id = thread.id
+    ticket.discord_channel_id = category.id
+    await Ticket.objects.filter(pk=ticket.pk).aupdate(discord_thread_id=thread.id, discord_channel_id=category.id)
 
     # Add all active team members to the thread
     team_member_ids = await get_team_member_discord_ids(team)
@@ -94,7 +78,7 @@ async def create_ticket_thread(
             logger.warning(f"Failed to add member {member_id} to thread {thread.id}: {e}")
 
     # Send initial embed with action buttons
-    embed = format_ticket_embed(ticket)
+    embed = await sync_to_async(format_ticket_embed)(ticket)
     view = TicketActionView(ticket.id)
     message = await thread.send(
         f"**Ticket #{ticket.ticket_number}** - Use buttons below to manage this ticket.",
@@ -111,3 +95,21 @@ async def create_ticket_thread(
 
     logger.info(f"Created thread {thread.id} for ticket #{ticket.ticket_number}")
     return thread
+
+
+async def publish_new_ticket(bot: discord.Client, guild: discord.Guild | None, ticket: Ticket) -> None:
+    """Give a newly created ticket its team thread and put it on the dashboard.
+
+    ``ticket.team`` must be loaded. Thread failures are logged, not raised: the
+    ticket already exists and still belongs on the dashboard.
+    """
+    from bot.ticket_dashboard import post_ticket_to_dashboard
+
+    if guild is None:
+        logger.warning(f"No guild available; ticket {ticket.ticket_number} will have no thread")
+    else:
+        try:
+            await create_ticket_thread(guild=guild, ticket=ticket, team=ticket.team, pin_message=True)
+        except Exception:
+            logger.exception(f"Failed to create thread for ticket {ticket.ticket_number}")
+    await post_ticket_to_dashboard(bot, ticket)
