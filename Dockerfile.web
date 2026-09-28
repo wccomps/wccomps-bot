@@ -31,15 +31,16 @@ RUN chmod +x /entrypoint.sh
 # Copy web application code
 COPY web/ ./web/
 
-# Create static files directory
-RUN mkdir -p /app/web/staticfiles
-
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV DJANGO_SETTINGS_MODULE=portal.settings
 
 WORKDIR /app/web
+
+# Bake static files (web/static plus package assets like the admin's, hashed and compressed) into
+# the image. Needs no database. Compose still refreshes its volume copy in the entrypoint.
+RUN uv run --no-sync python manage.py collectstatic --noinput
 
 ENTRYPOINT ["/entrypoint.sh"]
 # Use environment variable for workers (default 4, max recommended: 10 to stay under 50 connection limit)
