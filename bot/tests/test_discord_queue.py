@@ -629,3 +629,36 @@ class TestPermanentFailure:
             call_args = mock_log.call_args
             assert "failed" in call_args[0][1].lower()
             assert "Critical error" in call_args[0][1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+class TestStrandedTasks:
+    """A bot killed mid-task leaves its row in "processing"; the next bot recovers it."""
+
+    async def test_recent_stranded_task_is_requeued_and_old_one_failed(self) -> None:
+        recent = await DiscordTask.objects.acreate(
+            task_type="log_to_channel", payload={"message": "hi"}, status="processing"
+        )
+        old = await DiscordTask.objects.acreate(
+            task_type="log_to_channel", payload={"message": "old"}, status="processing"
+        )
+        await DiscordTask.objects.filter(pk=old.pk).aupdate(created_at=timezone.now() - timedelta(days=300))
+
+        await DiscordQueueProcessor._recover_stranded_tasks()
+
+        await recent.arefresh_from_db()
+        await old.arefresh_from_db()
+        assert recent.status == "pending"
+        assert old.status == "failed"
+
+    async def test_task_claimed_elsewhere_is_not_handled(self) -> None:
+        task = await DiscordTask.objects.acreate(task_type="log_to_channel", payload={"message": "hi"})
+        await DiscordTask.objects.filter(pk=task.pk).aupdate(status="processing")  # another processor won
+        handler = AsyncMock()
+        processor = DiscordQueueProcessor(MagicMock())
+
+        with patch.dict(DiscordQueueProcessor._task_handlers, {"log_to_channel": handler}):
+            await processor._process_task(task)
+
+        handler.assert_not_awaited()

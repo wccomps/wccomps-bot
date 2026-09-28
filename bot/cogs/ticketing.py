@@ -87,8 +87,12 @@ class TicketingCog(commands.Cog):
         """Wait for bot to be ready before starting task."""
         await self.bot.wait_until_ready()
 
-    def _get_infrastructure_data(self) -> tuple[list[str], dict[str, str], list[dict[str, str]]]:
-        """Get infrastructure data from Quotient (cached)."""
+    async def _get_infrastructure_data(self) -> tuple[list[str], dict[str, str], list[dict[str, str]]]:
+        """Get infrastructure data from Quotient, off the event loop (a cache miss is an HTTP call)."""
+        return await sync_to_async(self._load_infrastructure_data)()
+
+    @staticmethod
+    def _load_infrastructure_data() -> tuple[list[str], dict[str, str], list[dict[str, str]]]:
         try:
             client = get_quotient_client()
             infrastructure = client.get_infrastructure()
@@ -107,7 +111,7 @@ class TicketingCog(commands.Cog):
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
         """Autocomplete for hostname field."""
-        box_names, box_ip_map, _ = self._get_infrastructure_data()
+        box_names, box_ip_map, _ = await self._get_infrastructure_data()
         matches = [name for name in box_names if current.lower() in name.lower()]
         return [app_commands.Choice(name=f"{name} ({box_ip_map.get(name, '')})", value=name) for name in matches[:25]]
 
@@ -115,7 +119,7 @@ class TicketingCog(commands.Cog):
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
         """Autocomplete for service field."""
-        _, _, service_choices = self._get_infrastructure_data()
+        _, _, service_choices = await self._get_infrastructure_data()
         matches = [s for s in service_choices if current.lower() in s["label"].lower()]
         return [app_commands.Choice(name=s["label"], value=s["value"]) for s in matches[:25]]
 
@@ -199,12 +203,12 @@ class TicketingCog(commands.Cog):
         # Auto-populate IP address from hostname if not provided
         resolved_ip = ip_address
         if hostname and not ip_address:
-            _, box_ip_map, _ = self._get_infrastructure_data()
+            _, box_ip_map, _ = await self._get_infrastructure_data()
             resolved_ip = box_ip_map.get(hostname)
 
         # Auto-populate hostname/IP from service if not provided
         if service and not hostname:
-            _, _, service_choices = self._get_infrastructure_data()
+            _, _, service_choices = await self._get_infrastructure_data()
             for svc in service_choices:
                 if svc["value"] == service:
                     hostname = svc.get("box_name", "")

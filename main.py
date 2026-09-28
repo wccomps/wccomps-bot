@@ -65,7 +65,6 @@ class PortalBot(commands.Bot):
         # Force sync if explicitly requested
         if os.environ.get("SYNC_COMMANDS", "").lower() in ("true", "1", "yes"):
             logger.info(f"SYNC_COMMANDS=true, forcing sync (hash: {current_hash})")
-            await sync_to_async(BotState.objects.update_or_create)(key="command_hash", defaults={"value": current_hash})
             return True
 
         # Check stored hash
@@ -77,12 +76,10 @@ class PortalBot(commands.Bot):
             logger.info(f"Commands changed ({stored.value} -> {current_hash}), will sync")
         except BotState.DoesNotExist:
             logger.info(f"No stored command hash, will sync (hash: {current_hash})")
-
-        await sync_to_async(BotState.objects.update_or_create)(key="command_hash", defaults={"value": current_hash})
         return True
 
     async def setup_hook(self) -> None:
-        """Setup hook called when bot is ready."""
+        """Load cogs and sync slash commands; discord.py runs this during login, before on_ready."""
         logger.info("Loading cogs...")
 
         # Load cogs
@@ -126,6 +123,8 @@ class PortalBot(commands.Bot):
         if not await self._should_sync_commands():
             return
 
+        synced = True
+
         # Sync to competition guild (instant availability)
         if competition_guild_id:
             guild = discord.Object(id=competition_guild_id)
@@ -135,6 +134,7 @@ class PortalBot(commands.Bot):
                 await self.tree.sync(guild=guild)
                 logger.info(f"Command tree synced to competition guild ({competition_guild_id})")
             except discord.HTTPException as e:
+                synced = False
                 logger.warning(f"Guild sync failed: {e}")
 
         # Clear global commands to avoid duplicates with guild commands
@@ -143,6 +143,7 @@ class PortalBot(commands.Bot):
             await self.tree.sync()
             logger.info("Cleared global commands")
         except discord.HTTPException as e:
+            synced = False
             logger.warning(f"Failed to clear global commands: {e}")
 
         if volunteer_guild_id and volunteer_guild_id != competition_guild_id:
@@ -155,7 +156,14 @@ class PortalBot(commands.Bot):
                     await self.tree.sync(guild=volunteer_guild)
                     logger.info(f"Synced /link command to volunteer guild ({volunteer_guild_id})")
                 except discord.HTTPException as e:
+                    synced = False
                     logger.warning(f"Volunteer guild sync failed: {e}")
+
+        # Only a complete sync is recorded, so a failed one is retried on the next start.
+        if synced:
+            from core.models import BotState
+
+            await BotState.objects.aupdate_or_create(key="command_hash", defaults={"value": self._get_command_hash()})
 
     async def on_ready(self) -> None:
         """Called when bot is ready."""

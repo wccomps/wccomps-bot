@@ -7,7 +7,6 @@ from datetime import timedelta
 
 import discord
 from asgiref.sync import sync_to_async
-from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -28,6 +27,8 @@ class DiscordQueueProcessor:
     QUEUE_POLL_INTERVAL_SECONDS = 2
     QUEUE_BATCH_SIZE = 10
     MAX_BACKOFF_SECONDS = 300
+    # A task left in "processing" by a dead bot is retried if younger than this, failed if older.
+    STRANDED_TASK_MAX_AGE = timedelta(hours=1)
 
     # Handler registry: maps task_type -> handler method.
     # Adding a new task type? Also update DiscordTask in core/models.py
@@ -72,6 +73,11 @@ class DiscordQueueProcessor:
 
     async def _process_loop(self) -> None:
         """Main processing loop (runs as async task)."""
+        try:
+            await self._recover_stranded_tasks()
+        except Exception:
+            logger.exception("Failed to recover stranded queue tasks")
+
         while self.running:
             try:
                 await recycle_db_connection()
@@ -81,6 +87,23 @@ class DiscordQueueProcessor:
                 logger.exception(f"Error in queue processor: {e}")
 
             await asyncio.sleep(self.QUEUE_POLL_INTERVAL_SECONDS)
+
+    @staticmethod
+    @sync_to_async
+    def _recover_stranded_tasks() -> None:
+        """Requeue tasks a previous bot process left in "processing" when it died.
+
+        Runs before the first poll. The bot Deployment is one replica with the Recreate
+        strategy, so no other processor can be working on these rows.
+        """
+        cutoff = timezone.now() - DiscordQueueProcessor.STRANDED_TASK_MAX_AGE
+        stranded = DiscordTask.objects.filter(status="processing")
+        requeued = stranded.filter(created_at__gte=cutoff).update(status="pending", next_retry_at=None)
+        failed = stranded.filter(created_at__lt=cutoff).update(
+            status="failed", error_message="Left in processing by a bot restart; too old to retry"
+        )
+        if requeued or failed:
+            logger.warning(f"Recovered stranded queue tasks: {requeued} requeued, {failed} failed as too old")
 
     async def _process_pending_tasks(self) -> None:
         """Process pending tasks from the queue."""
@@ -103,14 +126,11 @@ class DiscordQueueProcessor:
     async def _process_task(self, task: DiscordTask) -> None:
         """Process a single task."""
 
-        # Mark as processing
-        @sync_to_async
-        def mark_processing() -> None:
-            with transaction.atomic():
-                task.status = "processing"
-                task.save()
-
-        await mark_processing()
+        # Claim with a conditional UPDATE so a task is never handled twice.
+        claimed = await DiscordTask.objects.filter(pk=task.pk, status="pending").aupdate(status="processing")
+        if not claimed:
+            return
+        task.status = "processing"
 
         try:
             # Dispatch to handler by task type

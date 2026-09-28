@@ -881,3 +881,30 @@ class TestAttachmentHandling:
         args = message.channel.send.call_args
         assert "too large" in args[0][0].lower()
         assert "10mb" in args[0][0].lower()
+
+
+@pytest.mark.asyncio
+async def test_hostname_autocomplete_calls_quotient_off_the_event_loop() -> None:
+    """A Quotient cache miss is a blocking HTTP call; it must not run on the bot's loop."""
+    import asyncio
+    from unittest.mock import MagicMock, patch
+
+    def get_infrastructure() -> MagicMock:
+        with pytest.raises(RuntimeError):
+            asyncio.get_running_loop()  # raises only off the loop's thread
+        box = MagicMock()
+        box.name, box.ip = "web01", "10.0.0.5"
+        return MagicMock(boxes=[box])
+
+    client = MagicMock()
+    client.get_infrastructure.side_effect = get_infrastructure
+    client.get_service_choices.return_value = []
+
+    with (
+        patch("bot.cogs.ticketing.get_quotient_client", return_value=client),
+        patch.object(TicketingCog.archive_threads_task, "start"),
+    ):
+        cog = TicketingCog(MagicMock())
+        choices = await cog.hostname_autocomplete(MagicMock(), "web")
+
+    assert [c.value for c in choices] == ["web01"]
