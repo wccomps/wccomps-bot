@@ -301,7 +301,7 @@ QUOTIENT_USERNAME = os.environ.get("QUOTIENT_USERNAME", "")
 QUOTIENT_PASSWORD = os.environ.get("QUOTIENT_PASSWORD", "")
 
 # Email configuration for packet distribution
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"

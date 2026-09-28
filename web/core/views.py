@@ -520,6 +520,11 @@ def ops_group_role_mappings(request: HttpRequest) -> HttpResponse:
     return render(request, "ops_group_role_mappings.html", context)
 
 
+def livez(request: HttpRequest) -> HttpResponse:
+    """Liveness: the process is serving requests. Deliberately skips the database (see health_check)."""
+    return HttpResponse("ok", content_type="text/plain")
+
+
 def health_check(request: HttpRequest) -> HttpResponse:
     """Health check endpoint for monitoring - tests database connectivity and model queries."""
     import json

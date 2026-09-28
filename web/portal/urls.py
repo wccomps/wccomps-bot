@@ -11,6 +11,7 @@ from ticketing import views as ticketing_views
 urlpatterns = [
     path("", views.home, name="home"),
     path("health/", views.health_check, name="health_check"),
+    path("livez/", views.livez, name="livez"),
     path("admin/", admin.site.urls),
     path("auth/login/", oauth.oauth_login, name="oauth_login"),
     path("auth/callback/", oauth.oauth_callback, name="oauth_callback"),

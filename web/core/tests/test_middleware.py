@@ -427,6 +427,7 @@ class TestAuthentikRequiredMiddleware:
 MIDDLEWARE_WHITELIST_PREFIXES = ["/static/"]
 MIDDLEWARE_WHITELIST_EXACT = [
     "/health/",
+    "/livez/",
     "/register/",
     "/auth/login/",
     "/auth/callback/",

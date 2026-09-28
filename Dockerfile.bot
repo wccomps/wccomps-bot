@@ -31,6 +31,8 @@ RUN mkdir -p /app/logs
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/web
 ENV DJANGO_SETTINGS_MODULE=portal.settings
+# Writable home when running as a non-root user on a read-only root
+ENV HOME=/tmp
 
 WORKDIR /app
 
