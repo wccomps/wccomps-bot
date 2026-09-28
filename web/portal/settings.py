@@ -36,8 +36,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Requests on LEGACY_HOSTS are permanently redirected to CANONICAL_HOST (path and query preserved).
-# Set CANONICAL_HOST= (empty) in .env to disable the redirects without a deploy.
-# Legacy hosts must stay in ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, and the Traefik rule to be redirected.
+# Set CANONICAL_HOST= (empty) in the environment to disable the redirects without a code change.
+# Legacy hosts must stay in ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, and the HTTPRoute to be redirected.
 CANONICAL_HOST = os.environ.get("CANONICAL_HOST", "portal.wccomps.org")
 LEGACY_HOSTS = [
     "bot.wccomps.org",
@@ -204,14 +204,14 @@ else:
         },
     }
 
-# Trust X-Forwarded-Proto header from reverse proxy (Cloudflare/Traefik)
+# Trust X-Forwarded-Proto header from the reverse proxy (Cloudflare tunnel, then the gateway)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Security settings for production
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    # Don't redirect to HTTPS - let Traefik handle it
+    # Don't redirect to HTTPS: Cloudflare terminates it
     SECURE_SSL_REDIRECT = False
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True

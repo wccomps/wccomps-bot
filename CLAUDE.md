@@ -13,9 +13,19 @@ WCComps Portal is a competition management platform for WRCCDC. Three components
 # Run tests (requires test DB: docker compose -f docker-compose.test.yml up -d --wait)
 cd web && DB_HOST=localhost DB_PORT=5433 DB_USER=test_user DB_PASSWORD=test_password DB_NAME=wccomps_test uv run pytest
 
-# Full deploy checks (deps, ruff, djlint, mypy, migrate, tests)
-./deploy.sh
+# Lint and type checks (CI runs these plus the tests on every PR)
+uv run ruff check . && uv run djlint web/templates --lint && DJANGO_SETTINGS_MODULE=portal.settings uv run mypy
 ```
+
+## Production
+
+Runs on the deoxys Kubernetes cluster, deployed by Argo CD from `wccomps/wccomps-argocd`
+(`manifests/wccomps-portal/`; its README covers operations).
+- CI builds one image for web and bot on every merge to main: `ghcr.io/wccomps/wccomps-portal:sha-<short>`.
+- Deploy: PR to wccomps-argocd bumping `newTag` in `manifests/wccomps-portal/kustomization.yaml`.
+- After changing its `configmap.yaml` or `secrets.yaml`, restart the web and bot Deployments.
+- `docker-compose.yml` is for anyone self-hosting the public repo (Postgres + web + bot); it isn't
+  how production runs.
 
 ## Python 3.14
 

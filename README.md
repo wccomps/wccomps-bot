@@ -8,23 +8,38 @@ Competition management platform for WRCCDC: Discord bot, Django web app, and Aut
 - **Django Web** - Scoring portal, inject grading, packet distribution, ops dashboard
 - **Authentik Integration** - SSO, team provisioning, permission sync
 
-## Setup
+## Run with Docker
 
 ```bash
-cp .env.example .env  # Configure credentials
-docker-compose up -d  # Migrations run automatically
+cp .env.example .env   # fill in credentials (DB password, Discord token, Authentik OAuth client)
+docker compose up -d   # Postgres, web and bot from ghcr.io/wccomps/wccomps-portal; --build runs this checkout
 ```
+
+The web app listens on `localhost:${WEB_PORT:-8000}`. Put it behind an HTTPS reverse proxy: with
+`DJANGO_DEBUG=False` the session and CSRF cookies are HTTPS-only. Run exactly one bot per Discord token.
 
 ## Development
 
 ```bash
 uv sync
+docker compose -f docker-compose.test.yml up -d --wait   # Postgres on localhost:5433
 uv run pytest
-./deploy.sh  # Tests, builds, deploys
+
+# Run the app locally (settings read the environment; they don't load .env themselves)
+cp .env.example .env   # then fill in credentials; DB_* pointing at the Postgres above
+set -a; . ./.env; set +a
+cd web && uv run python manage.py prepare_database && uv run python manage.py runserver
+uv run python main.py  # the bot, from the repo root, in another shell
 ```
+
+## Production
+
+Runs on the deoxys Kubernetes cluster, deployed by Argo CD from `wccomps/wccomps-argocd`
+(`manifests/wccomps-portal/`). CI publishes one image for web and bot,
+`ghcr.io/wccomps/wccomps-portal:sha-<short>`, on every merge to main; deploy by bumping its tag there.
 
 ## Troubleshooting
 
-- **Bot not responding:** `docker-compose logs bot`
-- **OAuth errors:** `BASE_URL` must match Authentik redirect URI
-- **Permissions stale:** User must re-login after Authentik group changes
+- **Bot not responding:** `kubectl -n wccomps-portal logs deploy/bot`
+- **OAuth errors:** the Authentik provider must list `https://<host>/auth/callback/` for the host used
+- **Permissions stale:** the bot re-reads everyone's Authentik groups every 5 minutes; a login refreshes them at once

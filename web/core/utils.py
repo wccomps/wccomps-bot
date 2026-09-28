@@ -18,7 +18,7 @@ from team.models import MAX_TEAMS, Team
 def client_ip(request: HttpRequest) -> str:
     """The real client address: Cloudflare's CF-Connecting-IP, else the connecting peer.
 
-    Behind the Cloudflare tunnel and Traefik, REMOTE_ADDR is always the proxy. Cloudflare
+    Behind the Cloudflare tunnel and the gateway, REMOTE_ADDR is always the proxy. Cloudflare
     overwrites CF-Connecting-IP on every request, so it can't be spoofed from the internet.
     A missing or malformed header falls back to REMOTE_ADDR.
     """
