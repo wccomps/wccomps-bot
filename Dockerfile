@@ -1,8 +1,11 @@
+# One image for both processes: they share the Django models and must run the same version.
+#   web (default): entrypoint.sh applies migrations under a lock, then gunicorn (web/gunicorn.conf.py)
+#   bot: entrypoint cleared, run from /app: `python main.py` (see docker-compose.yml)
 FROM python:3.14-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (Pango, Cairo and GDK-Pixbuf are WeasyPrint's, for PDFs)
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
@@ -28,12 +31,15 @@ RUN uv sync --frozen --no-dev
 COPY web/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Copy web application code
+# Copy application code
+COPY main.py ./main.py
+COPY bot/ ./bot/
 COPY web/ ./web/
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app/web
 ENV DJANGO_SETTINGS_MODULE=portal.settings
 # Writable cache home (WeasyPrint/fontconfig) when running as a non-root user on a read-only root
 ENV HOME=/tmp
