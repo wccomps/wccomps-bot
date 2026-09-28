@@ -191,7 +191,7 @@ class TestTicketResolutionWorkflow:
         assert ticket.resolved_by is not None
         assert ticket.resolved_by.pk == mock_admin_user.pk
         assert ticket.resolution_notes == "Fixed the issue"
-        assert ticket.points_charged == 10
+        assert ticket.points_charged == 5  # explicit points override the category default
 
     async def test_ticket_resolution_creates_history_log(
         self, mock_interaction: Any, mock_admin_user: Any, mock_bot: Any, other_category: Any
@@ -309,4 +309,4 @@ class TestTicketResolutionWorkflow:
 
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
-        assert "already resolved" in call_args.args[0].lower()
+        assert "cannot resolve ticket with status: resolved" in call_args.args[0].lower()

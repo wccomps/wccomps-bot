@@ -12,11 +12,10 @@ from django.views.decorators.http import require_POST
 
 from core.auth_utils import get_authentik_groups, get_authentik_id, has_permission
 from core.models import DiscordTask
-from core.tickets_config import get_category_config
 from core.utils import get_team_from_groups
 from team.models import DiscordLink
 from ticketing.forms import TicketChangeCategoryForm, TicketReassignForm, TicketReopenForm, TicketResolveForm
-from ticketing.models import Ticket, TicketCategory, TicketHistory
+from ticketing.models import Ticket
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +65,7 @@ def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, error or "Failed to cancel ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
+    DiscordTask.create_post_ticket_update(ticket=ticket, action="cancelled", actor=authentik_username)
     logger.info(f"Ticket {ticket_number} cancelled by {authentik_username} via web")
 
     return redirect("ticket_list")
@@ -117,7 +117,7 @@ def ticket_claim(request: HttpRequest, ticket_number: str) -> HttpResponse:
             DiscordTask.create_add_user_to_thread(
                 ticket=ticket, discord_id=discord_link.discord_id, thread_id=ticket.discord_thread_id
             )
-        DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor=authentik_username)
+    DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor=authentik_username)
 
     logger.info(f"Ticket {ticket_number} claimed by {authentik_username}")
     referer = request.META.get("HTTP_REFERER", "")
@@ -172,9 +172,7 @@ def ticket_unclaim(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, error or "Failed to unclaim ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    # Post status update to Discord thread
-    if ticket.discord_thread_id:
-        DiscordTask.create_post_ticket_update(ticket=ticket, action="unclaimed", actor=authentik_username)
+    DiscordTask.create_post_ticket_update(ticket=ticket, action="unclaimed", actor=authentik_username)
 
     logger.info(f"Ticket {ticket_number} unclaimed by {authentik_username}")
     referer = request.META.get("HTTP_REFERER", "")
@@ -319,15 +317,13 @@ def ticket_resolve(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, error or "Failed to resolve ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    # Post resolution to Discord thread
-    if ticket.discord_thread_id:
-        DiscordTask.create_post_ticket_update(
-            ticket=ticket,
-            action="resolved",
-            actor=authentik_username,
-            resolution_notes=resolution_notes,
-            points_charged=ticket.points_charged,
-        )
+    DiscordTask.create_post_ticket_update(
+        ticket=ticket,
+        action="resolved",
+        actor=authentik_username,
+        resolution_notes=resolution_notes,
+        points_charged=ticket.points_charged,
+    )
 
     logger.info(f"Ticket {ticket_number} resolved by {authentik_username}")
     referer = request.META.get("HTTP_REFERER", "")
@@ -379,12 +375,10 @@ def ticket_reopen(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, error or "Failed to reopen ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    # Post status update to Discord thread
-    if ticket.discord_thread_id:
-        extra: dict[str, object] = {}
-        if reopen_reason:
-            extra["reason"] = reopen_reason
-        DiscordTask.create_post_ticket_update(ticket=ticket, action="reopened", actor=authentik_username, **extra)
+    extra: dict[str, object] = {}
+    if reopen_reason:
+        extra["reason"] = reopen_reason
+    DiscordTask.create_post_ticket_update(ticket=ticket, action="reopened", actor=authentik_username, **extra)
 
     logger.info(
         f"Ticket {ticket_number} reopened by {authentik_username}" + (f": {reopen_reason}" if reopen_reason else "")
@@ -435,39 +429,15 @@ def ticket_change_category(request: HttpRequest, ticket_number: str) -> HttpResp
         return redirect("ticket_detail", ticket_number=ticket_number)
     new_category_id = form.cleaned_data["new_category"]
 
-    if not TicketCategory.objects.filter(pk=new_category_id).exists():
-        messages.error(request, "Invalid category")
+    from ticketing.utils import change_ticket_category_atomic
+
+    changed, error = change_ticket_category_atomic(
+        ticket_id=ticket.id, new_category_id=new_category_id, actor_username=authentik_username, user=user
+    )
+    if error or changed is None:
+        messages.error(request, error or "Failed to change category")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    old_category_id = ticket.category_id
-    if old_category_id == new_category_id:
-        return redirect("ticket_detail", ticket_number=ticket_number)
-
-    old_cat_info = get_category_config(old_category_id) or {}
-    new_cat_info = get_category_config(new_category_id) or {}
-
-    # Update category
-    ticket.category_id = new_category_id
-    ticket.save()
-
-    # Create history entry
-    TicketHistory.objects.create(
-        ticket=ticket,
-        action="category_changed",
-        details={
-            "changed_by": authentik_username,
-            "old_category": old_category_id,
-            "old_category_name": old_cat_info.get("display_name", "Unknown"),
-            "new_category": new_category_id,
-            "new_category_name": new_cat_info.get("display_name", "Unknown"),
-            "old_points": old_cat_info.get("points", 0),
-            "new_points": new_cat_info.get("points", 0),
-        },
-    )
-
-    logger.info(
-        f"Ticket {ticket_number} category changed by {authentik_username}: "
-        f"{old_cat_info.get('display_name', 'Unknown')} → {new_cat_info.get('display_name', 'Unknown')}"
-    )
+    logger.info(f"Ticket {ticket_number} category changed by {authentik_username} to category {new_category_id}")
 
     return redirect("ticket_detail", ticket_number=ticket_number)

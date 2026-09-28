@@ -436,6 +436,8 @@ class DiscordQueueProcessor:
             await thread.send(f"Ticket claimed by **{actor}**")
         elif action == "unclaimed":
             await thread.send(f"Ticket unclaimed by **{actor}**")
+        elif action == "cancelled":
+            await thread.send(f"Ticket cancelled by **{actor}**")
         elif action == "reopened":
             reason = task.payload.get("reason", "")
             msg = f"Ticket reopened by **{actor}**"

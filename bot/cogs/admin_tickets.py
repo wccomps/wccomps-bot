@@ -1,13 +1,11 @@
 """Admin commands for ticket management."""
 
 import logging
-from datetime import timedelta
 
 import discord
 from asgiref.sync import sync_to_async
 from discord import app_commands
 from discord.ext import commands
-from django.utils import timezone
 
 from bot.permissions import check_ticketing_admin, check_ticketing_support
 from bot.thread_creator import publish_new_ticket
@@ -204,7 +202,7 @@ class AdminTicketsCog(commands.Cog):
     @app_commands.describe(
         ticket_number="Ticket number (e.g., T050-003)",
         notes="Resolution notes",
-        points="Point adjustment (for variable point categories)",
+        points="Point value (required for variable categories; overrides the default otherwise)",
     )
     @app_commands.check(check_ticketing_support)
     async def admin_ticket_resolve(
@@ -215,94 +213,35 @@ class AdminTicketsCog(commands.Cog):
         points: int | None = None,
     ) -> None:
         """Resolve a ticket and apply point adjustments."""
+        from ticketing.utils import aresolve_ticket_atomic
 
-        ticket = await Ticket.objects.select_related("team").filter(ticket_number=ticket_number).afirst()
+        ticket = await Ticket.objects.filter(ticket_number=ticket_number).afirst()
         if not ticket:
             await interaction.response.send_message(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        if ticket.status == "resolved":
-            await interaction.response.send_message(
-                f"Ticket {ticket.ticket_number} is already resolved", ephemeral=True
-            )
+        resolved, error = await aresolve_ticket_atomic(
+            ticket_id=ticket.id,
+            actor_username=str(interaction.user),
+            resolution_notes=notes,
+            points_override=points,
+            discord_id=interaction.user.id,
+            discord_username=str(interaction.user),
+        )
+        if error or resolved is None:
+            await interaction.response.send_message(error or "Failed to resolve ticket.", ephemeral=True)
             return
 
-        from core.tickets_config import get_category_config
-
-        cat_info = await sync_to_async(get_category_config)(ticket.category_id) or {}
-
-        # Determine point penalty
-        if cat_info.get("variable_points", False):
-            if points is None:
-                await interaction.response.send_message(
-                    "This category requires an explicit point value.",
-                    ephemeral=True,
-                )
-                return
-
-            min_pts = int(cat_info.get("min_points", 0))
-            max_pts = int(cat_info.get("max_points", 0))
-            if points < min_pts:
-                await interaction.response.send_message(
-                    f"Point value must be at least {min_pts}.",
-                    ephemeral=True,
-                )
-                return
-            if max_pts and points > max_pts:
-                await interaction.response.send_message(
-                    f"Point value must be at most {max_pts}.",
-                    ephemeral=True,
-                )
-                return
-
-            point_penalty = points
-        else:
-            point_penalty = cat_info.get("points", 0)
-
-        from ticketing.utils import get_user_for_ticket
-
-        resolver = await sync_to_async(get_user_for_ticket)(discord_id=interaction.user.id)
-
-        # Update ticket (assigned_to and resolved_by are now User, not DiscordLink)
-        ticket.status = "resolved"
-        ticket.resolved_at = timezone.now()
-        ticket.resolved_by = resolver
-        ticket.resolution_notes = notes
-        ticket.points_charged = point_penalty
-        if not ticket.assigned_to:
-            ticket.assigned_to = resolver
-            ticket.assigned_at = timezone.now()
-
-        # Schedule thread archiving after 60 seconds
-        if ticket.discord_thread_id:
-            ticket.thread_archive_scheduled_at = timezone.now() + timedelta(seconds=60)
-
-        await ticket.asave()
-
-        # Create history entry
-        await TicketHistory.objects.acreate(
-            ticket=ticket,
-            action="resolved",
-            details={"notes": notes, "point_penalty": point_penalty, "actor": str(interaction.user)},
+        await interaction.response.send_message(
+            f"Resolved ticket {resolved.ticket_number}\n"
+            f"Point Penalty: {resolved.points_charged} points applied to {resolved.team.team_name}",
+            ephemeral=True,
         )
-
-        # Update dashboard
-        try:
-            await update_ticket_dashboard(self.bot, ticket)
-        except Exception as e:
-            logger.exception(f"Failed to update dashboard: {e}")
-
-        # Log to ops
+        await update_ticket_dashboard(self.bot, resolved)
         await log_to_ops_channel(
             self.bot,
-            f"Ticket Resolved: {ticket.ticket_number} for **{ticket.team.team_name}** by {interaction.user.mention}\n"
-            f"Point Penalty: {point_penalty} points",
-        )
-
-        await interaction.response.send_message(
-            f"Resolved ticket {ticket.ticket_number}\n"
-            f"Point Penalty: {point_penalty} points applied to {ticket.team.team_name}",
-            ephemeral=True,
+            f"Ticket Resolved: {resolved.ticket_number} for **{resolved.team.team_name}** by "
+            f"{interaction.user.mention}\nPoint Penalty: {resolved.points_charged} points",
         )
 
     @tickets_group.command(name="cancel", description="[ADMIN] Cancel a ticket without applying points")
@@ -313,63 +252,32 @@ class AdminTicketsCog(commands.Cog):
     @app_commands.check(check_ticketing_admin)
     async def admin_ticket_cancel(self, interaction: discord.Interaction, ticket_number: str, reason: str = "") -> None:
         """Cancel a ticket without point penalty."""
+        from ticketing.utils import acancel_ticket_atomic
 
-        ticket = await Ticket.objects.select_related("team").filter(ticket_number=ticket_number).afirst()
+        ticket = await Ticket.objects.filter(ticket_number=ticket_number).afirst()
         if not ticket:
             await interaction.response.send_message(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        if ticket.status in {"resolved", "cancelled"}:
-            await interaction.response.send_message(
-                f"Ticket {ticket.ticket_number} is already {ticket.status}",
-                ephemeral=True,
-            )
+        cancelled, error = await acancel_ticket_atomic(
+            ticket_id=ticket.id,
+            actor_username=str(interaction.user),
+            reason=reason,
+            staff=True,
+        )
+        if error or cancelled is None:
+            await interaction.response.send_message(error or "Failed to cancel ticket.", ephemeral=True)
             return
 
-        from ticketing.utils import get_user_for_ticket
-
-        canceller = await sync_to_async(get_user_for_ticket)(discord_id=interaction.user.id)
-
-        # Update ticket
-        ticket.status = "cancelled"
-        ticket.resolved_at = timezone.now()
-        ticket.resolution_notes = reason or "Cancelled by admin"
-        ticket.points_charged = 0
-        if not ticket.assigned_to:
-            ticket.assigned_to = canceller
-            ticket.assigned_at = timezone.now()
-
-        # Schedule thread archiving if Discord thread exists
-        if ticket.discord_thread_id:
-            from datetime import timedelta
-
-            ticket.thread_archive_scheduled_at = timezone.now() + timedelta(seconds=60)
-
-        await ticket.asave()
-
-        # Create history entry
-        await TicketHistory.objects.acreate(
-            ticket=ticket,
-            action="cancelled",
-            details={"reason": reason, "actor": str(interaction.user)},
+        await interaction.response.send_message(
+            f"Cancelled ticket {cancelled.ticket_number} (no point penalty applied)",
+            ephemeral=True,
         )
-
-        # Update dashboard
-        try:
-            await update_ticket_dashboard(self.bot, ticket)
-        except Exception as e:
-            logger.exception(f"Failed to update dashboard: {e}")
-
-        # Log to ops
+        await update_ticket_dashboard(self.bot, cancelled)
         await log_to_ops_channel(
             self.bot,
-            f"Ticket Cancelled: {ticket.ticket_number} for **{ticket.team.team_name}** by {interaction.user.mention}\n"
-            f"Reason: {reason or 'No reason provided'}",
-        )
-
-        await interaction.response.send_message(
-            f"Cancelled ticket {ticket.ticket_number} (no point penalty applied)",
-            ephemeral=True,
+            f"Ticket Cancelled: {cancelled.ticket_number} for **{cancelled.team.team_name}** by "
+            f"{interaction.user.mention}\nReason: {reason or 'No reason provided'}",
         )
 
     @tickets_group.command(
@@ -386,49 +294,27 @@ class AdminTicketsCog(commands.Cog):
         self, interaction: discord.Interaction, ticket_number: str, new_category: str
     ) -> None:
         """Change the category of a ticket."""
-        ticket = await Ticket.objects.select_related("team").filter(ticket_number=ticket_number).afirst()
+        from core.tickets_config import get_category_config
+        from ticketing.utils import achange_ticket_category_atomic
+
+        ticket = await Ticket.objects.filter(ticket_number=ticket_number).afirst()
         if not ticket:
             await interaction.response.send_message(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        from core.tickets_config import get_category_config
-
         old_category_id = ticket.category_id
         new_category_id = int(new_category)
-        if old_category_id == new_category_id:
-            await interaction.response.send_message(
-                f"Ticket {ticket.ticket_number} is already in that category",
-                ephemeral=True,
-            )
+        changed, error = await achange_ticket_category_atomic(
+            ticket_id=ticket.id, new_category_id=new_category_id, actor_username=str(interaction.user)
+        )
+        if error or changed is None:
+            await interaction.response.send_message(error or "Failed to change category.", ephemeral=True)
             return
+        ticket = changed
 
         old_cat_info = await sync_to_async(get_category_config)(old_category_id) or {}
         new_cat_info = await sync_to_async(get_category_config)(new_category_id) or {}
-
-        # Update category
-        ticket.category_id = new_category_id
-        await ticket.asave()
-
-        # Create history entry
-        await TicketHistory.objects.acreate(
-            ticket=ticket,
-            action="category_changed",
-            details={
-                "actor": str(interaction.user),
-                "old_category": str(old_category_id),
-                "old_category_name": old_cat_info.get("display_name", str(old_category_id)),
-                "new_category": str(new_category_id),
-                "new_category_name": new_cat_info.get("display_name", str(new_category_id)),
-                "old_points": old_cat_info.get("points", 0),
-                "new_points": new_cat_info.get("points", 0),
-            },
-        )
-
-        # Update dashboard
-        try:
-            await update_ticket_dashboard(self.bot, ticket)
-        except Exception as e:
-            logger.exception(f"Failed to update dashboard: {e}")
+        await update_ticket_dashboard(self.bot, ticket)
 
         # Log to ops
         old_cat_name = old_cat_info.get("display_name", str(old_category_id))
@@ -564,48 +450,33 @@ class AdminTicketsCog(commands.Cog):
     @app_commands.check(check_ticketing_admin)
     async def admin_ticket_reopen(self, interaction: discord.Interaction, ticket_number: str, reason: str) -> None:
         """Reopen a resolved ticket."""
+        from ticketing.utils import areopen_ticket_atomic
+
         await interaction.response.defer(ephemeral=True)
 
-        ticket = await Ticket.objects.select_related("team").filter(ticket_number=ticket_number).afirst()
+        ticket = await Ticket.objects.filter(ticket_number=ticket_number).afirst()
         if not ticket:
             await interaction.followup.send(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        if ticket.status != "resolved":
-            await interaction.followup.send(f"Cannot reopen - ticket is {ticket.status}", ephemeral=True)
+        refunded = ticket.points_charged
+        reopened, error = await areopen_ticket_atomic(
+            ticket_id=ticket.id, actor_username=str(interaction.user), reopen_reason=reason
+        )
+        if error or reopened is None:
+            await interaction.followup.send(error or "Failed to reopen ticket.", ephemeral=True)
             return
 
-        # Reopen ticket (only change status and clear resolved timestamp)
-        old_status = ticket.status
-        ticket.status = "open"
-        ticket.resolved_at = None
-        await ticket.asave()
-
-        # Create history
-        await TicketHistory.objects.acreate(
-            ticket=ticket,
-            action="reopened",
-            details={
-                "actor": str(interaction.user),
-                "reason": reason,
-                "old_status": old_status,
-            },
-        )
-
-        refund_msg = ""
-        if ticket.points_charged > 0:
-            refund_msg = f"\n• Refunded: {ticket.points_charged} points"
-
+        refund_msg = f"\n• Refunded: {refunded} points" if refunded > 0 else ""
         await interaction.followup.send(
-            f"Ticket {ticket.ticket_number} reopened\n• Reason: {reason}{refund_msg}",
+            f"Ticket {reopened.ticket_number} reopened\n• Reason: {reason}{refund_msg}",
             ephemeral=True,
         )
-
-        # Log to ops
+        await update_ticket_dashboard(self.bot, reopened)
         await log_to_ops_channel(
             self.bot,
             f"Ticket reopened by {interaction.user.mention}\n"
-            f"• Ticket: {ticket.ticket_number} ({ticket.team.team_name})\n"
+            f"• Ticket: {reopened.ticket_number} ({reopened.team.team_name})\n"
             f"• Reason: {reason}{refund_msg}",
         )
 
@@ -615,7 +486,7 @@ class AdminTicketsCog(commands.Cog):
         """Delete all tickets and reset team counters."""
         from core.models import AuditLog
         from team.models import Team
-        from ticketing.models import TicketAttachment, TicketComment, TicketHistory
+        from ticketing.models import TicketAttachment, TicketComment
 
         # Get counts
         ticket_count = await Ticket.objects.acount()

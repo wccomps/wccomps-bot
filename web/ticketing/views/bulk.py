@@ -3,103 +3,90 @@
 import logging
 from typing import cast
 
+from django.contrib import messages
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
-from django.utils import timezone
 
-from core.auth_utils import get_authentik_id, has_permission
+from core.auth_utils import has_permission
+from core.models import DiscordTask
 from ticketing.forms import TicketBulkActionForm
 from ticketing.models import Ticket, TicketHistory
+from ticketing.utils import claim_ticket_atomic, resolve_ticket_atomic
 
 logger = logging.getLogger(__name__)
 
 
 def tickets_bulk_claim(request: HttpRequest) -> HttpResponse:
-    """Bulk claim tickets (operations team only)."""
+    """Bulk claim tickets (ticketing staff only)."""
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
 
     user = cast(User, request.user)
-    authentik_username = user.username
-    get_authentik_id(user)
-
-    if not (has_permission(user, "ticketing_support") or has_permission(user, "ticketing_admin")):
+    if not has_permission(user, "ticketing_support"):
         return HttpResponse("Access denied", status=403)
 
     form = TicketBulkActionForm(request.POST)
     if not form.is_valid():
         return HttpResponse("No tickets selected", status=400)
-    ticket_numbers = form.cleaned_data["ticket_numbers"]
 
-    claimed_count = 0
-    with transaction.atomic():
-        for ticket_number in ticket_numbers:
-            try:
-                # Use select_for_update to prevent race conditions
-                ticket = Ticket.objects.select_for_update().get(ticket_number=ticket_number, status="open")
-                ticket.status = "claimed"
-                ticket.assigned_to = user
-                ticket.assigned_at = timezone.now()
-                ticket.save()
+    claimed = 0
+    for ticket_id in Ticket.objects.filter(ticket_number__in=form.cleaned_data["ticket_numbers"]).values_list(
+        "id", flat=True
+    ):
+        ticket, error = claim_ticket_atomic(ticket_id=ticket_id, actor_username=user.username, user=user)
+        if ticket is not None and not error:
+            DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor=user.username)
+            claimed += 1
 
-                TicketHistory.objects.create(
-                    ticket=ticket,
-                    action="claimed",
-                    actor=user,
-                    details={"claimed_by": authentik_username, "bulk": True},
-                )
-
-                claimed_count += 1
-            except Ticket.DoesNotExist:
-                continue
-
-    logger.info(f"Bulk claimed {claimed_count} tickets by {authentik_username}")
+    logger.info(f"Bulk claimed {claimed} tickets by {user.username}")
     return redirect("ticket_list")
 
 
 def tickets_bulk_resolve(request: HttpRequest) -> HttpResponse:
-    """Bulk resolve tickets (operations team only)."""
+    """Bulk resolve tickets at their category's points; same rule as resolving one ticket."""
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
 
     user = cast(User, request.user)
-    authentik_username = user.username
-    get_authentik_id(user)
-
-    if not (has_permission(user, "ticketing_support") or has_permission(user, "ticketing_admin")):
+    if not has_permission(user, "ticketing_support"):
         return HttpResponse("Access denied", status=403)
 
     form = TicketBulkActionForm(request.POST)
     if not form.is_valid():
         return HttpResponse("No tickets selected", status=400)
-    ticket_numbers = form.cleaned_data["ticket_numbers"]
 
-    resolved_count = 0
-    with transaction.atomic():
-        for ticket_number in ticket_numbers:
-            try:
-                # Use select_for_update to prevent race conditions
-                ticket = Ticket.objects.select_for_update().get(ticket_number=ticket_number, status="claimed")
-                ticket.status = "resolved"
-                ticket.resolved_at = timezone.now()
-                ticket.resolved_by = user
-                ticket.resolution_notes = "Bulk resolved via web interface"
-                ticket.save()
+    requested = Ticket.objects.filter(ticket_number__in=form.cleaned_data["ticket_numbers"])
+    tickets = requested if has_permission(user, "ticketing_admin") else requested.filter(assigned_to=user)
 
-                TicketHistory.objects.create(
-                    ticket=ticket,
-                    action="resolved",
-                    actor=user,
-                    details={"resolved_by": authentik_username, "bulk": True},
-                )
+    resolved = 0
+    skipped = [
+        f"{number} (not assigned to you)"
+        for number in requested.exclude(pk__in=tickets.values("pk")).values_list("ticket_number", flat=True)
+    ]
+    for ticket_id, ticket_number in tickets.values_list("id", "ticket_number"):
+        ticket, error = resolve_ticket_atomic(
+            ticket_id=ticket_id,
+            actor_username=user.username,
+            resolution_notes="Bulk resolved via web interface",
+            user=user,
+        )
+        if ticket is None or error:
+            skipped.append(f"{ticket_number} ({error})")
+            continue
+        DiscordTask.create_post_ticket_update(
+            ticket=ticket,
+            action="resolved",
+            actor=user.username,
+            resolution_notes=ticket.resolution_notes,
+            points_charged=ticket.points_charged,
+        )
+        resolved += 1
 
-                resolved_count += 1
-            except Ticket.DoesNotExist:
-                continue
-
-    logger.info(f"Bulk resolved {resolved_count} tickets by {authentik_username}")
+    if skipped:
+        messages.warning(request, "Not resolved: " + "; ".join(skipped))
+    logger.info(f"Bulk resolved {resolved} tickets by {user.username}")
     return redirect("ticket_list")
 
 
@@ -116,7 +103,7 @@ def tickets_clear_all(request: HttpRequest) -> HttpResponse:
 
     from core.models import AuditLog
     from team.models import Team
-    from ticketing.models import TicketAttachment, TicketComment, TicketHistory
+    from ticketing.models import TicketAttachment, TicketComment
 
     # Get counts before deletion
     ticket_count = Ticket.objects.count()
