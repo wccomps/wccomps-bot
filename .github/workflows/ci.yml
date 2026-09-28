@@ -78,7 +78,7 @@ jobs:
           SECRET_KEY: test-secret-key-for-ci
 
   # Container images for the planned move to the deoxys Kubernetes cluster.
-  # PRs only build (to catch broken Dockerfiles); pushes to main also publish to GHCR.
+  # PRs only build (to catch a broken Dockerfile); pushes to main also publish to GHCR.
   # Production (Docker Compose on metapod) still runs the rsynced tree, so this changes nothing live.
   images:
     needs: lint-and-test
@@ -86,9 +86,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    strategy:
-      matrix:
-        component: [web, bot]
     steps:
       - uses: actions/checkout@v7
 
@@ -106,7 +103,8 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/wccomps-portal-${{ matrix.component }}
+          # One image for web and bot (see Dockerfile)
+          images: ghcr.io/${{ github.repository_owner }}/wccomps-portal
           tags: |
             type=sha,format=short
             type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
@@ -115,9 +113,9 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: Dockerfile.${{ matrix.component }}
+          file: Dockerfile
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.component }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+          cache-from: type=gha,scope=wccomps-portal
+          cache-to: type=gha,mode=max,scope=wccomps-portal

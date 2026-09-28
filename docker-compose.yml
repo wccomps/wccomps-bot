@@ -25,9 +25,10 @@ services:
       retries: 5
 
   web:
-    build:
+    build: &app-build
       context: .
-      dockerfile: Dockerfile.web
+      dockerfile: Dockerfile
+    image: wccomps-portal:local
     env_file: .env
     environment:
       DB_HOST: postgres
@@ -67,9 +68,12 @@ services:
       start_period: 40s
 
   bot:
-    build:
-      context: .
-      dockerfile: Dockerfile.bot
+    # Same image as web; skip its entrypoint (migrations are web's job) and run the bot instead
+    build: *app-build
+    image: wccomps-portal:local
+    entrypoint: []
+    working_dir: /app
+    command: ["uv", "run", "--no-sync", "main.py"]
     env_file: .env
     environment:
       DB_HOST: postgres
@@ -82,7 +86,6 @@ services:
     volumes:
       - ./bot:/app/bot
       - ./web:/app/web
-      - ./logs:/app/logs
     restart: unless-stopped
     logging:
       driver: journald
