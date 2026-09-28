@@ -224,15 +224,11 @@ def red_team_scores(request: HttpRequest) -> HttpResponse:
     return render(request, "scoring/red_team_findings.html", context)
 
 
-@require_permission(
-    "red_team",
-    "gold_team",
-    error_message="Only Red Team or Gold Team members can approve findings",
-)
+@require_permission("gold_team", error_message="Only Gold Team members can approve findings")
 @transaction.atomic
 @require_http_methods(["POST"])
 def bulk_approve_red_scores(request: HttpRequest) -> HttpResponse:
-    """Bulk approve red team findings (Gold Team only)."""
+    """Bulk approve red team findings; red submits, gold approves."""
     from core.utils import bulk_approve
 
     user = cast(User, request.user)
