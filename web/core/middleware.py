@@ -105,6 +105,7 @@ class AuthentikRequiredMiddleware:
         # Exact paths
         self.whitelist_exact = [
             "/health/",  # Health check endpoint for monitoring
+            "/livez/",  # Liveness probe (no database)
             "/register/",  # Public registration form
             "/auth/login/",  # OAuth login initiation
             "/auth/callback/",  # OAuth callback
