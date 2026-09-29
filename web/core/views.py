@@ -1,12 +1,12 @@
 """Views for WCComps linking and OAuth."""
 
 import logging
-from typing import Protocol, cast
+from typing import cast
 
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import UploadedFile
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 
 from core.services.linking import (
@@ -28,16 +28,6 @@ from .auth_utils import (
 )
 from .forms import LinkConfirmForm, SchoolInfoEditForm
 from .utils import get_team_from_groups
-
-
-class _ManagerLike(Protocol):
-    def exists(self) -> bool: ...
-
-
-class ModelWithObjects(Protocol):
-    objects: _ManagerLike
-    __name__: str
-
 
 logger = logging.getLogger(__name__)
 
@@ -532,40 +522,23 @@ def livez(request: HttpRequest) -> HttpResponse:
 
 def health_check(request: HttpRequest) -> HttpResponse:
     """Health check endpoint for monitoring - tests database connectivity and model queries."""
-    import json
-
     from django.apps import apps
     from django.db import connection
 
     errors = []
 
-    # Check database connection
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
     except Exception as e:
         errors.append(f"Database connection: {e!s}")
 
-    # Check all models are queryable
-    core_models = apps.get_app_config("core").get_models()
-    for model_class in core_models:
+    for model_class in apps.get_app_config("core").get_models():
         try:
-            # Cast to ModelWithObjects protocol to access objects manager
-            # django-stubs doesn't expose objects on type[Model]
-            typed_model = cast("ModelWithObjects", model_class)
-            typed_model.objects.exists()
+            model_class._default_manager.exists()
         except Exception as e:
             errors.append(f"{model_class.__name__}: {str(e)[:100]}")
 
     if errors:
-        return HttpResponse(
-            json.dumps({"status": "unhealthy", "errors": errors}),
-            content_type="application/json",
-            status=503,
-        )
-
-    return HttpResponse(
-        json.dumps({"status": "healthy"}),
-        content_type="application/json",
-        status=200,
-    )
+        return JsonResponse({"status": "unhealthy", "errors": errors}, status=503)
+    return JsonResponse({"status": "healthy"})

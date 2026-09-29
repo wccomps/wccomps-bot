@@ -412,12 +412,6 @@ class RedTeamScore(models.Model):
         """Return display string for affected boxes."""
         return format_boxes_display(self.affected_boxes)
 
-    def matches_source_ip(self, ip: str) -> bool:
-        """Check if the given IP matches this finding's source (single or pool)."""
-        if self.source_ip and self.source_ip == ip:
-            return True
-        return bool(self.source_ip_pool and self.source_ip_pool.contains_ip(ip))
-
     def calculate_points(self) -> Decimal:
         """Calculate total points based on outcome checkboxes per CCDC guidelines.
 

@@ -1,13 +1,13 @@
 """Tests for management commands."""
 
-import contextlib
 from io import StringIO
 
 import pytest
 from django.contrib.auth.models import User
 from django.core.management import call_command
 
-from core.models import AuditLog, CompetitionConfig, DiscordTask
+from core.competition_utils import wipe_competition_data
+from core.models import CompetitionConfig, DiscordTask
 from team.models import DiscordLink, LinkAttempt, LinkToken, Team
 from ticketing.models import Ticket, TicketCategory, TicketHistory
 
@@ -84,8 +84,8 @@ class TestInitTeamsCommand:
         assert inactive_count == 0
 
 
-class TestWipeCompetitionCommand:
-    """Tests for wipe_competition management command."""
+class TestWipeCompetitionData:
+    """wipe_competition_data, behind the ops page's wipe action."""
 
     @pytest.fixture
     def populated_database(self):
@@ -122,27 +122,13 @@ class TestWipeCompetitionCommand:
         DiscordTask.objects.create(task_type="update_dashboard", payload={}, status="pending")
         return team
 
-    def test_requires_confirm_flag(self, populated_database):
-        """Command should not delete without --confirm flag."""
-        out = StringIO()
-        call_command("wipe_competition", stdout=out)
-
-        output = out.getvalue()
-        assert "DELETE ALL" in output
-        assert "--confirm" in output
-
-        # Verify nothing was deleted
-        assert Team.objects.count() == 1
-        assert Ticket.objects.count() == 1
-
     def test_deletes_all_data_with_confirm(self, populated_database):
-        """Command should delete competition data while preserving static config."""
+        """Competition data is deleted; static config is preserved."""
         assert Team.objects.count() == 1
         assert Ticket.objects.count() == 1
         assert DiscordLink.objects.count() == 1
 
-        out = StringIO()
-        call_command("wipe_competition", "--confirm", stdout=out)
+        wipe_competition_data()
 
         # Competition data should be deleted
         assert Ticket.objects.count() == 0
@@ -156,111 +142,4 @@ class TestWipeCompetitionCommand:
         assert DiscordTask.objects.count() == 1  # Task history
 
     def test_handles_empty_database(self):
-        """Command should handle empty database gracefully."""
-        out = StringIO()
-        call_command("wipe_competition", "--confirm", stdout=out)
-
-        output = out.getvalue()
-        assert "wiped" in output.lower()
-
-
-class TestCheckDbHealthCommand:
-    """Tests for check_db_health management command."""
-
-    def test_runs_successfully_on_healthy_db(self):
-        """Command should pass on healthy database."""
-        out = StringIO()
-        try:
-            call_command("check_db_health", stdout=out)
-        except SystemExit as e:
-            # Exit code 0 means success
-            assert e.code == 0
-
-        output = out.getvalue()
-        assert "Database connection OK" in output
-
-    def test_checks_database_connection(self):
-        """Command should check database connection."""
-        out = StringIO()
-        with contextlib.suppress(SystemExit):
-            call_command("check_db_health", stdout=out)
-
-        assert "Checking database connection" in out.getvalue()
-
-    def test_checks_migrations(self):
-        """Command should check for unapplied migrations."""
-        out = StringIO()
-        with contextlib.suppress(SystemExit):
-            call_command("check_db_health", stdout=out)
-
-        assert "Checking migrations" in out.getvalue()
-
-    def test_checks_model_integrity(self):
-        """Command should verify model integrity."""
-        out = StringIO()
-        with contextlib.suppress(SystemExit):
-            call_command("check_db_health", stdout=out)
-
-        assert "Checking model integrity" in out.getvalue()
-
-    def test_checks_critical_queries(self):
-        """Command should test critical queries."""
-        out = StringIO()
-        with contextlib.suppress(SystemExit):
-            call_command("check_db_health", stdout=out)
-
-        assert "Testing critical queries" in out.getvalue()
-
-    def test_checks_view_imports(self):
-        """Command should test view imports."""
-        out = StringIO()
-        with contextlib.suppress(SystemExit):
-            call_command("check_db_health", stdout=out)
-
-        assert "Testing view imports" in out.getvalue()
-
-    def test_checks_template_syntax(self):
-        """Command should test template syntax."""
-        out = StringIO()
-        with contextlib.suppress(SystemExit):
-            call_command("check_db_health", stdout=out)
-
-        assert "Testing template syntax" in out.getvalue()
-
-
-class TestClearTicketsCommand:
-    """Tests for clear_tickets management command (supplement to existing tests)."""
-
-    def test_preserves_team_structure(self):
-        """Clearing tickets should preserve teams but reset counters."""
-        team = Team.objects.create(team_number=1, team_name="Test Team", max_members=10, ticket_counter=5)
-        Ticket.objects.create(
-            ticket_number="T001-001",
-            team=team,
-            category=TicketCategory.objects.get(pk=6),
-            title="Test",
-            status="open",
-        )
-
-        call_command("clear_tickets", "--confirm", stdout=StringIO())
-
-        # Team should exist but counter reset
-        team.refresh_from_db()
-        assert team.team_number == 1
-        assert team.ticket_counter == 0
-
-    def test_creates_audit_log(self):
-        """Clearing tickets should create audit log entry."""
-        team = Team.objects.create(team_number=1, team_name="Test Team", max_members=10)
-        Ticket.objects.create(
-            ticket_number="T001-001",
-            team=team,
-            category=TicketCategory.objects.get(pk=6),
-            title="Test",
-            status="open",
-        )
-
-        call_command("clear_tickets", "--confirm", stdout=StringIO())
-
-        audit = AuditLog.objects.filter(action="clear_tickets").first()
-        assert audit is not None
+        assert wipe_competition_data()["Ticket"] == 0

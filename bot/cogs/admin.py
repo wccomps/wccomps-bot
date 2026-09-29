@@ -28,7 +28,7 @@ class AdminCog(commands.Cog):
     )
     @app_commands.check(check_admin)
     async def admin_sync_roles(self, interaction: discord.Interaction) -> None:
-        """Preview role sync from volunteer guild to competition guild (dry run only).
+        """Preview the Authentik-group role sync for the competition guild (dry run only).
 
         Preview only; the live add-only sync runs from the portal Sync Roles page.
         """
@@ -69,7 +69,7 @@ class AdminCog(commands.Cog):
                 for change in changes[:20]:
                     result_msg += f"{change}\n"
                 if len(changes) > 20:
-                    result_msg += f"\n... and {len(changes) - 20} more (check logs for full list)"
+                    result_msg += f"\n... and {len(changes) - 20} more"
 
             await interaction.followup.send(result_msg, ephemeral=True)
 

@@ -58,7 +58,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.sites",
     "django_cotton",
     "core",
     "team",
@@ -222,14 +221,6 @@ if not DEBUG:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Sites framework
-SITE_ID = 1
-
-# Authentication
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",
-]
-
 # OAuth configuration (custom Authentik OIDC)
 LOGIN_URL = "/auth/login/"
 LOGIN_REDIRECT_URL = "/"
@@ -277,19 +268,9 @@ GROUP_ROLE_MAPPING = {
     "WCComps_GoldTeam": GOLDTEAM_ROLE_ID,
 }
 
-# Guild configuration for role synchronization
+# Staff link their accounts from the volunteer guild (/link only); roles live in the competition guild
 VOLUNTEER_GUILD_ID = int(os.environ.get("VOLUNTEER_GUILD_ID", "0"))
-COMPETITION_GUILD_ID = int(os.environ.get("DISCORD_GUILD_ID", "0"))  # Main competition guild
-
-# Role sync mappings: Volunteer Guild Role ID -> Competition Guild Role ID
-# Sync is one-way: changes in volunteer guild propagate to competition guild
-ROLE_SYNC_MAPPING = {
-    440383982753021972: BLACKTEAM_ROLE_ID,  # Operations team (BlackTeam)
-    440384323863183360: GOLDTEAM_ROLE_ID,  # Gold team
-    440384279218749450: REDTEAM_ROLE_ID,  # Red team
-    440384105851518978: WHITETEAM_ROLE_ID,  # White team
-    440384249061965824: ORANGETEAM_ROLE_ID,  # Orange team
-}
+COMPETITION_GUILD_ID = int(os.environ.get("DISCORD_GUILD_ID", "0"))
 
 AUTHENTIK_TOKEN = os.environ.get("AUTHENTIK_TOKEN", "")
 

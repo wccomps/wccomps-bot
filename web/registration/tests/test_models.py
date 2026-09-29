@@ -108,13 +108,6 @@ class TestTeamRegistration:
         assert registration.status == "paid"
         assert registration.paid_at is not None
 
-    def test_mark_credentials_sent(self):
-        """Test marking credentials as sent."""
-        registration = TeamRegistration.objects.create(school_name="Test School", status="paid")
-        registration.mark_credentials_sent()
-        assert registration.status == "credentials_sent"
-        assert registration.credentials_sent_at is not None
-
     def test_string_representation(self):
         """Test string representation."""
         registration = TeamRegistration.objects.create(school_name="Test School")

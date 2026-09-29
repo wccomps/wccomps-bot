@@ -158,7 +158,7 @@ def ensure_seeded_ticket_categories(request):
     uses_db = request.node.get_closest_marker("django_db") or {"db", "transactional_db"} & set(request.fixturenames)
     if not uses_db:
         return
-    from ticketing.testing import ensure_seeded_categories
+    from ticketing.tests.seeded_categories import ensure_seeded_categories
 
     request.getfixturevalue("django_db_setup")
     with request.getfixturevalue("django_db_blocker").unblock():

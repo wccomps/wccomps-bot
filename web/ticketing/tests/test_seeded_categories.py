@@ -3,7 +3,7 @@
 import pytest
 
 from ticketing.models import TicketCategory
-from ticketing.testing import SEEDED_CATEGORY_IDS, ensure_seeded_categories
+from ticketing.tests.seeded_categories import SEEDED_CATEGORY_IDS, ensure_seeded_categories
 
 pytestmark = pytest.mark.django_db
 
