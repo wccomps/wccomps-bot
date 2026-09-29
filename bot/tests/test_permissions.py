@@ -7,24 +7,24 @@ import discord
 import pytest
 from django.contrib.auth.models import User
 
-from bot.permissions import has_permission, permission_check
+from bot.permissions import check_blue_team, has_permission, linked_team_member, permission_check
 from core.models import UserGroups
 from core.permission_constants import PERMISSION_MAP
-from team.models import DiscordLink
+from team.models import DiscordLink, Team
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.django_db(transaction=True)]
 
 _ids = count(3_000_000_000)
 
 
-async def _linked(groups: list[str] | None, *, active: bool = True) -> int:
+async def _linked(groups: list[str] | None, *, active: bool = True, team: Team | None = None) -> int:
     """A Discord ID linked to a new account holding `groups` (None: no UserGroups row)."""
     discord_id = next(_ids)
     user = await User.objects.acreate(username=f"perm{discord_id}")
     if groups is not None:
         await UserGroups.objects.acreate(user=user, authentik_id=f"uid{discord_id}", groups=groups)
     await DiscordLink.objects.acreate(
-        discord_id=discord_id, discord_username=user.username, user=user, is_active=active
+        discord_id=discord_id, discord_username=user.username, user=user, is_active=active, team=team
     )
     return discord_id
 
@@ -68,3 +68,25 @@ async def test_denial_names_every_group_that_grants_the_permission(permission: s
     message = interaction.response.send_message.await_args.args[0]
     assert all(f"`{group}`" in message for group in PERMISSION_MAP[permission])
     assert interaction.response.send_message.await_args.kwargs["ephemeral"] is True
+
+
+async def test_blue_team_is_the_team_the_groups_name_not_the_one_linked_at_link_time() -> None:
+    linked_to = await Team.objects.acreate(team_number=31, team_name="Team 31")
+    now_on = await Team.objects.acreate(team_number=32, team_name="Team 32")
+    discord_id = await _linked([now_on.authentik_group], team=linked_to)
+
+    member = await linked_team_member(discord_id)
+
+    assert member is not None
+    assert member.team == now_on
+    assert await check_blue_team(_interaction(discord_id))
+
+
+async def test_losing_the_team_group_ends_blue_team_access() -> None:
+    team = await Team.objects.acreate(team_number=33, team_name="Team 33")
+    discord_id = await _linked(["WCComps_GoldTeam"], team=team)
+    interaction = _interaction(discord_id)
+
+    assert await linked_team_member(discord_id) is None
+    assert not await check_blue_team(interaction)
+    assert "Blue Team membership required" in interaction.response.send_message.await_args.args[0]

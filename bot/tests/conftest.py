@@ -153,7 +153,7 @@ async def mock_team_user(db: Any) -> User:
     await UserGroups.objects.acreate(
         user=user,
         authentik_id=f"test-team-uid-{unique_id}",
-        groups=["WCComps_BlueTeam01"],
+        groups=[team.authentik_group],
     )
 
     await DiscordLink.objects.acreate(

@@ -4,14 +4,21 @@ A Discord user holds the stored Authentik groups (UserGroups) of the portal acco
 active DiscordLink points at, read and interpreted exactly as the web portal reads them.
 """
 
+from typing import NamedTuple
+
 import discord
 from asgiref.sync import sync_to_async
 from discord.app_commands.commands import Check
 from django.contrib.auth.models import User
 
-from core.auth_utils import get_authentik_groups
+from core.auth_utils import get_authentik_groups, team_for_groups
 from core.permission_constants import PERMISSION_MAP, check_groups_for_permission
-from team.models import DiscordLink
+from team.models import DiscordLink, Team
+
+
+class TeamMember(NamedTuple):
+    user: User
+    team: Team
 
 
 def _linked_user(discord_id: int) -> User | None:
@@ -27,6 +34,14 @@ def _linked_groups(discord_id: int) -> list[str]:
 
 async def has_permission(discord_id: int, permission: str) -> bool:
     return check_groups_for_permission(await _linked_groups(discord_id), permission)
+
+
+@sync_to_async
+def linked_team_member(discord_id: int) -> TeamMember | None:
+    """The linked account and the team its Authentik groups put it on; None if unlinked or on no team."""
+    user = _linked_user(discord_id)
+    team = team_for_groups(get_authentik_groups(user)) if user else None
+    return TeamMember(user, team) if user and team else None
 
 
 def permission_check(permission: str) -> Check:
@@ -49,10 +64,7 @@ def permission_check(permission: str) -> Check:
 
 
 async def check_blue_team(interaction: discord.Interaction) -> bool:
-    has_team = await DiscordLink.objects.filter(
-        discord_id=interaction.user.id, is_active=True, team__isnull=False
-    ).aexists()
-    if has_team:
+    if await linked_team_member(interaction.user.id):
         return True
     await interaction.response.send_message(
         "❌ Blue Team membership required.\n\n"
