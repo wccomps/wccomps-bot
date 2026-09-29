@@ -11,7 +11,7 @@ from discord.ext import commands
 from django.conf import settings
 
 from bot.competition_actions import run_competition_cleanup
-from bot.permissions import check_admin, check_gold_team
+from bot.permissions import permission_check
 from bot.utils import TEAM_CHAT_CHANNEL_KEYWORD, ConfirmView, log_to_ops_channel
 from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
@@ -36,7 +36,7 @@ class AdminCompetitionCog(commands.Cog):
         name="reset-blueteam-passwords",
         description="Reset passwords for blueteam accounts (optionally specify teams)",
     )
-    @app_commands.check(check_gold_team)
+    @app_commands.check(permission_check("gold_team"))
     async def admin_reset_blueteam_passwords(
         self, interaction: discord.Interaction, team_numbers: str | None = None
     ) -> None:
@@ -135,7 +135,7 @@ class AdminCompetitionCog(commands.Cog):
 
     @competition_group.command(name="set-max-members", description="[ADMIN] Set maximum team members globally")
     @app_commands.describe(max_members="Maximum members per team (1-20)")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_set_max_members(self, interaction: discord.Interaction, max_members: int) -> None:
         """Set global maximum team members."""
         if max_members < 1 or max_members > 20:
@@ -187,7 +187,7 @@ class AdminCompetitionCog(commands.Cog):
             app_commands.Choice(name="UTC", value="UTC"),
         ]
     )
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_set_start_time(
         self,
         interaction: discord.Interaction,
@@ -262,7 +262,7 @@ class AdminCompetitionCog(commands.Cog):
             app_commands.Choice(name="UTC", value="UTC"),
         ]
     )
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_set_end_time(
         self,
         interaction: discord.Interaction,
@@ -324,7 +324,7 @@ class AdminCompetitionCog(commands.Cog):
         name="start-competition",
         description="[ADMIN] Start the competition (enable applications and accounts)",
     )
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_start_competition(self, interaction: discord.Interaction) -> None:
         """Start the competition by enabling applications and Authentik accounts."""
         await self._run_competition(interaction, enable=True)
@@ -333,7 +333,7 @@ class AdminCompetitionCog(commands.Cog):
         name="stop-competition",
         description="[ADMIN] Stop the competition (disable applications and accounts)",
     )
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_stop_competition(self, interaction: discord.Interaction) -> None:
         """Stop the competition by disabling applications and Authentik accounts."""
         await self._run_competition(interaction, enable=False)
@@ -356,7 +356,7 @@ class AdminCompetitionCog(commands.Cog):
         name="cleanup-competition",
         description="[ADMIN] Clean up Discord infrastructure (requires competition stopped)",
     )
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_cleanup_competition(self, interaction: discord.Interaction) -> None:
         """Clean up Discord channels, roles, and links after competition."""
 
@@ -401,7 +401,7 @@ class AdminCompetitionCog(commands.Cog):
         description="[ADMIN] Set which Authentik applications to control",
     )
     @app_commands.describe(app_slugs="Comma-separated list of application slugs (e.g., netbird,scoring)")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_competition_set_apps(self, interaction: discord.Interaction, app_slugs: str) -> None:
         """Set which applications to control."""
 
@@ -440,7 +440,7 @@ class AdminCompetitionCog(commands.Cog):
         target="Where to broadcast: 'announcements', 'all-teams', or specific teams (e.g., '1,3,5-10')",
         message="Message to broadcast",
     )
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_broadcast(self, interaction: discord.Interaction, target: str, message: str) -> None:
         """Broadcast a message to announcement channel or team channels."""
 

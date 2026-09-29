@@ -141,7 +141,7 @@ class TicketActionView(discord.ui.View):
         row=1,
     )
     async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button[TicketActionView]) -> None:
-        from bot.permissions import can_support_tickets_async
+        from bot.permissions import has_permission
 
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
         if not ticket_id:
@@ -151,7 +151,7 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        if not await can_support_tickets_async(interaction):
+        if not await has_permission(interaction.user.id, "ticketing_support"):
             await interaction.response.send_message(
                 "You don't have permission to claim tickets. "
                 "Contact an administrator if you need ticketing support access.",
@@ -199,7 +199,7 @@ class TicketActionView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button[TicketActionView]
     ) -> None:
         """Show resolve modal with category dropdown and notes."""
-        from bot.permissions import can_support_tickets_async
+        from bot.permissions import has_permission
 
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
         if not ticket_id:
@@ -209,7 +209,7 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        if not await can_support_tickets_async(interaction):
+        if not await has_permission(interaction.user.id, "ticketing_support"):
             await interaction.response.send_message(
                 "You don't have permission to resolve tickets. "
                 "Contact an administrator if you need ticketing support access.",
@@ -241,7 +241,7 @@ class TicketActionView(discord.ui.View):
     ) -> None:
         """Cancel an unclaimed ticket."""
 
-        from bot.permissions import can_support_tickets_async
+        from bot.permissions import has_permission
         from team.models import DiscordLink
 
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
@@ -252,7 +252,7 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        is_ops = await can_support_tickets_async(interaction)
+        is_ops = await has_permission(interaction.user.id, "ticketing_support")
 
         @sync_to_async
         def get_team_link() -> DiscordLink | None:
