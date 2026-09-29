@@ -7,7 +7,7 @@ from asgiref.sync import sync_to_async
 from django.utils import timezone
 
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT
-from core.tickets_config import get_category_config
+from core.tickets_config import TicketCategoryConfig, get_category_config
 from ticketing.models import Ticket
 
 logger = logging.getLogger(__name__)
@@ -247,8 +247,8 @@ class TicketActionView(discord.ui.View):
             await interaction.response.send_message("This ticket is already resolved.", ephemeral=True)
             return
 
-        # Show resolve modal
-        modal = ResolveTicketModal(ticket)
+        cat_info = await sync_to_async(get_category_config)(ticket.category_id) or {}
+        modal = ResolveTicketModal(ticket, cat_info)
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(
@@ -350,7 +350,7 @@ class TicketActionView(discord.ui.View):
 class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
     """Modal for resolving a ticket."""
 
-    def __init__(self, ticket: Ticket) -> None:
+    def __init__(self, ticket: Ticket, cat_info: TicketCategoryConfig) -> None:
         super().__init__()
         self.ticket = ticket
 
@@ -363,8 +363,6 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
             max_length=1000,
         )
 
-        # Check if variable points category
-        cat_info = get_category_config(ticket.category_id) or {}
         self.points: discord.ui.TextInput[ResolveTicketModal]
         if cat_info.get("variable_points", False):
             min_pts = cat_info.get("min_points", 0)
@@ -392,9 +390,6 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         """Handle modal submission."""
-        cat_info = get_category_config(self.ticket.category_id) or {}
-
-        # Parse points override for both variable and fixed categories
         points_override = None
         if self.points.value.strip():
             try:
@@ -402,23 +397,6 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
             except ValueError:
                 await interaction.response.send_message("Invalid point value. Must be a number.", ephemeral=True)
                 return
-
-            # Validate range for variable categories
-            if cat_info.get("variable_points", False):
-                min_pts = int(cat_info.get("min_points", 0))
-                max_pts = int(cat_info.get("max_points", 0))
-                if points_override < min_pts:
-                    await interaction.response.send_message(
-                        f"Point value must be at least {min_pts}.",
-                        ephemeral=True,
-                    )
-                    return
-                if max_pts and points_override > max_pts:
-                    await interaction.response.send_message(
-                        f"Point value must be at most {max_pts}.",
-                        ephemeral=True,
-                    )
-                    return
 
         # Use shared atomic resolve function
         from ticketing.utils import aresolve_ticket_atomic

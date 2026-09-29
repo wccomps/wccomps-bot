@@ -1,0 +1,128 @@
+"""Help panel ticket flow, run on the event loop with Django's async-safety check on."""
+
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import discord
+import pytest
+from asgiref.sync import sync_to_async
+from django.contrib.auth.models import User
+
+from bot.cogs.help_panels import (
+    CategorySelect,
+    ConsultationModal,
+    HelpPanelsCog,
+    TeamHelpView,
+    create_ticket,
+)
+from core.models import DiscordTask
+from core.tickets_config import get_all_categories
+from team.models import DiscordLink, Team
+from ticketing.models import Ticket, TicketCategory
+
+pytestmark = [pytest.mark.asyncio, pytest.mark.django_db(transaction=True)]
+
+
+@pytest.fixture
+async def categories(db: Any) -> tuple[TicketCategory, TicketCategory]:
+    await TicketCategory.objects.all().adelete()
+    consult = await TicketCategory.objects.acreate(
+        pk=91,
+        display_name="Consultation",
+        points=5,
+        required_fields=["description"],
+        optional_fields=["hostname"],
+        user_creatable=True,
+        sort_order=1,
+    )
+    hidden = await TicketCategory.objects.acreate(
+        pk=92,
+        display_name="Staff Only",
+        points=0,
+        required_fields=["description"],
+        user_creatable=False,
+        sort_order=2,
+    )
+    return consult, hidden
+
+
+async def test_create_ticket_button_lists_user_creatable_categories(
+    categories: tuple[TicketCategory, TicketCategory], mock_interaction: Any, mock_bot: Any
+) -> None:
+    consult, _ = categories
+    await TeamHelpView(mock_bot).create_ticket(mock_interaction)
+
+    view = mock_interaction.response.send_message.await_args.kwargs["view"]
+    select = view.children[0]
+    assert [o.value for o in select.options] == [str(consult.pk)]
+
+
+async def test_category_select_opens_modal_without_db(categories: tuple[TicketCategory, TicketCategory]) -> None:
+    consult, _ = categories
+    configs = await sync_to_async(get_all_categories)(user_creatable_only=True)
+    select = CategorySelect(configs)
+    interaction = AsyncMock(spec=discord.Interaction)
+    interaction.response = AsyncMock()
+
+    with patch.object(CategorySelect, "values", new=[str(consult.pk)]):
+        await select.callback(interaction)
+
+    modal = interaction.response.send_modal.await_args.args[0]
+    assert isinstance(modal, ConsultationModal)
+    assert modal.title == "Consultation"
+
+
+async def test_help_panel_ticket_gets_thread_and_no_malformed_task(
+    categories: tuple[TicketCategory, TicketCategory], mock_interaction: Any, mock_bot: Any
+) -> None:
+    consult, _ = categories
+    team = await Team.objects.acreate(team_number=12, team_name="Team 12", discord_category_id=4242, max_members=5)
+    member = await User.objects.acreate(username="team12member")
+    await DiscordLink.objects.acreate(
+        user=member, discord_id=mock_interaction.user.id, discord_username="u", team=team, is_active=True
+    )
+
+    thread = MagicMock(spec=discord.Thread)
+    thread.id = 777
+    thread.send = AsyncMock()
+    thread.add_user = AsyncMock()
+    chat = Mock(spec=discord.TextChannel)
+    chat.name = "team-chat"
+    chat.create_thread = AsyncMock(return_value=thread)
+    category = Mock(spec=discord.CategoryChannel)
+    category.id = 4242
+    category.name = "Team 12"
+    category.channels = [chat]
+    mock_interaction.guild.get_channel = Mock(return_value=category)
+    mock_interaction.guild.get_member = Mock(return_value=None)
+    mock_interaction.client = mock_bot
+
+    with patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock) as dashboard:
+        await create_ticket(mock_interaction, category_id=str(consult.pk), description="help with dns")
+
+    ticket = await Ticket.objects.aget(team=team)
+    assert ticket.discord_thread_id == 777
+    assert ticket.ticket_number in thread.send.await_args.kwargs["embed"].title
+    dashboard.assert_awaited_once()
+    assert not await DiscordTask.objects.filter(task_type="ticket_created_web").aexists()
+    assert "created" in mock_interaction.followup.send.await_args.args[0]
+
+
+async def test_post_ticket_panel_lists_categories(
+    categories: tuple[TicketCategory, TicketCategory], mock_bot: Any
+) -> None:
+    channel = MagicMock(spec=discord.TextChannel)
+    channel.history = MagicMock(return_value=_empty_history())
+    channel.send = AsyncMock()
+    mock_bot.get_channel = Mock(return_value=channel)
+
+    await HelpPanelsCog(mock_bot)._post_ticket_panel(1)
+
+    embed = channel.send.await_args.kwargs["embed"]
+    assert "Consultation" in embed.description
+    assert "Staff Only" not in embed.description
+
+
+async def _empty_history() -> Any:
+    for _ in ():
+        yield

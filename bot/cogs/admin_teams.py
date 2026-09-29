@@ -245,9 +245,13 @@ class AdminTeamsCog(commands.Cog):
     @app_commands.check(check_admin)
     async def admin_remove_team(self, interaction: discord.Interaction, team_number: int) -> None:
         """Remove a team's Discord infrastructure and unlink all members."""
-        # Note: can't use get_team_or_respond here because we defer() before validation
         if team_number < 1 or team_number > MAX_TEAMS:
             await interaction.response.send_message(f"Team number must be between 1 and {MAX_TEAMS}", ephemeral=True)
+            return
+
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("This command must be used in a guild", ephemeral=True)
             return
 
         await interaction.response.defer(ephemeral=True)
@@ -255,11 +259,6 @@ class AdminTeamsCog(commands.Cog):
         team = await Team.objects.filter(team_number=team_number).afirst()
         if not team:
             await interaction.followup.send(f"Team {team_number} not found", ephemeral=True)
-            return
-
-        guild = interaction.guild
-        if not guild:
-            await interaction.response.send_message("This command must be used in a guild", ephemeral=True)
             return
 
         unlinked_count = await unlink_team_members(

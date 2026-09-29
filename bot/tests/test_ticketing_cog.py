@@ -587,7 +587,7 @@ class TestTicketCommand:
 
         interaction.guild.get_channel = Mock(return_value=mock_category)
 
-        with patch("bot.cogs.ticketing.post_ticket_to_dashboard", new_callable=AsyncMock):
+        with patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock):
             await cog.create_ticket.callback(
                 cog,
                 interaction,
@@ -609,6 +609,12 @@ class TestTicketCommand:
         assert ticket is not None
         assert ticket.hostname == "webserver01"
         assert ticket.ip_address == "10.0.0.5"
+
+        # The thread gets the ticket embed with its action buttons.
+        assert ticket.discord_thread_id == mock_thread.id
+        sent = mock_thread.send.await_args
+        assert ticket.ticket_number in sent.kwargs["embed"].title
+        assert sent.kwargs["view"] is not None
 
     async def test_create_ticket_auto_populates_ip_from_hostname(
         self,
@@ -650,7 +656,7 @@ class TestTicketCommand:
         interaction.guild.get_channel = Mock(return_value=mock_category)
 
         with (
-            patch("bot.cogs.ticketing.post_ticket_to_dashboard", new_callable=AsyncMock),
+            patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock),
             patch("bot.cogs.ticketing.get_quotient_client", return_value=mock_client),
         ):
             await cog.create_ticket.callback(

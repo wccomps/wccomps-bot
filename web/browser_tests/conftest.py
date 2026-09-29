@@ -1,11 +1,8 @@
 """Browser test fixtures: Playwright + session injection, no OAuth required."""
 
 import logging
-import os
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
-
-# Allow sync DB operations in async context (required for pytest-asyncio + live_server)
-os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
 import pytest
 from django.test import Client
@@ -33,6 +30,18 @@ ROLE_GROUPS: dict[str, list[str]] = {
 }
 
 ALL_ROLES = [*ROLE_GROUPS.keys(), "unauthenticated"]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _allow_sync_orm_under_playwright() -> Iterator[None]:
+    """Playwright's sync API runs an event loop on the main thread, which trips Django's async-safety check.
+
+    Scoped to this directory: set at import time it would switch the check off for every
+    test in the session, hiding sync ORM calls on the bot's event loop.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("DJANGO_ALLOW_ASYNC_UNSAFE", "true")
+        yield
 
 
 @pytest.fixture(scope="session")

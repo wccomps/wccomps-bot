@@ -13,6 +13,8 @@ from django.utils import timezone
 
 from bot.discord_manager import DiscordManager
 from bot.heartbeat import record as record_heartbeat
+from bot.thread_creator import publish_new_ticket
+from bot.ticket_dashboard import post_ticket_to_dashboard, update_ticket_dashboard
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, TEAM_CHAT_CHANNEL_KEYWORD, recycle_db_connection
 from core.models import DiscordTask
 from core.utils import role_sync_summary
@@ -325,58 +327,19 @@ class DiscordQueueProcessor:
 
     async def _handle_ticket_created_web(self, task: DiscordTask) -> None:
         """Handle ticket creation from web UI - create thread and post to dashboard."""
-        import time
-
-        from bot.ticket_dashboard import post_ticket_to_dashboard
-
-        start_time = time.time()
         ticket_id = task.payload.get("ticket_id")
         if not ticket_id:
             raise ValueError("Missing ticket_id in payload")
 
-        @sync_to_async
-        def get_ticket() -> Ticket:
-            return Ticket.objects.select_related("team").get(id=ticket_id)
+        ticket = await Ticket.objects.select_related("team").aget(id=ticket_id)
 
-        ticket = await get_ticket()
-        logger.info(f"Ticket {ticket.ticket_number}: DB fetch took {time.time() - start_time:.3f}s")
-
-        # Check if thread already exists (from previous retry)
+        # A retry after a partial failure must not create a second thread.
         if ticket.discord_thread_id:
-            logger.info(f"Thread already exists for ticket {ticket.ticket_number}, updating dashboard")
-            # Still trigger dashboard update
             await post_ticket_to_dashboard(self.bot, ticket)
             return
 
-        # Try to create thread in team's category
-        if ticket.team.discord_category_id:
-            if not self.discord_manager:
-                logger.warning("Discord manager not initialized; cannot create ticket thread")
-            else:
-                from bot.thread_creator import create_ticket_thread
-
-                thread_start = time.time()
-                thread = await create_ticket_thread(
-                    bot=self.bot,
-                    guild=self.discord_manager.guild,
-                    ticket=ticket,
-                    team=ticket.team,
-                    pin_message=True,
-                )
-                if thread:
-                    logger.info(
-                        f"Ticket {ticket.ticket_number}: Thread creation took {time.time() - thread_start:.3f}s "
-                        f"(total: {time.time() - start_time:.3f}s)"
-                    )
-        else:
-            logger.warning(
-                f"Team {ticket.team.team_name} has no category, ticket will appear in dashboard without thread"
-            )
-
-        # Always update dashboard, even if thread creation failed
-        dashboard_start = time.time()
-        await post_ticket_to_dashboard(self.bot, ticket)
-        logger.info(f"Ticket {ticket.ticket_number}: Dashboard update took {time.time() - dashboard_start:.3f}s")
+        guild = self.discord_manager.guild if self.discord_manager else None
+        await publish_new_ticket(self.bot, guild, ticket)
 
     async def _handle_post_comment(self, task: DiscordTask) -> None:
         """Handle posting a comment from web to Discord thread."""
@@ -395,7 +358,8 @@ class DiscordQueueProcessor:
         ticket, comment = await get_data()
 
         if not ticket.discord_thread_id:
-            raise ValueError(f"Ticket #{ticket.id} has no Discord thread")
+            logger.info(f"Ticket {ticket.ticket_number} has no Discord thread; comment {comment_id} not mirrored")
+            return
 
         # Get thread
         thread = self.bot.get_channel(ticket.discord_thread_id)
@@ -440,9 +404,11 @@ class DiscordQueueProcessor:
             raise ValueError("No ticket linked to task")
 
         ticket = await get_ticket()
+        await update_ticket_dashboard(self.bot, ticket)
 
         if not ticket.discord_thread_id:
-            raise ValueError(f"Ticket {ticket.ticket_number} has no Discord thread")
+            logger.info(f"Ticket {ticket.ticket_number} has no Discord thread; update '{action}' not mirrored")
+            return
 
         thread = self.bot.get_channel(ticket.discord_thread_id)
         if not thread:

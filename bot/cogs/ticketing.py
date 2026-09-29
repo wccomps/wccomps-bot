@@ -10,7 +10,7 @@ from django.utils import timezone
 from quotient.client import get_quotient_client
 
 from bot.permissions import check_blue_team
-from bot.ticket_dashboard import post_ticket_to_dashboard
+from bot.thread_creator import publish_new_ticket
 from team.models import DiscordLink
 from ticketing.models import CommentRateLimit, Ticket, TicketAttachment, TicketCategory, TicketComment, TicketHistory
 from ticketing.utils import TicketRateLimitError, acreate_ticket_atomic, get_user_for_ticket
@@ -230,25 +230,6 @@ class TicketingCog(commands.Cog):
             await interaction.response.send_message(str(e), ephemeral=True)
             return
 
-        # Create thread in team's category
-        try:
-            from bot.thread_creator import create_ticket_thread
-
-            await create_ticket_thread(
-                bot=self.bot,
-                guild=interaction.guild,
-                ticket=ticket,
-                team=link.team,
-            )
-        except Exception as e:
-            logger.exception(f"Failed to create thread for ticket {ticket.ticket_number}: {e}")
-
-        # Post to dashboard
-        try:
-            await post_ticket_to_dashboard(self.bot, ticket)
-        except Exception as e:
-            logger.exception(f"Failed to post ticket to dashboard: {e}")
-
         # Send confirmation
         embed = discord.Embed(
             title="✅ Ticket Created",
@@ -273,6 +254,8 @@ class TicketingCog(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
         logger.info(f"Ticket {ticket.ticket_number} created by {interaction.user} for {link.team.team_name}")
+
+        await publish_new_ticket(self.bot, interaction.guild, ticket)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:

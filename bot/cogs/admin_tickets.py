@@ -10,10 +10,8 @@ from discord.ext import commands
 from django.utils import timezone
 
 from bot.permissions import check_ticketing_admin, check_ticketing_support
-from bot.ticket_dashboard import (
-    post_ticket_to_dashboard,
-    update_ticket_dashboard,
-)
+from bot.thread_creator import publish_new_ticket
+from bot.ticket_dashboard import update_ticket_dashboard
 from bot.utils import (
     ConfirmView,
     get_team_or_respond,
@@ -119,37 +117,18 @@ class AdminTicketsCog(commands.Cog):
             enforce_team_limit=False,
         )
 
-        # Create thread in team's category
-        try:
-            from bot.thread_creator import create_ticket_thread
-
-            await create_ticket_thread(
-                bot=self.bot,
-                guild=interaction.guild,
-                ticket=ticket,
-                team=team,
-            )
-        except Exception as e:
-            logger.exception(f"Failed to create thread for ticket {ticket.ticket_number}: {e}")
-
-        # Post to dashboard
-        try:
-            await post_ticket_to_dashboard(self.bot, ticket)
-        except Exception as e:
-            logger.exception(f"Failed to post ticket to dashboard: {e}")
-
-        # Log to ops
-        await log_to_ops_channel(
-            self.bot,
-            f"Admin Ticket Created: {ticket.ticket_number} - {cat_info['display_name']} "
-            f"for **{team.team_name}** by {interaction.user.mention}",
-        )
-
         await interaction.response.send_message(
             f"Created ticket **{ticket.ticket_number}** for **{team.team_name}**\n"
             f"Category: {cat_info['display_name']}\n"
             f"Point cost: {cat_info.get('points', 0)} points",
             ephemeral=True,
+        )
+
+        await publish_new_ticket(self.bot, interaction.guild, ticket)
+        await log_to_ops_channel(
+            self.bot,
+            f"Admin Ticket Created: {ticket.ticket_number} - {cat_info['display_name']} "
+            f"for **{team.team_name}** by {interaction.user.mention}",
         )
 
     @tickets_group.command(name="list", description="[ADMIN] List open tickets")
@@ -172,7 +151,7 @@ class AdminTicketsCog(commands.Cog):
         """List tickets with optional filters."""
 
         # Build query
-        query = Ticket.objects.select_related("team")
+        query = Ticket.objects.select_related("team", "assigned_to")
         if status != "all":
             query = query.filter(status=status)
         if team_number:
@@ -485,7 +464,7 @@ class AdminTicketsCog(commands.Cog):
         """Reassign a ticket to a different volunteer."""
         await interaction.response.defer(ephemeral=True)
 
-        ticket = await Ticket.objects.select_related("team").filter(ticket_number=ticket_number).afirst()
+        ticket = await Ticket.objects.select_related("team", "assigned_to").filter(ticket_number=ticket_number).afirst()
         if not ticket:
             await interaction.followup.send(f"Ticket {ticket_number} not found", ephemeral=True)
             return

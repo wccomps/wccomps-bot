@@ -82,11 +82,7 @@ class TestTicketCreationWorkflow:
         discord_manager.guild = guild
 
         # Process task (simulating queue processor)
-        with (
-            patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock),
-            patch("bot.ticket_dashboard.format_ticket_embed", return_value=MagicMock()),
-            patch("bot.ticket_dashboard.TicketActionView"),
-        ):
+        with patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock):
             processor = DiscordQueueProcessor(bot)
             processor.discord_manager = discord_manager
             await processor._handle_ticket_created_web(task)
@@ -101,6 +97,10 @@ class TestTicketCreationWorkflow:
         await ticket.arefresh_from_db()
         assert ticket.discord_thread_id == 9001
         assert ticket.discord_channel_id == 3001
+
+        # The real embed renders on the event loop (no sync ORM call escapes sync_to_async).
+        sent = thread.send.await_args
+        assert "T035-001" in sent.kwargs["embed"].title
 
     async def test_queue_processor_idempotent_thread_creation(self, db: Any, box_reset_category: Any) -> None:
         """Test that queue processor doesn't recreate thread if already exists."""
@@ -136,7 +136,7 @@ class TestTicketCreationWorkflow:
 
         bot = AsyncMock(spec=discord.Client)
 
-        with patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock) as mock_dashboard:
+        with patch("bot.discord_queue.post_ticket_to_dashboard", new_callable=AsyncMock) as mock_dashboard:
             processor = DiscordQueueProcessor(bot)
             await processor._handle_ticket_created_web(task)
 
