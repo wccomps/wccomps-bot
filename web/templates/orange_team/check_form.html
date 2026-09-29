@@ -16,9 +16,6 @@
     {% endif %}
     "
                    subtitle="Define a check with rubric criteria" />
-    {% if messages %}
-        {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-    {% endif %}
     <c-module>
         <form method="post"
               {% if mode == "edit" %}action="{% url 'orange_team:check_edit' orange_check.pk %}"{% endif %}

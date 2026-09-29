@@ -6,21 +6,6 @@
 {% block registration_content %}
     <div id="content-main">
         <c-page_header title="Reject Registration" />
-        {% if messages %}
-            {% for message in messages %}
-                <c-alert variant="
-                {% if message.tags == 'error' %}
-                    error
-                {% elif message.tags == 'success' %}
-                    success
-                {% else %}
-                    info
-                {% endif %}
-                ">
-                    {{ message }}
-                </c-alert>
-            {% endfor %}
-        {% endif %}
         <c-module>
             <p>You are about to reject the registration for:</p>
             <c-detail_grid>

@@ -25,9 +25,6 @@
             {% endif %}
         </c-slot>
     </c-page_header>
-    {% if messages %}
-        {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-    {% endif %}
     <c-module>
         <c-slot name="toolbar">
             <c-link href="{% url 'orange_team:check_edit' orange_check.pk %}"

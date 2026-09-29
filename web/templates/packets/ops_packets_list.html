@@ -10,9 +10,6 @@
             <c-slot name="toolbar">
                 <c-link href="{% url 'upload_packet' %}" variant="add">Upload New Packet</c-link>
             </c-slot>
-            {% if messages %}
-                {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-            {% endif %}
         </c-module>
         {% if active_packet %}
             <c-fieldset heading="Active Packet">

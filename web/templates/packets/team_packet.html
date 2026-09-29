@@ -6,9 +6,6 @@
 {% block content %}
     <div id="content-main">
         <c-page_header title="Your Packets" />
-        {% if messages %}
-            {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-        {% endif %}
         <c-module>
             {% if is_gold_view %}
                 {% if packets %}

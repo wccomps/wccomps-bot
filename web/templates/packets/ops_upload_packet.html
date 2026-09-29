@@ -7,9 +7,6 @@
     <c-page_header title="Upload Packet"
                    parent_url="{% url 'packets_list' %}"
                    parent_label="Packets" />
-    {% if messages %}
-        {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-    {% endif %}
     <c-form enctype="multipart/form-data">
         {% csrf_token %}
         <c-fieldset heading="Packet Information">

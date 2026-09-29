@@ -6,9 +6,6 @@
 {% block orange_content %}
     <c-page_header title="Team Check-ins"
                    subtitle="Currently checked-in orange team members" />
-    {% if messages %}
-        {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-    {% endif %}
     <c-module>
         {% if checked_in_members %}
             <c-table id="checked_in" aria_label="Checked-in members">

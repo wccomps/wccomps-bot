@@ -9,21 +9,6 @@
             <a href="{% url 'registration_event_edit' event_id=event.id %}"
                class="btn btn-secondary">Edit Event</a>
         </c-page_header>
-        {% if messages %}
-            {% for message in messages %}
-                <c-alert variant="
-                {% if message.tags == 'error' %}
-                    error
-                {% elif message.tags == 'success' %}
-                    success
-                {% else %}
-                    info
-                {% endif %}
-                ">
-                    {{ message }}
-                </c-alert>
-            {% endfor %}
-        {% endif %}
         <c-module>
             <p>
                 <a href="{% url 'registration_event_list' season_id=event.season_id %}">← Back to Events</a>

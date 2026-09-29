@@ -38,9 +38,6 @@
     </script>
     <c-page_header title="Review Inject Feedback"
                    subtitle="Review and approve AI-synthesized feedback before showing to teams" />
-    {% if messages %}
-        {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-    {% endif %}
     <c-module filtered="true">
         <c-filter_toolbar form_id="feedback-filter"
                           hx_get="{% url 'scoring:review_inject_feedback' %}"

@@ -5,9 +5,6 @@
 {% endblock orange_title %}
 {% block orange_content %}
     <c-page_header title="Review Queue" subtitle="Submitted assignments awaiting review" />
-    {% if messages %}
-        {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-    {% endif %}
     <c-module>
         <c-slot name="toolbar">
             <c-link href="{% url 'orange_team:export_scores' %}" variant="default">Export CSV</c-link>
