@@ -5,7 +5,7 @@ from collections.abc import Generator
 from dataclasses import dataclass, field
 
 from core.models import AuditLog, CompetitionConfig
-from team.models import MAX_TEAMS
+from team.models import MAX_TEAMS, team_username
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ def run_competition(enable: bool, actor: str) -> Generator[CompetitionStep, None
             yield CompetitionStep(f"Failed {slug}: {error}", step, total, ok=False)
 
     for number in range(1, MAX_TEAMS + 1):
-        username = f"team{number:02d}"
+        username = team_username(number)
         ok, _ = manager.toggle_user(username, is_active=enable)
         step += 1
         if ok:

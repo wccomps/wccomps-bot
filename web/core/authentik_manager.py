@@ -455,12 +455,12 @@ class AuthentikManager:
         Leaves is_active alone: team accounts are enabled only while the competition runs.
         """
         from core.authentik_utils import validate_team_account
-        from team.models import MAX_TEAMS
+        from team.models import MAX_TEAMS, team_username
 
         if team_number < 1 or team_number > MAX_TEAMS:
             return (False, f"Team number must be between 1 and {MAX_TEAMS}")
 
-        username = f"team{team_number:02d}"
+        username = team_username(team_number)
 
         try:
             response = self.client.get(

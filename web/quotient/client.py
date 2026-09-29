@@ -34,6 +34,11 @@ def _log_failure(message: str, exc: Exception) -> None:
         logger.warning(f"{message}: Quotient unavailable ({str(exc).splitlines()[0]})")
 
 
+def _team_number(team_name: str) -> int:
+    """Portal team number from a Quotient team name ("team09" -> 9); 0 if the name has no digits."""
+    return int("".join(c for c in team_name if c.isdigit()) or "0")
+
+
 @dataclass
 class QuotientService:
     """Represents a service on a box."""
@@ -78,8 +83,8 @@ class ServiceExportEntry:
 
 @dataclass
 class TeamServiceExport:
-    team_id: int
     team_name: str
+    team_number: int
     services: list[ServiceExportEntry]
     gross_points: int
     total_sla_penalty: int
@@ -89,7 +94,7 @@ class TeamServiceExport:
 @dataclass
 class TeamUptime:
     team_name: str
-    team_id: int
+    team_number: int
     uptimes: dict[str, float]  # service_name -> uptime (0.0-1.0)
 
 
@@ -243,15 +248,13 @@ class QuotientClient:
             scores = []
             for team_data in data.get("series", []):
                 team_name = team_data["Name"]
-                # Extract team number from name (e.g., "team09" -> 9)
-                team_num = int("".join(c for c in team_name if c.isdigit()) or "0")
                 history = team_data.get("Data", [])
                 total = history[-1]["Total"] if history else 0
 
                 scores.append(
                     TeamScore(
                         team_name=team_name,
-                        team_number=team_num,
+                        team_number=_team_number(team_name),
                         total_score=float(total),
                         score_history=history,
                     )
@@ -337,8 +340,8 @@ class QuotientClient:
                 ]
                 exports.append(
                     TeamServiceExport(
-                        team_id=team_data["team_id"],
                         team_name=team_data["team_name"],
+                        team_number=_team_number(team_data["team_name"]),
                         services=services,
                         gross_points=team_data.get("gross_points", 0),
                         total_sla_penalty=team_data.get("total_sla_penalty", 0),
@@ -374,12 +377,11 @@ class QuotientClient:
             result = []
             for team_data in data.get("series", []):
                 team_name = team_data["Name"]
-                team_num = int("".join(c for c in team_name if c.isdigit()) or "0")
                 uptimes = {entry["Service"]: entry["Uptime"] for entry in team_data.get("Data", [])}
                 result.append(
                     TeamUptime(
                         team_name=team_name,
-                        team_id=team_num,
+                        team_number=_team_number(team_name),
                         uptimes=uptimes,
                     )
                 )

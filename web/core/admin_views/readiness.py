@@ -13,7 +13,7 @@ from django.utils import timezone
 from core.authentik_manager import AuthentikManager
 from core.forms import ReadinessFixForm
 from core.models import CompetitionConfig
-from team.models import Team
+from team.models import Team, team_username
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def _check_team_accounts_exist() -> CheckResult:
     mgr = AuthentikManager()
     missing: list[str] = []
     for team in active_teams:
-        username = f"team{team.team_number:02d}"
+        username = team_username(team.team_number)
         user = mgr.get_user_with_groups(username)
         if not user:
             missing.append(username)
@@ -91,7 +91,7 @@ def _check_team_group_membership() -> CheckResult:
     mgr = AuthentikManager()
     misconfigured: list[str] = []
     for team in active_teams:
-        username = f"team{team.team_number:02d}"
+        username = team_username(team.team_number)
         expected_group = team.authentik_group  # e.g. WCComps_BlueTeam01
         user = mgr.get_user_with_groups(username)
         if not user:
@@ -388,7 +388,7 @@ def _fix_group_membership(request: HttpRequest) -> JsonResponse:
     fixed = 0
     failed: list[str] = []
     for team in active_teams:
-        username = f"team{team.team_number:02d}"
+        username = team_username(team.team_number)
         expected_group = team.authentik_group
         user = mgr.get_user_with_groups(username)
         if not user:

@@ -19,7 +19,7 @@ from core.forms import ActionForm, AppSlugForm, ResetPasswordsForm, SetMaxMember
 from core.models import AuditLog, CompetitionConfig, DiscordTask
 from core.services.competition import CompetitionRunResult, run_competition
 from core.utils import ndjson_progress as _progress
-from team.models import MAX_TEAMS
+from team.models import MAX_TEAMS, team_username
 
 from ..auth_utils import has_permission, require_permission
 from ..utils import parse_datetime_to_utc
@@ -302,7 +302,7 @@ def _action_reset_passwords(request: HttpRequest, config: CompetitionConfig, aut
     failed_resets = []
 
     for team_num in team_numbers:
-        username = f"team{team_num:02d}"
+        username = team_username(team_num)
         password, error = reset_team_password(team_num)
         if password:
             password_list.append((team_num, username, password))

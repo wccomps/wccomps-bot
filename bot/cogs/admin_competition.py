@@ -16,7 +16,7 @@ from bot.utils import TEAM_CHAT_CHANNEL_KEYWORD, ConfirmView, log_to_ops_channel
 from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
 from core.utils import parse_datetime_to_utc
-from team.models import MAX_TEAMS, Team
+from team.models import MAX_TEAMS, Team, team_username
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class AdminCompetitionCog(commands.Cog):
         password_list = []
         failed_resets = []
         for team_num in teams:
-            username = f"team{team_num:02d}"
+            username = team_username(team_num)
             password, error = await sync_to_async(reset_team_password)(team_num)
             if password:
                 password_list.append((team_num, username, password))

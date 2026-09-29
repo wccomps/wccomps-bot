@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 MAX_TEAMS = 50
 
 
+def team_username(team_number: int) -> str:
+    """Username of a team's shared Authentik account."""
+    return f"team{team_number:02d}"
+
+
 class Team(models.Model):
     """Competition team (1-50)."""
 

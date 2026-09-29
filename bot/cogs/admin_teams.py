@@ -20,7 +20,7 @@ from bot.utils import (
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog
-from team.models import MAX_TEAMS, DiscordLink, Team
+from team.models import MAX_TEAMS, DiscordLink, Team, team_username
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +332,7 @@ class AdminTeamsCog(commands.Cog):
         else:
             results.append(f"❌ Failed to reset password: {error}")
 
-        username = f"team{team_number:02d}"
+        username = team_username(team_number)
         session_success, session_error, sessions_revoked = await sync_to_async(auth_manager.revoke_user_sessions)(
             username
         )

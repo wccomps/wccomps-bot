@@ -11,7 +11,7 @@ from django.utils import timezone
 from registration.models import Event, EventTeamAssignment, TeamRegistration
 
 from core.authentik_utils import reset_team_password
-from team.models import SchoolInfo, Team
+from team.models import SchoolInfo, Team, team_username
 
 from .models import Packet, PacketDistribution
 
@@ -132,7 +132,7 @@ class PacketDistributionService:
 
         assignment = self._ensure_team_credentials(packet.event, team)
 
-        username = f"team{team.team_number:02d}"
+        username = team_username(team.team_number)
         raw_extras = packet.team_extras.get(str(team.team_number), {}) if packet.team_extras else {}
         # Format keys for display: "api_key" -> "API Key", "max_spend_usd" -> "Max Spend USD"
         team_extras = {k.replace("_", " ").title(): v for k, v in raw_extras.items()}
@@ -177,7 +177,7 @@ class PacketDistributionService:
 
         assignment = self._ensure_team_credentials(packet.event, team)
 
-        username = f"team{team.team_number:02d}"
+        username = team_username(team.team_number)
         raw_extras = packet.team_extras.get(str(team.team_number), {}) if packet.team_extras else {}
         team_extras = {k.replace("_", " ").title(): v for k, v in raw_extras.items()}
         context = {
