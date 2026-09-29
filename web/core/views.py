@@ -411,6 +411,7 @@ def school_info_import(request: HttpRequest) -> HttpResponse:
     form = CSVUploadForm()
     preview_data: dict[str, object] | None = None
     import_results: dict[str, int] | None = None
+    error = ""
 
     if request.method == "POST":
         if "upload" in request.POST:
@@ -427,6 +428,10 @@ def school_info_import(request: HttpRequest) -> HttpResponse:
                 preview_data, import_results = _apply_school_info_import(import_data, authentik_username)
                 if import_results is not None:
                     del request.session["csv_import_data"]
+            else:
+                error = "The uploaded file is no longer available. Upload it again to import."
+        else:
+            error = "The form was submitted without an action. Upload the file again."
 
     return render(
         request,
@@ -436,6 +441,7 @@ def school_info_import(request: HttpRequest) -> HttpResponse:
             "form": form,
             "preview_data": preview_data,
             "import_results": import_results,
+            "error": error,
             "show_ops_nav": True,
             **permissions,
         },
