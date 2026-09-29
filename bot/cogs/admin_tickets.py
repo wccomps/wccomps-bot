@@ -200,14 +200,14 @@ class AdminTicketsCog(commands.Cog):
         points: int | None = None,
     ) -> None:
         """Resolve a ticket and apply point adjustments."""
-        from ticketing.utils import aresolve_ticket_atomic
+        from ticketing.lifecycle import aresolve_ticket
 
         ticket = await Ticket.objects.filter(ticket_number=ticket_number).afirst()
         if not ticket:
             await interaction.response.send_message(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        resolved, error = await aresolve_ticket_atomic(
+        resolved, error = await aresolve_ticket(
             ticket_id=ticket.id,
             actor_username=str(interaction.user),
             resolution_notes=notes,
@@ -224,7 +224,6 @@ class AdminTicketsCog(commands.Cog):
             f"Point Penalty: {resolved.points_charged} points applied to {resolved.team.team_name}",
             ephemeral=True,
         )
-        await update_ticket_dashboard(self.bot, resolved)
         await log_to_ops_channel(
             self.bot,
             f"Ticket Resolved: {resolved.ticket_number} for **{resolved.team.team_name}** by "
@@ -239,14 +238,14 @@ class AdminTicketsCog(commands.Cog):
     @app_commands.check(check_ticketing_admin)
     async def admin_ticket_cancel(self, interaction: discord.Interaction, ticket_number: str, reason: str = "") -> None:
         """Cancel a ticket without point penalty."""
-        from ticketing.utils import acancel_ticket_atomic
+        from ticketing.lifecycle import acancel_ticket
 
         ticket = await Ticket.objects.filter(ticket_number=ticket_number).afirst()
         if not ticket:
             await interaction.response.send_message(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        cancelled, error = await acancel_ticket_atomic(
+        cancelled, error = await acancel_ticket(
             ticket_id=ticket.id,
             actor_username=str(interaction.user),
             reason=reason,
@@ -260,7 +259,6 @@ class AdminTicketsCog(commands.Cog):
             f"Cancelled ticket {cancelled.ticket_number} (no point penalty applied)",
             ephemeral=True,
         )
-        await update_ticket_dashboard(self.bot, cancelled)
         await log_to_ops_channel(
             self.bot,
             f"Ticket Cancelled: {cancelled.ticket_number} for **{cancelled.team.team_name}** by "
@@ -344,73 +342,26 @@ class AdminTicketsCog(commands.Cog):
         # Resolved/cancelled tickets can be reassigned too (#36); with no volunteer the ticket is unclaimed.
         old_assignee = ticket.assigned_to.username if ticket.assigned_to else "Unassigned"
 
+        from ticketing.lifecycle import aassign_ticket, aunclaim_ticket
+
         if volunteer:
-            if ticket.status == "open":
-                from ticketing.utils import aclaim_ticket_atomic
-
-                claimed_ticket, error = await aclaim_ticket_atomic(
-                    ticket_id=ticket.id,
-                    actor_username=f"discord:{interaction.user}",
-                    discord_id=volunteer.id,
-                    discord_username=str(volunteer),
-                )
-
-                if error or claimed_ticket is None:
-                    await interaction.followup.send(
-                        f"Failed to claim ticket: {error or 'Unknown error'}", ephemeral=True
-                    )
-                    return
-
-                ticket = claimed_ticket
-                new_assignee = str(volunteer)
-            else:
-                from ticketing.utils import areassign_ticket_atomic
-
-                reassigned_ticket, error = await areassign_ticket_atomic(
-                    ticket_id=ticket.id,
-                    actor_username=f"discord:{interaction.user}",
-                    discord_id=volunteer.id,
-                    discord_username=str(volunteer),
-                )
-
-                if error or reassigned_ticket is None:
-                    await interaction.followup.send(
-                        f"Failed to reassign ticket: {error or 'Unknown error'}", ephemeral=True
-                    )
-                    return
-
-                ticket = reassigned_ticket
-                new_assignee = str(volunteer)
-
-            if ticket.discord_thread_id and interaction.guild:
-                try:
-                    thread = interaction.guild.get_thread(ticket.discord_thread_id)
-                    if thread:
-                        await thread.add_user(volunteer)
-                        logger.info(f"Added {volunteer} to thread {ticket.discord_thread_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to add user to thread: {e}")
-        else:
-            from ticketing.utils import aunclaim_ticket_atomic
-
-            unclaimed_ticket, error = await aunclaim_ticket_atomic(
+            changed, error = await aassign_ticket(
                 ticket_id=ticket.id,
-                actor_username=f"discord:{interaction.user}",
+                actor_username=str(interaction.user),
+                discord_id=volunteer.id,
+                discord_username=str(volunteer),
             )
-
-            if error or unclaimed_ticket is None:
-                await interaction.followup.send(
-                    f"Failed to unassign ticket: {error or 'Unknown error'}", ephemeral=True
-                )
-                return
-
-            ticket = unclaimed_ticket
+            failure = "Failed to assign ticket"
+            new_assignee = str(volunteer)
+        else:
+            changed, error = await aunclaim_ticket(ticket_id=ticket.id, actor_username=str(interaction.user))
+            failure = "Failed to unassign ticket"
             new_assignee = "Unassigned"
 
-        try:
-            await update_ticket_dashboard(self.bot, ticket)
-        except Exception as e:
-            logger.exception(f"Failed to update dashboard: {e}")
+        if error or changed is None:
+            await interaction.followup.send(f"{failure}: {error or 'Unknown error'}", ephemeral=True)
+            return
+        ticket = changed
 
         await interaction.followup.send(
             f"Ticket {ticket.ticket_number} reassigned\n• From: {old_assignee}\n• To: {new_assignee}",
@@ -430,7 +381,7 @@ class AdminTicketsCog(commands.Cog):
     @app_commands.check(check_ticketing_admin)
     async def admin_ticket_reopen(self, interaction: discord.Interaction, ticket_number: str, reason: str) -> None:
         """Reopen a resolved ticket."""
-        from ticketing.utils import areopen_ticket_atomic
+        from ticketing.lifecycle import areopen_ticket
 
         await interaction.response.defer(ephemeral=True)
 
@@ -440,7 +391,7 @@ class AdminTicketsCog(commands.Cog):
             return
 
         refunded = ticket.points_charged
-        reopened, error = await areopen_ticket_atomic(
+        reopened, error = await areopen_ticket(
             ticket_id=ticket.id, actor_username=str(interaction.user), reopen_reason=reason
         )
         if error or reopened is None:
@@ -452,7 +403,6 @@ class AdminTicketsCog(commands.Cog):
             f"Ticket {reopened.ticket_number} reopened\n• Reason: {reason}{refund_msg}",
             ephemeral=True,
         )
-        await update_ticket_dashboard(self.bot, reopened)
         await log_to_ops_channel(
             self.bot,
             f"Ticket reopened by {interaction.user.mention}\n"
