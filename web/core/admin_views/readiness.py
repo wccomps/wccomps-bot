@@ -4,8 +4,6 @@ Provides streaming checks and fix handlers used by the competition page
 to verify system state before starting a competition.
 """
 
-import csv
-import io
 import json
 import logging
 from collections.abc import Callable, Iterator
@@ -17,7 +15,6 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.authentik_manager import AuthentikManager
-from core.authentik_utils import generate_blueteam_password
 from core.forms import ReadinessFixForm
 from core.models import CompetitionConfig
 from team.models import Team
@@ -96,8 +93,8 @@ def _check_team_accounts_exist() -> CheckResult:
         suffix = f"... (+{len(missing) - 5})" if len(missing) > 5 else ""
         return (
             "fail",
-            f"{len(missing)} missing: {names}{suffix}",
-            {"type": "fix", "key": "fix_missing_accounts", "label": "Create Missing Accounts"},
+            f"{len(missing)} missing: {names}{suffix}. Create them in Authentik; the portal's token can't.",
+            None,
         )
     return ("pass", f"All {active_teams.count()} team accounts exist", None)
 
@@ -420,48 +417,6 @@ def stream_readiness_checks() -> Iterator[str]:
 # ---------------------------------------------------------------------------
 
 
-def _fix_missing_accounts(request: HttpRequest) -> JsonResponse:
-    """Create missing team accounts by resetting their passwords."""
-    active_teams = Team.objects.filter(is_active=True)
-    mgr = AuthentikManager()
-
-    missing_teams: list[Team] = []
-    for team in active_teams:
-        username = f"team{team.team_number:02d}"
-        user = mgr.get_user_with_groups(username)
-        if not user:
-            missing_teams.append(team)
-
-    if not missing_teams:
-        return JsonResponse({"success": True, "message": "No missing accounts found"})
-
-    password_list: list[tuple[int, str, str]] = []
-    failed: list[str] = []
-    for team in missing_teams:
-        username = f"team{team.team_number:02d}"
-        password = generate_blueteam_password()
-        success, error = mgr.reset_blueteam_password(team.team_number, password)
-        if success:
-            password_list.append((team.team_number, username, password))
-        else:
-            failed.append(f"{username}: {error}")
-
-    csv_buffer = io.StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerow(["Username", "Password"])
-    for _num, username, password in password_list:
-        writer.writerow([username, password])
-
-    return JsonResponse(
-        {
-            "success": True,
-            "message": f"Created {len(password_list)}/{len(missing_teams)} accounts",
-            "csv": csv_buffer.getvalue(),
-            "failed": failed,
-        }
-    )
-
-
 def _fix_group_membership(request: HttpRequest) -> JsonResponse:
     """Add team accounts to their correct Authentik groups."""
     active_teams = Team.objects.filter(is_active=True)
@@ -512,7 +467,6 @@ def _fix_sync_quotient(request: HttpRequest) -> JsonResponse:
 
 
 _FIX_HANDLERS: dict[str, Callable[[HttpRequest], JsonResponse]] = {
-    "fix_missing_accounts": _fix_missing_accounts,
     "fix_group_membership": _fix_group_membership,
     "fix_sync_quotient": _fix_sync_quotient,
 }

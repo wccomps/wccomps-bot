@@ -516,7 +516,9 @@ class AuthentikManager:
             return (False, "Account toggle failed - check server logs")
 
     def reset_blueteam_password(self, team_number: int, password: str) -> tuple[bool, str]:
-        """Reset a blue team account's password in Authentik and enable the account.
+        """Reset a blue team account's password in Authentik.
+
+        Leaves is_active alone: team accounts are enabled only while the competition runs.
 
         Args:
             team_number: Team number (1-50)
@@ -556,13 +558,6 @@ class AuthentikManager:
             response = self.client.post(
                 f"{self.base_url}/api/v3/core/users/{user_pk}/set_password/",
                 json={"password": password},
-            )
-            response.raise_for_status()
-
-            # Enable user account (set is_active=True)
-            response = self.client.patch(
-                f"{self.base_url}/api/v3/core/users/{user_pk}/",
-                json={"is_active": True},
             )
             response.raise_for_status()
 

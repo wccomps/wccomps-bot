@@ -9,9 +9,7 @@ from django.utils import timezone
 
 from core.auth_utils import require_permission
 from core.authentik_manager import AuthentikManager
-from core.authentik_utils import (
-    generate_blueteam_password,
-)
+from core.authentik_utils import reset_team_password
 from core.forms import TeamActionForm, TeamsBulkActionForm
 from core.models import AuditLog, DiscordTask
 from team.models import DiscordLink, Team
@@ -119,6 +117,7 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             link.is_active = False
             link.unlinked_at = timezone.now()
             link.save()
+            DiscordTask.create_remove_role(discord_id=link.discord_id, team_number=team_number)
 
             AuditLog.objects.create(
                 action="user_unlinked",
@@ -144,12 +143,12 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             link.is_active = False
             link.unlinked_at = timezone.now()
             link.save()
+            DiscordTask.create_remove_role(discord_id=link.discord_id, team_number=team_number)
             unlinked += 1
 
-        # Reset password
+        password, error = reset_team_password(team_number)
+        success = password is not None
         auth_manager = AuthentikManager()
-        password = generate_blueteam_password()
-        success, error = auth_manager.reset_blueteam_password(team_number, password)
 
         # Revoke sessions
         username = f"team{team_number:02d}"

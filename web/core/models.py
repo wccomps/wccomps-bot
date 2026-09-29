@@ -182,6 +182,15 @@ class DiscordTask(models.Model):
         )
 
     @classmethod
+    def create_remove_role(cls, discord_id: int, team_number: int) -> DiscordTask:
+        """Create a task to remove a team's role (and the Blueteam role) from a Discord user."""
+        return cls.objects.create(
+            task_type="remove_role",
+            payload={"discord_id": discord_id, "team_number": team_number},
+            status="pending",
+        )
+
+    @classmethod
     def create_assign_group_roles(cls, discord_id: int, authentik_groups: list[str]) -> DiscordTask:
         """Create a task to assign group-based roles to a Discord user."""
         return cls.objects.create(

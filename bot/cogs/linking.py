@@ -37,19 +37,16 @@ async def check_rate_limit(discord_id: int) -> tuple[bool, int]:
 
 
 async def check_existing_link(discord_id: int) -> LinkCheckResult:
-    """Check if user has existing link. Deactivates orphaned links."""
+    """A user linked to a team must ask an admin to move; anyone else may (re)link.
+
+    A link without a team is a staff link. It stays active until the new link is made,
+    so abandoning the flow doesn't unlink anyone.
+    """
     existing_link = await (
         DiscordLink.objects.filter(discord_id=discord_id, is_active=True).select_related("team").afirst()
     )
 
-    if not existing_link:
-        return LinkCheckResult(can_link=True)
-
-    if not existing_link.team:
-        logger.warning(f"Found orphaned link for {discord_id}, deactivating")
-        existing_link.is_active = False
-        existing_link.unlinked_at = timezone.now()
-        await existing_link.asave()
+    if not existing_link or not existing_link.team:
         return LinkCheckResult(can_link=True)
 
     return LinkCheckResult(

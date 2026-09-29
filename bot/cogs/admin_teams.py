@@ -17,10 +17,7 @@ from bot.utils import (
     safe_remove_role,
 )
 from core.authentik_manager import AuthentikManager
-from core.authentik_utils import (
-    generate_blueteam_password,
-    parse_team_range,
-)
+from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog
 from team.models import MAX_TEAMS, DiscordLink, Team
 
@@ -348,12 +345,9 @@ class AdminTeamsCog(commands.Cog):
         from asgiref.sync import sync_to_async
 
         auth_manager = AuthentikManager()
-        generated_password = generate_blueteam_password()
-        success, error = await sync_to_async(auth_manager.reset_blueteam_password)(team_number, generated_password)
-        new_password = None
-        if success:
+        new_password, error = await sync_to_async(reset_team_password)(team_number)
+        if new_password:
             results.append("✓ Reset Authentik password")
-            new_password = generated_password
         else:
             results.append(f"❌ Failed to reset password: {error}")
 

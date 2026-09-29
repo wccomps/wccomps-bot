@@ -85,31 +85,17 @@ class TestAdminCommands:
         """Test /admin reset-blueteam-passwords - verifies password reset flow."""
         mock_interaction.user.id = mock_admin_user._discord_id
 
-        mock_generate_password = MagicMock(return_value="Test-Password-123!")
-        mock_manager_cls = MagicMock()
-        mock_manager_instance = mock_manager_cls.return_value
-        mock_manager_instance.reset_blueteam_password.return_value = (True, "")
-        mock_settings = MagicMock()
-        mock_settings.AUTHENTIK_TOKEN = "test-token"
-
+        reset = MagicMock(side_effect=lambda n: (f"pw-{n}", ""))
         callback = AdminCompetitionCog.admin_reset_blueteam_passwords.callback
-        with patch_globals(
-            callback,
-            {
-                "generate_blueteam_password": mock_generate_password,
-                "AuthentikManager": mock_manager_cls,
-                "settings": mock_settings,
-            },
-        ):
+        with patch_globals(callback, {"reset_team_password": reset, "settings": MagicMock(AUTHENTIK_TOKEN="t")}):
             cog = AdminCompetitionCog(mock_bot)
             await cog.admin_reset_blueteam_passwords.callback(cog, mock_interaction, team_numbers="1-3")
 
-            assert mock_generate_password.call_count == 3
-            assert mock_manager_instance.reset_blueteam_password.call_count == 3
-            mock_interaction.response.defer.assert_called_once_with(ephemeral=True)
-            mock_interaction.followup.send.assert_called_once()
-            call_args = mock_interaction.followup.send.call_args
-            assert "file" in call_args.kwargs, "Should send file with passwords"
+        assert [c.args[0] for c in reset.call_args_list] == [1, 2, 3]
+        mock_interaction.response.defer.assert_called_once_with(ephemeral=True)
+        call_args = mock_interaction.followup.send.call_args
+        csv_text = call_args.kwargs["file"].fp.getvalue().decode()
+        assert csv_text.splitlines()[1:] == ["team01,pw-1", "team02,pw-2", "team03,pw-3"]
 
     async def test_reset_blueteam_passwords_api_failure(
         self,
@@ -120,28 +106,23 @@ class TestAdminCommands:
         """Test /admin reset-blueteam-passwords handles API failures."""
         mock_interaction.user.id = mock_admin_user._discord_id
 
-        mock_generate_password = MagicMock(return_value="Test-Password-123!")
-        mock_manager_cls = MagicMock()
-        mock_manager_instance = mock_manager_cls.return_value
-        mock_manager_instance.reset_blueteam_password.return_value = (False, "HTTP 500: Internal Server Error")
-        mock_settings = MagicMock()
-        mock_settings.AUTHENTIK_TOKEN = "test-token"
-
+        results = {1: ("pw-1", ""), 2: (None, "HTTP 500"), 3: ("pw-3", "")}
         callback = AdminCompetitionCog.admin_reset_blueteam_passwords.callback
         with patch_globals(
             callback,
             {
-                "generate_blueteam_password": mock_generate_password,
-                "AuthentikManager": mock_manager_cls,
-                "settings": mock_settings,
+                "reset_team_password": MagicMock(side_effect=lambda n: results[n]),
+                "settings": MagicMock(AUTHENTIK_TOKEN="t"),
             },
         ):
             cog = AdminCompetitionCog(mock_bot)
             await cog.admin_reset_blueteam_passwords.callback(cog, mock_interaction, team_numbers="1-3")
 
-            assert mock_interaction.followup.send.called, "Should send error message"
-            call_args = mock_interaction.followup.send.call_args
-            assert "file" in call_args.kwargs, "Should still send CSV file"
+        call_args = mock_interaction.followup.send.call_args
+        assert "Success: 2/3" in call_args.args[0]
+        assert "team02: HTTP 500" in call_args.args[0]
+        csv_text = call_args.kwargs["file"].fp.getvalue().decode()
+        assert "team02" not in csv_text, "a failed reset keeps its old password, so it must not be listed"
 
     async def test_admin_remove_team(
         self,

@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.utils import timezone
 
 from core.models import DiscordTask
 from team.models import DiscordLink, LinkAttempt, LinkToken, Team
@@ -168,7 +167,8 @@ def execute_link(
     if is_team_account and team:
         with transaction.atomic():
             team = Team.objects.select_for_update().get(pk=team.pk)
-            if team.is_full():
+            relinking = team.members.filter(discord_id=discord_id, is_active=True).exists()
+            if not relinking and team.is_full():
                 LinkAttempt.objects.create(
                     discord_id=discord_id,
                     discord_username=discord_username,
@@ -188,37 +188,27 @@ def execute_link(
                         ),
                     },
                 )
-            _create_or_update_link(discord_id, discord_username, user, team)
+            _create_link(discord_id, discord_username, user, team)
     else:
-        _create_or_update_link(discord_id, discord_username, user, team=None)
+        _create_link(discord_id, discord_username, user, team=None)
     return None
 
 
-def _create_or_update_link(
+def _create_link(
     discord_id: int,
     discord_username: str,
     user: User,
     team: Team | None,
 ) -> DiscordLink:
-    """Create or update a DiscordLink, deactivating any previous link for this discord_id."""
+    """Create a DiscordLink, deactivating any previous link for this discord_id."""
     DiscordLink.deactivate_previous_links(discord_id)
-    try:
-        link = DiscordLink.objects.get(discord_id=discord_id, is_active=True)
-        link.discord_username = discord_username
-        link.user = user
-        link.team = team
-        link.linked_at = timezone.now()
-        link.unlinked_at = None
-        link.save()
-    except DiscordLink.DoesNotExist:
-        link = DiscordLink.objects.create(
-            discord_id=discord_id,
-            discord_username=discord_username,
-            user=user,
-            team=team,
-            is_active=True,
-        )
-    return link
+    return DiscordLink.objects.create(
+        discord_id=discord_id,
+        discord_username=discord_username,
+        user=user,
+        team=team,
+        is_active=True,
+    )
 
 
 def finalize_link(

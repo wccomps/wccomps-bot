@@ -14,14 +14,10 @@ from django.utils import timezone
 
 from bot.permissions import check_admin, check_gold_team
 from bot.utils import TEAM_CHAT_CHANNEL_KEYWORD, ConfirmView, log_to_ops_channel
-from core.authentik_manager import AuthentikManager
-from core.authentik_utils import (
-    generate_blueteam_password,
-    parse_team_range,
-)
+from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
 from core.utils import parse_datetime_to_utc
-from team.models import DiscordLink, Team
+from team.models import MAX_TEAMS, DiscordLink, Team
 
 logger = logging.getLogger(__name__)
 
@@ -50,22 +46,21 @@ class AdminCompetitionCog(commands.Cog):
 
         Args:
             team_numbers: Optional comma-separated team numbers or ranges (e.g., "1,3,5-10")
-                         If not provided, resets all 50 teams.
+                         If not provided, resets every team account.
         """
 
         if not settings.AUTHENTIK_TOKEN:
             await interaction.response.send_message("Error: AUTHENTIK_TOKEN not configured in settings", ephemeral=True)
             return
 
-        # If resetting all 50 teams, require confirmation
+        # Resetting every team requires confirmation
         if not team_numbers:
-            view = ConfirmView(confirm_label="Confirm Reset All 50 Teams")
+            view = ConfirmView(confirm_label=f"Confirm Reset All {MAX_TEAMS} Teams")
             await interaction.response.send_message(
-                "⚠️ **WARNING: You are about to reset passwords for ALL 50 blue team accounts.**\n\n"
+                f"⚠️ **WARNING: You are about to reset passwords for ALL {MAX_TEAMS} blue team accounts.**\n\n"
                 "This will:\n"
-                "• Generate new random passwords for team01-team50\n"
-                "• Invalidate all current passwords\n"
-                "• Revoke active sessions\n\n"
+                f"• Generate new random passwords for team01-team{MAX_TEAMS:02d}\n"
+                "• Invalidate all current passwords\n\n"
                 "Are you sure you want to continue?",
                 view=view,
                 ephemeral=True,
@@ -76,7 +71,7 @@ class AdminCompetitionCog(commands.Cog):
             if not view.confirmed:
                 return
 
-            await interaction.followup.send("Resetting all 50 team passwords...", ephemeral=True)
+            await interaction.followup.send(f"Resetting all {MAX_TEAMS} team passwords...", ephemeral=True)
         else:
             await interaction.response.defer(ephemeral=True)
 
@@ -88,74 +83,55 @@ class AdminCompetitionCog(commands.Cog):
                 await interaction.followup.send(f"Error: {e}", ephemeral=True)
                 return
         else:
-            teams = list(range(1, 51))  # All teams
+            teams = list(range(1, MAX_TEAMS + 1))
 
-        # Generate passwords for specified teams
+        # Only successful resets go in the CSV: a failed one leaves the old password in place.
         password_list = []
-        for i in teams:
-            username = f"team{i:02d}"
-            password = generate_blueteam_password()
-            password_list.append((i, username, password))
-
-        # Reset passwords in Authentik
-        auth_manager = AuthentikManager()
         failed_resets = []
-        for team_num, username, password in password_list:
-            success, error = await sync_to_async(auth_manager.reset_blueteam_password)(team_num, password)
-            if not success:
+        for team_num in teams:
+            username = f"team{team_num:02d}"
+            password, error = await sync_to_async(reset_team_password)(team_num)
+            if password:
+                password_list.append((team_num, username, password))
+            else:
                 failed_resets.append((username, error))
 
-        # Generate CSV in memory
-        csv_buffer = io.StringIO()
-        writer = csv.writer(csv_buffer)
-        writer.writerow(["Username", "Password"])
-
-        for _team_num, username, password in password_list:
-            writer.writerow([username, password])
-
-        csv_buffer.seek(0)
-
-        # Create Discord file
-        file = discord.File(
-            fp=io.BytesIO(csv_buffer.getvalue().encode("utf-8")),
-            filename="blueteam_passwords.csv",
-        )
-
-        team_count = len(password_list)
-
-        # Create audit log
+        total = len(teams)
         await AuditLog.objects.acreate(
             action="blueteam_passwords_reset",
             admin_user=str(interaction.user),
             target_entity="authentik_users",
             target_id=0,
             details={
-                "total_users": team_count,
+                "total_users": total,
+                "success_count": len(password_list),
                 "failed_resets": len(failed_resets),
                 "team_numbers": team_numbers or "all",
             },
         )
 
-        # Log to ops
-        teams_msg = f"teams {team_numbers}" if team_numbers else "all 50 accounts"
+        teams_msg = f"teams {team_numbers}" if team_numbers else f"all {MAX_TEAMS} accounts"
         await log_to_ops_channel(
             self.bot,
             f"BlueTeam Password Reset by {interaction.user.mention}\n"
             f"• Teams: {teams_msg}\n"
-            f"• Total: {team_count} accounts\n"
+            f"• Reset: {len(password_list)}/{total}\n"
             f"• Failed: {len(failed_resets)}",
         )
 
-        success_count = team_count - len(failed_resets)
-        result_msg = f"Password reset complete\n• Success: {success_count}/{team_count}\n"
-        if failed_resets:
-            result_msg += f"• Failed: {len(failed_resets)}/{team_count}\n"
-        result_msg += "\nCSV file attached with all credentials."
+        result_msg = f"Password reset complete\n• Success: {len(password_list)}/{total}\n"
+        result_msg += "".join(f"• Failed {username}: {error}\n" for username, error in failed_resets)
+        if not password_list:
+            await interaction.followup.send(result_msg, ephemeral=True)
+            return
 
+        csv_buffer = io.StringIO()
+        writer = csv.writer(csv_buffer)
+        writer.writerow(["Username", "Password"])
+        writer.writerows((username, password) for _num, username, password in password_list)
+        file = discord.File(fp=io.BytesIO(csv_buffer.getvalue().encode("utf-8")), filename="blueteam_passwords.csv")
         await interaction.followup.send(
-            result_msg,
-            file=file,
-            ephemeral=True,
+            result_msg + "\nCSV attached with the new credentials.", file=file, ephemeral=True
         )
 
         logger.info(f"Password reset performed by {interaction.user}. Failed: {len(failed_resets)}")

@@ -218,6 +218,33 @@ class TestLinkCallback:
         assert not attempt.success
         assert "full" in attempt.failure_reason.lower()
 
+    def test_member_of_full_team_can_relink(self, db, blue_team_user):
+        """Their own current link is the one being replaced, so it doesn't count toward the limit."""
+        from unittest.mock import patch
+
+        team = Team.objects.create(team_number=1, team_name="Blue Team 01", max_members=1)
+        DiscordLink.objects.create(
+            discord_id=987654321, discord_username="discorduser", user=blue_team_user, team=team, is_active=True
+        )
+        token = LinkToken.objects.create(
+            token="relink_token",
+            discord_id=987654321,
+            discord_username="discorduser",
+            used=False,
+            expires_at=timezone.now() + timedelta(minutes=15),
+        )
+        client = Client()
+        client.force_login(blue_team_user)
+        session = client.session
+        session["pending_link_token"] = token.token
+        session.save()
+
+        with patch("core.authentik_manager.AuthentikManager"):
+            response = client.post("/auth/link-callback", {"token": token.token})
+
+        assert b"Team full" not in response.content
+        assert DiscordLink.objects.filter(discord_id=987654321, team=team, is_active=True).count() == 1
+
 
 class TestLinkHijackProtection:
     """A /link URL made by someone else must not link their Discord account to the viewer's account."""
