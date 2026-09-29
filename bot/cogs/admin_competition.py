@@ -147,8 +147,6 @@ class AdminCompetitionCog(commands.Cog):
         config.max_team_members = max_members
         await config.asave(update_fields=["max_team_members"])
 
-        await Team.objects.aupdate(max_members=max_members)
-
         await AuditLog.objects.acreate(
             action="max_team_members_updated",
             admin_user=str(interaction.user),

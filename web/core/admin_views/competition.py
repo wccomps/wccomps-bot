@@ -40,8 +40,6 @@ def _has_admin_or_gold_access(user: User) -> bool:
 
 
 def _action_set_max_members(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    from team.models import Team
-
     form = SetMaxMembersForm(request.POST)
     if not form.is_valid():
         return JsonResponse({"error": "Max members must be 1-20"}, status=400)
@@ -50,8 +48,6 @@ def _action_set_max_members(request: HttpRequest, config: CompetitionConfig, aut
     old_max = config.max_team_members
     config.max_team_members = max_members
     config.save()
-
-    Team.objects.update(max_members=max_members)
 
     AuditLog.objects.create(
         action="max_team_members_updated",

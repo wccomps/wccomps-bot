@@ -69,7 +69,7 @@ def test_upload_reads_are_bounded():
 
 @pytest.fixture
 def team():
-    return Team.objects.create(team_number=1, team_name="Team 01", max_members=10)
+    return Team.objects.create(team_number=1, team_name="Team 01")
 
 
 @pytest.fixture

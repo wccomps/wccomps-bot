@@ -43,7 +43,6 @@ class TestTicketingCog:
             team_name="Test Team",
             authentik_group="WCComps_BlueTeam42",
             discord_category_id=1234567890,
-            max_members=5,
         )
 
     @pytest_asyncio.fixture
@@ -482,7 +481,6 @@ class TestTicketCommand:
             team_name="Test Team 50",
             authentik_group="WCComps_BlueTeam50",
             discord_category_id=9876543210,
-            max_members=5,
         )
 
     @pytest_asyncio.fixture

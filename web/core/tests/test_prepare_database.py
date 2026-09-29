@@ -23,7 +23,7 @@ def test_seeds_teams_when_there_are_none():
 @pytest.mark.django_db
 def test_leaves_existing_teams_alone():
     Team.objects.all().delete()
-    Team.objects.create(team_number=1, team_name="Renamed", max_members=10)
+    Team.objects.create(team_number=1, team_name="Renamed")
 
     call_command("prepare_database", verbosity=0)
 

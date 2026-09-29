@@ -41,8 +41,8 @@ class TestAdminCommands:
     async def test_admin_teams_command(self, mock_interaction: Any, mock_admin_user: Any, mock_bot: Any) -> None:
         mock_interaction.user.id = mock_admin_user._discord_id
 
-        await Team.objects.acreate(team_number=10, team_name="Team Alpha", max_members=5)
-        await Team.objects.acreate(team_number=11, team_name="Team Beta", max_members=5)
+        await Team.objects.acreate(team_number=10, team_name="Team Alpha")
+        await Team.objects.acreate(team_number=11, team_name="Team Beta")
 
         cog = AdminTeamsCog(mock_bot)
         await cog.admin_teams.callback(cog, mock_interaction)
@@ -57,7 +57,7 @@ class TestAdminCommands:
     async def test_admin_team_info_command(self, mock_interaction: Any, mock_admin_user: Any, mock_bot: Any) -> None:
         mock_interaction.user.id = mock_admin_user._discord_id
 
-        await Team.objects.acreate(team_number=12, team_name="Test Team", max_members=5)
+        await Team.objects.acreate(team_number=12, team_name="Test Team")
 
         cog = AdminTeamsCog(mock_bot)
         await cog.admin_team_info.callback(cog, mock_interaction, team_number=12)
@@ -138,7 +138,6 @@ class TestAdminCommands:
         team = await Team.objects.acreate(
             team_number=team_number,
             team_name="Test Team to Remove",
-            max_members=5,
             discord_role_id=1001,
             discord_category_id=2001,
         )
@@ -272,7 +271,6 @@ class TestAdminCommands:
         team = await Team.objects.acreate(
             team_number=14,
             team_name="Test Unlink Team",
-            max_members=5,
             discord_role_id=1001,
         )
 
@@ -395,7 +393,6 @@ class TestAdminCommands:
         team = await Team.objects.acreate(
             team_number=15,
             team_name="Test Team No Guild",
-            max_members=5,
             discord_role_id=1001,
         )
 
@@ -559,9 +556,9 @@ class TestAdminCommands:
         mock_interaction.user.id = mock_admin_user._discord_id
 
         # Create teams - some active, some inactive
-        await Team.objects.acreate(team_number=1, team_name="Team 01", max_members=5, is_active=False)
-        await Team.objects.acreate(team_number=2, team_name="Team 02", max_members=5, is_active=False)
-        await Team.objects.acreate(team_number=3, team_name="Team 03", max_members=5, is_active=True)
+        await Team.objects.acreate(team_number=1, team_name="Team 01", is_active=False)
+        await Team.objects.acreate(team_number=2, team_name="Team 02", is_active=False)
+        await Team.objects.acreate(team_number=3, team_name="Team 03", is_active=True)
 
         mock_log_ops = AsyncMock()
         callback = AdminTeamsCog.admin_activate_teams.callback
@@ -594,9 +591,9 @@ class TestAdminCommands:
         mock_interaction.user.id = mock_admin_user._discord_id
 
         # Create teams - all active
-        await Team.objects.acreate(team_number=4, team_name="Team 04", max_members=5, is_active=True)
-        await Team.objects.acreate(team_number=5, team_name="Team 05", max_members=5, is_active=True)
-        await Team.objects.acreate(team_number=6, team_name="Team 06", max_members=5, is_active=False)
+        await Team.objects.acreate(team_number=4, team_name="Team 04", is_active=True)
+        await Team.objects.acreate(team_number=5, team_name="Team 05", is_active=True)
+        await Team.objects.acreate(team_number=6, team_name="Team 06", is_active=False)
 
         mock_log_ops = AsyncMock()
         callback = AdminTeamsCog.admin_deactivate_teams.callback
@@ -637,14 +634,12 @@ class TestAdminCommands:
         await Team.objects.acreate(
             team_number=20,
             team_name="Team 20",
-            max_members=5,
             discord_role_id=2001,
             discord_category_id=3001,
         )
         await Team.objects.acreate(
             team_number=21,
             team_name="Team 21",
-            max_members=5,
             discord_role_id=2002,
             discord_category_id=3002,
         )

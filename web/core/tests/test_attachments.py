@@ -20,13 +20,11 @@ def setup_teams() -> tuple[Team, Team]:
     team1 = Team.objects.create(
         team_name="Team Alpha",
         team_number=1,
-        max_members=5,
         ticket_counter=0,
     )
     team2 = Team.objects.create(
         team_name="Team Beta",
         team_number=2,
-        max_members=5,
         ticket_counter=0,
     )
     return team1, team2

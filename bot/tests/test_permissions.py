@@ -85,7 +85,7 @@ class TestGetAuthentikGroups:
 
     def test_discord_link_without_usergroups(self) -> None:
         """Test DiscordLink without UserGroups returns empty list."""
-        team = Team.objects.create(team_number=1, team_name="Test Team", max_members=5)
+        team = Team.objects.create(team_number=1, team_name="Test Team")
         user = User.objects.create_user(username="nonexistent_user")
 
         discord_link = DiscordLink.objects.create(
@@ -102,7 +102,7 @@ class TestGetAuthentikGroups:
 
     def test_groups_from_usergroups(self) -> None:
         """Test extracting groups from UserGroups model."""
-        team = Team.objects.create(team_number=2, team_name="Test Team 2", max_members=5)
+        team = Team.objects.create(team_number=2, team_name="Test Team 2")
 
         user = User.objects.create_user(username="testuser2")
 
@@ -127,7 +127,7 @@ class TestGetAuthentikGroups:
 
     def test_groups_cached_after_first_query(self) -> None:
         """Test that groups are cached after first query."""
-        team = Team.objects.create(team_number=5, team_name="Test Team 5", max_members=5)
+        team = Team.objects.create(team_number=5, team_name="Test Team 5")
 
         user = User.objects.create_user(username="testuser5")
 
@@ -175,7 +175,7 @@ class TestPermissionChecks:
 
     async def test_is_admin_async_with_admin_group(self) -> None:
         """Test is_admin_async returns True for admin users."""
-        team = await Team.objects.acreate(team_number=10, team_name="Admin Team", max_members=5)
+        team = await Team.objects.acreate(team_number=10, team_name="Admin Team")
 
         user = await User.objects.acreate(username="admin_user")
 
@@ -227,7 +227,7 @@ class TestPermissionChecks:
 
     async def test_can_manage_tickets_async_with_admin(self) -> None:
         """Test can_manage_tickets_async returns True for admins."""
-        team = await Team.objects.acreate(team_number=11, team_name="Admin Team", max_members=5)
+        team = await Team.objects.acreate(team_number=11, team_name="Admin Team")
 
         user = await User.objects.acreate(username="admin_user2")
 
@@ -255,7 +255,7 @@ class TestPermissionChecks:
 
     async def test_can_manage_tickets_async_with_ticketing_admin(self) -> None:
         """Test can_manage_tickets_async returns True for ticketing admins."""
-        team = await Team.objects.acreate(team_number=12, team_name="Ticketing Team", max_members=5)
+        team = await Team.objects.acreate(team_number=12, team_name="Ticketing Team")
 
         user = await User.objects.acreate(username="ticketing_admin")
 
@@ -300,7 +300,7 @@ class TestPermissionChecks:
 
     async def test_can_support_tickets_async_with_support_group(self) -> None:
         """Test can_support_tickets_async returns True for support users."""
-        team = await Team.objects.acreate(team_number=13, team_name="Support Team", max_members=5)
+        team = await Team.objects.acreate(team_number=13, team_name="Support Team")
 
         user = await User.objects.acreate(username="support_user")
 
@@ -346,7 +346,7 @@ class TestPermissionChecks:
 
     async def test_is_gold_team_async_with_gold_team_group(self) -> None:
         """Test is_gold_team_async returns True for gold team users."""
-        team = await Team.objects.acreate(team_number=14, team_name="Gold Team", max_members=5)
+        team = await Team.objects.acreate(team_number=14, team_name="Gold Team")
 
         user = await User.objects.acreate(username="gold_user")
 
@@ -401,7 +401,7 @@ class TestPermissionCheckFunctions:
 
     async def test_check_admin_allows_admin(self) -> None:
         """Test check_admin allows admin users."""
-        team = await Team.objects.acreate(team_number=20, team_name="Admin Team", max_members=5)
+        team = await Team.objects.acreate(team_number=20, team_name="Admin Team")
 
         user = await User.objects.acreate(username="check_admin_user")
 

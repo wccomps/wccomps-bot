@@ -147,7 +147,6 @@ async def mock_team_user(db: Any) -> User:
         team_number=(int(unique_id, 16) % 50) + 1,  # Valid range: 1-50
         team_name=f"Test Team {unique_id}",
         authentik_group=f"WCComps_BlueTeam{(int(unique_id, 16) % 50) + 1:02d}",
-        max_members=5,
     )
 
     await UserGroups.objects.acreate(

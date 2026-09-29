@@ -114,7 +114,7 @@ class TestAdminTeamDetailView:
 
         team, _ = Team.objects.get_or_create(
             team_number=1,
-            defaults={"team_name": "Team 01", "is_active": True, "max_members": 10},
+            defaults={"team_name": "Team 01", "is_active": True},
         )
         return team
 

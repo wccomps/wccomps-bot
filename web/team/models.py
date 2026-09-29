@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.base import ModelBase
 from django.utils import timezone
+from django.utils.functional import cached_property
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,6 @@ class Team(models.Model):
 
     discord_role_id = models.BigIntegerField(null=True, blank=True)
     discord_category_id = models.BigIntegerField(null=True, blank=True)
-
-    max_members = models.IntegerField(default=10)
 
     ticket_counter = models.IntegerField(default=0)
 
@@ -52,9 +51,6 @@ class Team(models.Model):
             msg = f"Team number must be between 1 and {MAX_TEAMS}, got {self.team_number}"
             raise ValidationError({"team_number": msg})
 
-        if self.max_members is not None and self.max_members < 1:
-            raise ValidationError({"max_members": f"Team must have at least 1 member, got {self.max_members}"})
-
     def save(
         self,
         *,
@@ -76,6 +72,13 @@ class Team(models.Model):
     def get_member_count(self) -> int:
         """Get count of active members."""
         return self.members.filter(is_active=True).count()
+
+    @cached_property
+    def max_members(self) -> int:
+        """The competition-wide member limit."""
+        from core.models import CompetitionConfig
+
+        return CompetitionConfig.get_config().max_team_members
 
     def is_full(self) -> bool:
         return self.get_member_count() >= self.max_members

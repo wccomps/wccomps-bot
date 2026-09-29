@@ -5,7 +5,12 @@ import uuid
 import pytest
 from django.contrib.auth.models import User
 
+from core.models import CompetitionConfig
 from team.models import DiscordLink, Team
+
+
+def _set_member_limit(limit: int) -> None:
+    CompetitionConfig.objects.update_or_create(pk=1, defaults={"max_team_members": limit})
 
 
 def create_test_user(username: str | None = None) -> User:
@@ -142,11 +147,11 @@ class TestTeamMemberLimitEnforcement:
 
     def test_team_is_full_method_at_capacity(self, db) -> None:
         """Team.is_full() returns True when members equals max_members."""
+        _set_member_limit(3)
         team = Team.objects.create(
             team_number=20,
             team_name="Full Team",
             authentik_group="WCComps_BlueTeam10",
-            max_members=3,
         )
 
         # Create 3 active members
@@ -169,7 +174,6 @@ class TestTeamMemberLimitEnforcement:
             team_number=21,
             team_name="Open Team",
             authentik_group="WCComps_BlueTeam11",
-            max_members=5,
         )
 
         # Create 2 active members
@@ -192,7 +196,6 @@ class TestTeamMemberLimitEnforcement:
             team_number=22,
             team_name="Empty Team",
             authentik_group="WCComps_BlueTeam12",
-            max_members=10,
         )
 
         assert team.get_member_count() == 0
@@ -206,7 +209,6 @@ class TestTeamMemberLimitEnforcement:
             team_number=23,
             team_name="Mixed Activity",
             authentik_group="WCComps_BlueTeam13",
-            max_members=5,
         )
 
         # Create 2 active members
@@ -238,11 +240,11 @@ class TestTeamMemberLimitEnforcement:
         """Team.is_full() does not count inactive members toward capacity."""
         from django.utils import timezone
 
+        _set_member_limit(2)
         team = Team.objects.create(
             team_number=24,
             team_name="Capacity Test",
             authentik_group="WCComps_BlueTeam14",
-            max_members=2,
         )
 
         # Create 1 active member
@@ -274,11 +276,11 @@ class TestTeamMemberLimitEnforcement:
         """LinkAttempt records full team with member count and capacity."""
         from team.models import LinkAttempt
 
+        _set_member_limit(2)
         team = Team.objects.create(
             team_number=25,
             team_name="Full Test Team",
             authentik_group="WCComps_BlueTeam15",
-            max_members=2,
         )
 
         for i in range(2):
@@ -308,11 +310,11 @@ class TestTeamMemberLimitEnforcement:
         """Test that select_for_update can be used with team capacity checks."""
         from django.db import transaction
 
+        _set_member_limit(3)
         team = Team.objects.create(
             team_number=26,
             team_name="Locking Pattern Test",
             authentik_group="WCComps_BlueTeam26",
-            max_members=3,
         )
 
         # Add 2 members

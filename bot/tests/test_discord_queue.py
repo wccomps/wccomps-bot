@@ -25,7 +25,6 @@ async def test_team(db: Any) -> Team:
             "authentik_group": "WCComps_BlueTeam01",
             "discord_role_id": 1001,
             "discord_category_id": 2001,
-            "max_members": 5,
         },
     )
     return team
@@ -557,7 +556,6 @@ class TestPermanentFailure:
             authentik_group="WCComps_BlueTeam01",
             discord_role_id=1001,
             discord_category_id=2001,
-            max_members=5,
         )
 
         processor = DiscordQueueProcessor(mock_bot_with_guild)
@@ -597,7 +595,6 @@ class TestPermanentFailure:
             authentik_group="WCComps_BlueTeam02",
             discord_role_id=1002,
             discord_category_id=2002,
-            max_members=5,
         )
 
         processor = DiscordQueueProcessor(mock_bot_with_guild)

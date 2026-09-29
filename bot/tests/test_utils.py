@@ -29,7 +29,6 @@ class TestTeamHelpers:
         await Team.objects.acreate(
             team_number=team_num,
             team_name="Test Team",
-            max_members=5,
         )
 
         result = await get_team_or_respond(mock_interaction, team_num)
@@ -76,7 +75,6 @@ class TestTeamHelpers:
         team = await Team.objects.acreate(
             team_number=team_num,
             team_name="Test Team",
-            max_members=5,
         )
 
         # Create users for the discord links

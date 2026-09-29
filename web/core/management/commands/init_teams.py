@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
 
-from core.models import CompetitionConfig
 from team.models import MAX_TEAMS, Team
 
 
@@ -10,9 +9,6 @@ class Command(BaseCommand):
     def handle(self, *args: str, **options: object) -> None:
         created_count = 0
         updated_count = 0
-
-        config = CompetitionConfig.get_config()
-        max_members = config.max_team_members
 
         for team_num in range(1, MAX_TEAMS + 1):
             team_name = f"BlueTeam{team_num:02d}"
@@ -24,7 +20,6 @@ class Command(BaseCommand):
                     "team_name": team_name,
                     "authentik_group": authentik_group,
                     "is_active": True,
-                    "max_members": max_members,
                 },
             )
 

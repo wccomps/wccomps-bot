@@ -16,7 +16,6 @@ class TestTicketCreationAtomic:
         team = Team.objects.create(
             team_name="Test Team",
             team_number=1,
-            max_members=5,
             ticket_counter=0,
         )
         cat = TicketCategory.objects.get(pk=6)
@@ -54,7 +53,6 @@ class TestTicketCreationAtomic:
         team = Team.objects.create(
             team_name="Test Team",
             team_number=5,
-            max_members=5,
             ticket_counter=0,
         )
         cat = TicketCategory.objects.get(pk=6)
@@ -78,7 +76,6 @@ class TestTicketCreationAtomic:
         team = Team.objects.create(
             team_name="Test Team",
             team_number=10,
-            max_members=5,
             ticket_counter=5,
         )
         cat = TicketCategory.objects.get(pk=2)
@@ -104,7 +101,6 @@ class TestTicketCreationAtomic:
         team = Team.objects.create(
             team_name="Test Team",
             team_number=50,
-            max_members=5,
             ticket_counter=0,
         )
         cat = TicketCategory.objects.get(pk=6)
@@ -132,7 +128,6 @@ class TestAsyncTicketCreationAtomic:
         team = await Team.objects.acreate(
             team_name="Test Team",
             team_number=2,
-            max_members=5,
             ticket_counter=0,
         )
 
@@ -167,7 +162,6 @@ class TestAsyncTicketCreationAtomic:
         team = await Team.objects.acreate(
             team_name="Test Team",
             team_number=3,
-            max_members=5,
             ticket_counter=0,
         )
 
@@ -192,7 +186,6 @@ class TestAsyncTicketCreationAtomic:
         team = await Team.objects.acreate(
             team_name="Test Team",
             team_number=25,
-            max_members=5,
             ticket_counter=0,
         )
 
