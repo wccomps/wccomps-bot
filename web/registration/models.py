@@ -77,12 +77,6 @@ class TeamRegistration(models.Model):
         self.paid_at = timezone.now()
         self.save()
 
-    def mark_credentials_sent(self) -> None:
-        """Mark credentials as sent."""
-        self.status = "credentials_sent"
-        self.credentials_sent_at = timezone.now()
-        self.save()
-
 
 class Season(models.Model):
     """Competition season (e.g., 2026 Season)."""

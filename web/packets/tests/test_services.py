@@ -101,6 +101,10 @@ class PacketDistributionServiceTestCase(TestCase):
         self.assertEqual(distribution.email_status, "sent")
         self.assertEqual(distribution.email_sent_to, "team1@example.com")
 
+        # The packet delivered the team's credentials
+        assignment = EventTeamAssignment.objects.get(event=self.event, team=team)
+        self.assertIsNotNone(assignment.credentials_sent_at)
+
     @patch("packets.services.EmailMultiAlternatives")
     def test_send_packet_email_with_team_extras(self, mock_email_class):
         """Test that per-team extras are passed to email context."""

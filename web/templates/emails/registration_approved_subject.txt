@@ -1,1 +1,0 @@
-WCComps Registration Approved - {{ school_name }}

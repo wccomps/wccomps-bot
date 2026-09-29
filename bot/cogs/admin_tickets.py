@@ -484,7 +484,6 @@ class AdminTicketsCog(commands.Cog):
     @app_commands.check(check_ticketing_admin)
     async def admin_ticket_clear(self, interaction: discord.Interaction) -> None:
         """Delete all tickets and reset team counters."""
-        from core.models import AuditLog
         from team.models import Team
         from ticketing.models import TicketAttachment, TicketComment
 
@@ -522,29 +521,10 @@ class AdminTicketsCog(commands.Cog):
             await interaction.edit_original_response(content="Cancelled", view=None)
             return
 
-        # Delete tickets
-        @sync_to_async
-        def clear_tickets() -> None:
-            from django.db import transaction
+        from ticketing.utils import aclear_all_tickets
 
-            with transaction.atomic():
-                Ticket.objects.all().delete()
-                Team.objects.filter(ticket_counter__gt=0).update(ticket_counter=0)
-                AuditLog.objects.create(
-                    action="clear_tickets",
-                    admin_user=str(interaction.user),
-                    target_entity="tickets",
-                    target_id=0,
-                    details={
-                        "tickets_deleted": ticket_count,
-                        "attachments_deleted": attachment_count,
-                        "comments_deleted": comment_count,
-                        "history_deleted": history_count,
-                        "teams_reset": teams_to_reset,
-                    },
-                )
-
-        await clear_tickets()
+        counts = await aclear_all_tickets(actor=str(interaction.user))
+        ticket_count, teams_to_reset = counts["tickets_deleted"], counts["teams_reset"]
 
         await interaction.edit_original_response(
             content=f"✅ Cleared all tickets\n• Deleted {ticket_count} tickets\n• Reset {teams_to_reset} team counters",

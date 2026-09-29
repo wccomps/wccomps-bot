@@ -9,6 +9,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.db import close_old_connections
 from django.template.loader import render_to_string
+from django.utils import timezone
 from registration.models import Event, EventTeamAssignment, TeamRegistration
 
 from core.authentik_utils import reset_team_password
@@ -203,6 +204,11 @@ class PacketDistributionService:
         # Mark as sent
         sent_to = ", ".join(recipients)
         distribution.mark_as_sent(sent_to)
+        # The packet carries the team's credentials: record the first delivery, which is what
+        # stops the team being unassigned from the event (registration views).
+        EventTeamAssignment.objects.filter(pk=assignment.pk, credentials_sent_at__isnull=True).update(
+            credentials_sent_at=timezone.now()
+        )
         logger.info(f"Sent packet {packet.id} to team {team.team_number} at {sent_to}")
 
     def send_test_packet_email(self, packet: Packet, team: Team, email: str) -> None:

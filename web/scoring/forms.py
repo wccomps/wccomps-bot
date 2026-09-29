@@ -12,7 +12,6 @@ from team.models import Team
 from .models import (
     AttackType,
     IncidentReport,
-    OrangeTeamScore,
     RedTeamIPPool,
     RedTeamScore,
     ScoringTemplate,
@@ -371,34 +370,6 @@ class IncidentReportForm(forms.ModelForm[IncidentReport]):
         if commit:
             instance.save()
         return instance
-
-
-class OrangeTeamScoreForm(forms.ModelForm[OrangeTeamScore]):
-    """Form for orange team checks."""
-
-    class Meta:
-        model = OrangeTeamScore
-        fields = ["team", "description", "points_awarded"]
-        widgets = {
-            "description": forms.Textarea(
-                attrs={
-                    "rows": 2,
-                    "placeholder": "Additional notes (optional)",
-                }
-            ),
-        }
-        labels = {
-            "description": "Notes",
-            "points_awarded": "Points",
-        }
-
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
-        # Only show active teams
-        team_field = cast("forms.ModelChoiceField[Team]", self.fields["team"])
-        team_field.queryset = Team.objects.filter(is_active=True).order_by("team_number")
-        # Description is optional
-        self.fields["description"].required = False
 
 
 class IncidentMatchForm(forms.ModelForm[IncidentReport]):

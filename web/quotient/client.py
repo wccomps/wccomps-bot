@@ -310,13 +310,6 @@ class QuotientClient:
             logger.exception(f"Failed to parse scores response: {e}")
             return None
 
-    def get_team_count(self) -> int | None:
-        """Get the number of teams from Quotient scores."""
-        scores = self.get_scores()
-        if scores is None:
-            return None
-        return len(scores)
-
     def get_injects(self, force_refresh: bool = False) -> list[Inject] | None:
         """
         Fetch injects from Quotient API.

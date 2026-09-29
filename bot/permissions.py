@@ -184,52 +184,6 @@ async def check_gold_team(interaction: discord.Interaction) -> bool:
     return has_permission
 
 
-async def is_white_team_async(interaction: discord.Interaction) -> bool:
-    """Check if user is member of WhiteTeam via Authentik groups."""
-    try:
-        groups = await get_authentik_groups_async(interaction.user.id)
-        return check_groups_for_permission(groups, "white_team")
-    except Exception as e:
-        logger.exception(f"Failed to check WhiteTeam permission: {e}")
-        return False
-
-
-async def check_white_team(interaction: discord.Interaction) -> bool:
-    """Check if user is member of WhiteTeam (inject graders)."""
-    has_permission = await is_white_team_async(interaction)
-    if not has_permission:
-        await interaction.response.send_message(
-            "❌ White Team permissions required.\n\n"
-            "You need the `WCComps_WhiteTeam` or `WCComps_GoldTeam` Authentik group.\n"
-            "If you have this group, link your account with `/link`.",
-            ephemeral=True,
-        )
-    return has_permission
-
-
-async def is_orange_team_async(interaction: discord.Interaction) -> bool:
-    """Check if user is member of OrangeTeam via Authentik groups."""
-    try:
-        groups = await get_authentik_groups_async(interaction.user.id)
-        return check_groups_for_permission(groups, "orange_team")
-    except Exception as e:
-        logger.exception(f"Failed to check OrangeTeam permission: {e}")
-        return False
-
-
-async def check_orange_team(interaction: discord.Interaction) -> bool:
-    """Check if user is member of OrangeTeam (orange team checks)."""
-    has_permission = await is_orange_team_async(interaction)
-    if not has_permission:
-        await interaction.response.send_message(
-            "❌ Orange Team permissions required.\n\n"
-            "You need the `WCComps_OrangeTeam` or `WCComps_GoldTeam` Authentik group.\n"
-            "If you have this group, link your account with `/link`.",
-            ephemeral=True,
-        )
-    return has_permission
-
-
 async def is_blue_team_async(interaction: discord.Interaction) -> bool:
     """Check if user is linked to a Blue Team."""
     try:

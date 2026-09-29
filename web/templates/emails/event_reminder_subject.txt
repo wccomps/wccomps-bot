@@ -1,1 +1,0 @@
-WCComps Event Reminder - {{ event_name }} - {{ days_until }} day{{ days_until|pluralize }}

@@ -580,3 +580,30 @@ def reopen_ticket_atomic(
 
 
 areopen_ticket_atomic = _make_async(reopen_ticket_atomic)
+
+
+def clear_all_tickets(actor: str) -> dict[str, int]:
+    """Delete every ticket (comments, attachments and history cascade) and reset team counters.
+
+    Audited as clear_tickets; returns what was removed.
+    """
+    from core.models import AuditLog
+    from ticketing.models import TicketAttachment, TicketComment
+
+    with transaction.atomic():
+        counts = {
+            "tickets_deleted": Ticket.objects.count(),
+            "attachments_deleted": TicketAttachment.objects.count(),
+            "comments_deleted": TicketComment.objects.count(),
+            "history_deleted": TicketHistory.objects.count(),
+            "teams_reset": Team.objects.filter(ticket_counter__gt=0).count(),
+        }
+        Ticket.objects.all().delete()
+        Team.objects.filter(ticket_counter__gt=0).update(ticket_counter=0)
+        AuditLog.objects.create(
+            action="clear_tickets", admin_user=actor, target_entity="tickets", target_id=0, details=counts
+        )
+    return counts
+
+
+aclear_all_tickets = _make_async(clear_all_tickets)

@@ -1,16 +1,15 @@
 """Tests for clear tickets functionality."""
 
-from io import StringIO
 from typing import Any
 
 import pytest
 from django.contrib.auth.models import User
-from django.core.management import call_command
 from django.test import Client
 
 from core.models import AuditLog, UserGroups
 from team.models import Team
 from ticketing.models import Ticket, TicketAttachment, TicketCategory, TicketComment, TicketHistory
+from ticketing.utils import clear_all_tickets
 
 pytestmark = pytest.mark.django_db
 
@@ -89,67 +88,29 @@ def setup_tickets(setup_teams: tuple[Team, Team]) -> tuple[Team, Team, list[Tick
 
 
 @pytest.mark.django_db
-class TestClearTicketsManagementCommand:
-    """Test clear_tickets management command."""
+class TestClearAllTickets:
+    """clear_all_tickets: shared by the ops page and /tickets clear."""
 
-    def test_command_requires_confirmation(self, setup_tickets: tuple[Team, Team, list[Ticket]]) -> None:
-        """Test command fails without --confirm flag."""
-        out = StringIO()
-        call_command("clear_tickets", stdout=out)
-
-        output = out.getvalue()
-        assert "DELETE ALL TICKETS" in output
-        assert "Run with --confirm" in output
-
-        # Verify nothing was deleted
-        assert Ticket.objects.count() == 3
-        assert Team.objects.filter(ticket_counter__gt=0).count() == 2
-
-    def test_command_clears_all_tickets(self, setup_tickets: tuple[Team, Team, list[Ticket]]) -> None:
-        """Test command deletes all tickets and related data."""
+    def test_clears_all_tickets(self, setup_tickets: tuple[Team, Team, list[Ticket]]) -> None:
         team1, team2, _ = setup_tickets
 
-        # Verify initial state
-        assert Ticket.objects.count() == 3
-        assert TicketComment.objects.count() == 1
-        assert TicketAttachment.objects.count() == 1
-        assert TicketHistory.objects.count() == 1
-        assert team1.ticket_counter == 5
-        assert team2.ticket_counter == 3
+        counts = clear_all_tickets(actor="web:admin")
 
-        out = StringIO()
-        call_command("clear_tickets", "--confirm", stdout=out)
-
-        output = out.getvalue()
-        assert "Deleted 3 tickets" in output
-        assert "Reset 2 team" in output
-
-        # Verify all tickets deleted
+        assert counts["tickets_deleted"] == 3
+        assert counts["teams_reset"] == 2
         assert Ticket.objects.count() == 0
         assert TicketComment.objects.count() == 0
         assert TicketAttachment.objects.count() == 0
         assert TicketHistory.objects.count() == 0
-
-        # Verify counters reset
         team1.refresh_from_db()
         team2.refresh_from_db()
-        assert team1.ticket_counter == 0
-        assert team2.ticket_counter == 0
+        assert (team1.ticket_counter, team2.ticket_counter) == (0, 0)
+        audit = AuditLog.objects.get(action="clear_tickets")
+        assert audit.admin_user == "web:admin"
+        assert audit.details == counts
 
-        # Verify audit log created
-        audit = AuditLog.objects.filter(action="clear_tickets").first()
-        assert audit is not None
-        assert audit.admin_user == "system:management_command"
-        assert audit.details["tickets_deleted"] == 3
-        assert audit.details["teams_reset"] == 2
-
-    def test_command_handles_no_tickets(self, setup_teams: tuple[Team, Team]) -> None:
-        """Test command handles case with no tickets."""
-        out = StringIO()
-        call_command("clear_tickets", "--confirm", stdout=out)
-
-        output = out.getvalue()
-        assert "Deleted 0 tickets" in output
+    def test_handles_no_tickets(self, setup_teams: tuple[Team, Team]) -> None:
+        assert clear_all_tickets(actor="web:admin")["tickets_deleted"] == 0
 
 
 @pytest.mark.django_db
