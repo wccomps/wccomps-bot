@@ -1,5 +1,3 @@
-"""Views for WCComps linking and OAuth."""
-
 import logging
 from typing import cast
 
@@ -54,13 +52,11 @@ def home(request: HttpRequest) -> HttpResponse:
 
 
 def link_initiate(request: HttpRequest) -> HttpResponse:
-    """Initiate OAuth linking flow."""
     token = request.GET.get("token")
 
     if not token:
         return HttpResponse("Missing token parameter", status=400)
 
-    # Validate token
     try:
         link_token = LinkToken.objects.get(token=token, used=False)
     except LinkToken.DoesNotExist:
@@ -135,11 +131,9 @@ def link_callback(request: HttpRequest) -> HttpResponse:
         return _render_error(token_result)
     link_token = token_result
 
-    # Extract data from token
     discord_id = link_token.discord_id
     discord_username = link_token.discord_username
 
-    # Get team information
     team, team_number, is_team_account = get_team_from_groups(groups)
 
     # Nothing is linked until the user confirms which Discord account they are linking (POST + CSRF).
@@ -164,21 +158,17 @@ def link_callback(request: HttpRequest) -> HttpResponse:
     if policy_error:
         return _render_error(policy_error)
 
-    # For non-team accounts, try to store discord_id in Authentik
     if not is_team_account:
         store_discord_id_in_authentik(authentik_username, discord_id, authentik_user_id)
 
-    # Create or update DiscordLink (with race-condition protection for teams)
     link_error = execute_link(discord_id, discord_username, user, team, is_team_account)
     if link_error:
         return _render_error(link_error)
 
-    # Mark token used, create audit records, queue Discord tasks
     finalize_link(
         link_token, discord_id, discord_username, authentik_username, team, team_number, is_team_account, groups
     )
 
-    # Clear session data used for CSRF protection
     request.session.pop("pending_link_token", None)
     request.session.pop("pending_link_discord_id", None)
 
@@ -197,11 +187,8 @@ def link_callback(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team")
 def school_info(request: HttpRequest) -> HttpResponse:
-    """View and edit school information (GoldTeam only)."""
-    # Get all teams with their school info
     teams = Team.objects.filter(is_active=True).order_by("team_number")
 
-    # Enrich teams with school info
     teams_with_info = []
     for team in teams:
         try:
@@ -223,7 +210,6 @@ def school_info(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team")
 def school_info_export(request: HttpRequest) -> HttpResponse:
-    """Export all school information as CSV."""
     import csv
 
     records = SchoolInfo.objects.select_related("team").order_by("team__team_number")
@@ -251,7 +237,6 @@ def school_info_export(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team")
 def school_info_clear(request: HttpRequest) -> HttpResponse:
-    """Clear all school information records."""
     count = SchoolInfo.objects.count()
 
     if request.method == "POST":
@@ -273,11 +258,9 @@ def school_info_clear(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team")
 def school_info_edit(request: HttpRequest, team_number: int) -> HttpResponse:
-    """Edit school information for a team (GoldTeam only)."""
     user = cast(User, request.user)
     authentik_username = user.username
 
-    # Get team
     try:
         team = Team.objects.get(team_number=team_number, is_active=True)
     except Team.DoesNotExist:
@@ -290,7 +273,6 @@ def school_info_edit(request: HttpRequest, team_number: int) -> HttpResponse:
             },
         )
 
-    # Get or create school info
     try:
         school_info = team.school_info
     except SchoolInfo.DoesNotExist:
@@ -315,7 +297,6 @@ def school_info_edit(request: HttpRequest, team_number: int) -> HttpResponse:
         secondary_email = form.cleaned_data.get("secondary_email", "")
         notes = form.cleaned_data.get("notes", "")
 
-        # Create or update school info
         if school_info:
             school_info.school_name = school_name
             school_info.contact_email = contact_email
@@ -349,13 +330,7 @@ def school_info_edit(request: HttpRequest, team_number: int) -> HttpResponse:
 
 
 def _parse_school_info_csv(csv_file: UploadedFile[bytes]) -> tuple[dict[str, object] | None, list[dict[str, object]]]:
-    """Parse and validate a school-info CSV, returning preview data and session rows.
-
-    Returns:
-        A tuple of (preview_data, session_rows).  preview_data is a dict suitable for the
-        template (with errors, warnings, and optionally teams_to_create).  session_rows is
-        the serialisable list to stash in the session (empty when there are errors).
-    """
+    """Parse and validate a school-info CSV into (preview data, session rows; empty on errors)."""
     from team.forms import parse_csv_file, validate_csv_data
 
     parse_result = parse_csv_file(csv_file)
@@ -396,13 +371,7 @@ def _parse_school_info_csv(csv_file: UploadedFile[bytes]) -> tuple[dict[str, obj
 def _apply_school_info_import(
     import_data: dict[str, object], authentik_username: str
 ) -> tuple[dict[str, object] | None, dict[str, int] | None]:
-    """Verify teams still exist and apply the CSV import.
-
-    Returns:
-        A tuple of (preview_data, import_results).  On validation errors preview_data is set
-        and import_results is None.  On success preview_data is None and import_results
-        contains created/assigned counts.
-    """
+    """Verify teams still exist and apply the CSV import: (preview_data, None) on errors, else (None, counts)."""
     from team.forms import CSVRowData, apply_csv_import
 
     teams_to_create: list[CSVRowData] = import_data["teams_to_create"]  # type: ignore[assignment]
@@ -433,7 +402,6 @@ def _apply_school_info_import(
 
 @require_permission("gold_team")
 def school_info_import(request: HttpRequest) -> HttpResponse:
-    """Import school information from CSV file (GoldTeam only)."""
     from team.forms import CSVUploadForm
 
     user = cast(User, request.user)
@@ -476,16 +444,13 @@ def school_info_import(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team")
 def ops_group_role_mappings(request: HttpRequest) -> HttpResponse:
-    """View team membership status and linked users (GoldTeam only)."""
-    # Get all active teams with their linked members
+    """View team membership status and linked users."""
     teams = Team.objects.filter(is_active=True).order_by("team_number")
 
     team_status = []
     for team in teams:
-        # Get active links for this team
         links = DiscordLink.objects.filter(team=team, is_active=True).select_related("team")
 
-        # Format member list
         members = [
             {
                 "discord_id": link.discord_id,

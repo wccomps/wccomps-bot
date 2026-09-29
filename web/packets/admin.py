@@ -1,5 +1,3 @@
-"""Admin interface for packet distribution system."""
-
 from typing import Protocol
 
 from django.contrib import admin
@@ -22,8 +20,6 @@ class AnnotatedPacket(Protocol):
 
 
 class PacketDistributionInline(admin.TabularInline[PacketDistribution, Packet]):
-    """Inline display of packet distributions."""
-
     model = PacketDistribution
     extra = 0
     fields = [
@@ -47,8 +43,6 @@ class PacketDistributionInline(admin.TabularInline[PacketDistribution, Packet]):
 
 @admin.register(Packet)
 class PacketAdmin(admin.ModelAdmin[Packet]):
-    """Admin interface for team packets."""
-
     list_display = [
         "title",
         "status",
@@ -111,7 +105,6 @@ class PacketAdmin(admin.ModelAdmin[Packet]):
     actions = ["distribute_now", "mark_as_completed", "export_distribution_report"]
 
     def get_queryset(self, request: HttpRequest) -> QuerySet[Packet]:
-        """Optimize queryset with distribution counts."""
         qs = super().get_queryset(request)
         qs = qs.annotate(
             total_distributions=Count("distributions"),
@@ -126,7 +119,6 @@ class PacketAdmin(admin.ModelAdmin[Packet]):
 
     @admin.display(description="File")
     def file_info(self, obj: Packet) -> str:
-        """Display file information."""
         size_kb = obj.file_size / 1024
         size_str = f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb / 1024:.1f} MB"
         return format_html(
@@ -138,7 +130,6 @@ class PacketAdmin(admin.ModelAdmin[Packet]):
 
     @admin.display(description="Distribution Stats")
     def distribution_stats_display(self, obj: AnnotatedPacket) -> str:
-        """Display distribution statistics."""
         if hasattr(obj, "total_distributions"):
             # From annotated queryset
             stats = {
@@ -148,7 +139,6 @@ class PacketAdmin(admin.ModelAdmin[Packet]):
                 "downloaded": obj.downloaded_count,
             }
         else:
-            # Fallback to method call
             stats = obj.get_distribution_stats()
 
         return format_html(
@@ -167,7 +157,6 @@ class PacketAdmin(admin.ModelAdmin[Packet]):
 
     @admin.action(description="Distribute selected packets now")
     def distribute_now(self, request: HttpRequest, queryset: QuerySet[Packet]) -> None:
-        """Trigger immediate distribution of selected packets."""
         from .services import PacketDistributionService
 
         count = 0
@@ -184,13 +173,11 @@ class PacketAdmin(admin.ModelAdmin[Packet]):
 
     @admin.action(description="Mark selected packets as completed")
     def mark_as_completed(self, request: HttpRequest, queryset: QuerySet[Packet]) -> None:
-        """Mark selected packets as completed."""
         count = queryset.update(status="completed")
         self.message_user(request, f"Marked {count} packet(s) as completed.")
 
     @admin.action(description="Export distribution report to CSV")
     def export_distribution_report(self, request: HttpRequest, queryset: QuerySet[Packet]) -> HttpResponse:
-        """Export distribution report as CSV."""
         import csv
 
         from django.http import HttpResponse
@@ -234,8 +221,6 @@ class PacketAdmin(admin.ModelAdmin[Packet]):
 
 @admin.register(PacketDistribution)
 class PacketDistributionAdmin(admin.ModelAdmin[PacketDistribution]):
-    """Admin interface for packet distributions."""
-
     list_display = [
         "packet",
         "team",
@@ -308,7 +293,6 @@ class PacketDistributionAdmin(admin.ModelAdmin[PacketDistribution]):
 
     @admin.display(description="Downloads")
     def download_info(self, obj: PacketDistribution) -> str:
-        """Display download information."""
         if obj.download_count > 0:
             return format_html(
                 "{} download(s)<br><small>Last: {}</small>",
@@ -319,7 +303,6 @@ class PacketDistributionAdmin(admin.ModelAdmin[PacketDistribution]):
 
     @admin.action(description="Retry sending failed emails")
     def retry_failed_emails(self, request: HttpRequest, queryset: QuerySet[PacketDistribution]) -> None:
-        """Retry sending emails for failed distributions."""
         import logging
 
         from .services import PacketDistributionService

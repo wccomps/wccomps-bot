@@ -1,5 +1,3 @@
-"""Admin views for team management."""
-
 from typing import cast
 
 from django.contrib.auth.models import User
@@ -19,7 +17,6 @@ from .competition import _has_admin_or_gold_access
 
 @require_permission("admin", "gold_team")
 def admin_teams(request: HttpRequest) -> HttpResponse:
-    """Teams management dashboard."""
     teams = Team.objects.all().order_by("team_number")
 
     teams_with_info = []
@@ -43,7 +40,6 @@ def admin_teams(request: HttpRequest) -> HttpResponse:
 
 @require_permission("admin", "gold_team")
 def admin_team_detail(request: HttpRequest, team_number: int) -> HttpResponse:
-    """View detailed team info."""
     try:
         team = Team.objects.get(team_number=team_number)
     except Team.DoesNotExist:
@@ -62,7 +58,6 @@ def admin_team_detail(request: HttpRequest, team_number: int) -> HttpResponse:
 
 
 def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
-    """Handle team management actions."""
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
 
@@ -136,7 +131,6 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             return JsonResponse({"error": "User not found or not linked to this team"}, status=404)
 
     elif action == "reset":
-        # Unlink all users
         links = DiscordLink.objects.filter(team=team, is_active=True)
         unlinked = 0
         for link in links:
@@ -150,7 +144,6 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
         success = password is not None
         auth_manager = AuthentikManager()
 
-        # Revoke sessions
         username = f"team{team_number:02d}"
         session_success, session_error, sessions_revoked = auth_manager.revoke_user_sessions(username)
 
@@ -184,7 +177,6 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             )
 
     elif action == "recreate_channels":
-        # Create Discord task for bot to handle
         DiscordTask.create_setup_team_infrastructure(team_number=team_number)
 
         AuditLog.objects.create(
@@ -201,7 +193,6 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
 
 
 def admin_teams_bulk_action(request: HttpRequest) -> HttpResponse:
-    """Handle bulk team actions."""
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
 

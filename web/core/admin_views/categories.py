@@ -1,5 +1,3 @@
-"""Admin views for ticket category management."""
-
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
@@ -10,7 +8,6 @@ from ..auth_utils import require_permission
 
 @require_permission("gold_team", "ticketing_admin")
 def admin_categories(request: HttpRequest) -> HttpResponse:
-    """List all ticket categories."""
     from ticketing.models import TicketCategory
 
     categories = TicketCategory.objects.all()
@@ -19,7 +16,6 @@ def admin_categories(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", "ticketing_admin")
 def admin_category_create(request: HttpRequest) -> HttpResponse:
-    """Create a new ticket category."""
     from ticketing.models import TicketCategory
 
     if request.method == "POST":
@@ -53,7 +49,6 @@ def admin_category_create(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", "ticketing_admin")
 def admin_category_edit(request: HttpRequest, category_id: int) -> HttpResponse:
-    """Edit an existing ticket category."""
     from ticketing.models import TicketCategory
 
     try:
@@ -92,7 +87,6 @@ def admin_category_edit(request: HttpRequest, category_id: int) -> HttpResponse:
 
 @require_permission("gold_team", "ticketing_admin")
 def admin_category_delete(request: HttpRequest, category_id: int) -> HttpResponse:
-    """Delete a ticket category."""
     from ticketing.models import TicketCategory
 
     try:

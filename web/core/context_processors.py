@@ -146,7 +146,6 @@ def _get_nav_active(request: HttpRequest) -> dict[str, str]:
     url_name = getattr(request.resolver_match, "url_name", "") or ""
     app_name = getattr(request.resolver_match, "app_name", "") or ""
 
-    # Look up in explicit mapping first
     if url_name in NAV_MAPPING:
         nav, subnav = NAV_MAPPING[url_name]
         return {"nav": nav, "subnav": subnav}
@@ -155,7 +154,6 @@ def _get_nav_active(request: HttpRequest) -> dict[str, str]:
     if app_name == "orange_team":
         return {"nav": "orange", "subnav": ""}
 
-    # Fallback for admin
     if app_name == "admin":
         return {"nav": "admin", "subnav": ""}
 

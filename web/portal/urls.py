@@ -1,5 +1,3 @@
-"""URL configuration for wccomps project."""
-
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import include, path
@@ -16,7 +14,6 @@ urlpatterns = [
     path("auth/login/", oauth.oauth_login, name="oauth_login"),
     path("auth/callback/", oauth.oauth_callback, name="oauth_callback"),
     path("auth/logout/", oauth.oauth_logout, name="oauth_logout"),
-    # Discord linking routes
     path("auth/link", views.link_initiate, name="link_initiate"),
     path("auth/link-callback", views.link_callback, name="link_callback"),
     path("packet/", include("packets.urls_team")),
@@ -46,9 +43,7 @@ urlpatterns = [
     path("scoring/", include("scoring.urls")),
     path("orange-team/", include("orange_team.urls")),
     path("register/", include("registration.urls")),
-    # Ticketing routes (unified under /tickets/)
     path("tickets/", include("ticketing.urls")),
-    # Ops ticket review routes (stay under /ops/)
     path("ops/review-tickets/", ticketing_views.ops_review_tickets, name="ops_review_tickets"),
     path("ops/ticket/<str:ticket_number>/verify/", ticketing_views.ops_verify_ticket, name="ops_verify_ticket"),
     path(
@@ -63,7 +58,6 @@ urlpatterns = [
         lambda r, ticket_number: redirect("ticket_detail", ticket_number=ticket_number, permanent=True),
         name="ops_ticket_detail_redirect",
     ),
-    # Admin management routes
     path("ops/admin/competition/", admin_views.admin_competition, name="admin_competition"),
     path("ops/admin/competition/action/", admin_views.admin_competition_action, name="admin_competition_action"),
     path("ops/admin/competition/danger/", admin_views.admin_competition_danger, name="admin_competition_danger"),

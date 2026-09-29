@@ -1,5 +1,3 @@
-"""Utility functions for Authentik user management."""
-
 import logging
 import secrets
 
@@ -14,14 +12,12 @@ def validate_team_account(user_data: AuthentikUser, expected_username: str) -> t
     """Validate that a user account is a legitimate team account."""
     retrieved_username = user_data.get("username", "")
 
-    # Check username starts with "team"
     if not retrieved_username.startswith("team"):
         return (
             False,
             f"Security error: User {retrieved_username} is not a team account",
         )
 
-    # Check it matches expected username
     if retrieved_username != expected_username:
         return (
             False,
@@ -52,33 +48,23 @@ def reset_team_password(team_number: int) -> tuple[str | None, str]:
 
 
 def generate_blueteam_password() -> str:
-    """Generate a readable password for blue team accounts using EFF wordlist.
-
-    Returns:
-        str: Password in format like "Correct-Horse-742!" or "Battery-@199-Staple"
-    """
+    """Generate a readable blue team password like "Correct-Horse-742!" or "Battery-@199-Staple"."""
     from xkcdpass import xkcd_password as xp
 
     # Get EFF long wordlist (7,776 words)
     wordlist = xp.generate_wordlist(wordfile=xp.locate_wordfile())
 
-    # Generate 2 random words
     words = xp.generate_xkcdpassword(wordlist, numwords=2, delimiter="-", case="capitalize")
 
-    # Generate random number (100-999)
     number = secrets.randbelow(900) + 100
 
-    # Select random special character
     special_chars = "!@#$%&*+"
     special_char = secrets.choice(special_chars)
 
-    # Combine number and symbol (randomly choose order)
     insert_value = f"{number}{special_char}" if secrets.choice([True, False]) else f"{special_char}{number}"
 
-    # Randomly choose position (0=before, 1=middle, 2=after)
     position = secrets.randbelow(3)
 
-    # Insert number+symbol at chosen position
     word_parts = words.split("-")
     if position == 0:
         result = f"{insert_value}-{words}"
@@ -91,20 +77,7 @@ def generate_blueteam_password() -> str:
 
 
 def parse_team_range(range_str: str) -> list[int]:
-    """
-    Parse team range string like "1,3,5-10,15" into list of team numbers.
-
-    Args:
-        range_str: String with comma-separated numbers and ranges (e.g., "1,3,5-10,15")
-
-    Returns:
-        List of unique team numbers, sorted
-
-    Examples:
-        "1,3,5" -> [1, 3, 5]
-        "1-5" -> [1, 2, 3, 4, 5]
-        "1,3,5-10,15" -> [1, 3, 5, 6, 7, 8, 9, 10, 15]
-    """
+    """Parse a team range string like "1,3,5-10,15" into sorted unique team numbers."""
     team_numbers: set[int] = set()
 
     for raw_part in range_str.split(","):
@@ -113,7 +86,6 @@ def parse_team_range(range_str: str) -> list[int]:
             continue
 
         if "-" in part:
-            # Range like "5-10"
             try:
                 start_str, end_str = part.split("-", 1)
                 start_num = int(start_str.strip())
@@ -128,7 +100,6 @@ def parse_team_range(range_str: str) -> list[int]:
 
             team_numbers.update(range(start_num, end_num + 1))
         else:
-            # Single number
             try:
                 num = int(part)
             except ValueError as e:

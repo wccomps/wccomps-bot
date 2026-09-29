@@ -24,12 +24,7 @@ PERMISSION_MAP: dict[str, list[str]] = {
 
 
 def check_groups_for_permission(groups: list[str], permission_name: str) -> bool:
-    """Check if a list of Authentik groups grants a named permission.
-
-    Handles the special 'blue_team' case (pattern-based matching).
-    For all other permissions, checks PERMISSION_MAP for any matching group.
-    Falls back to direct group name match.
-    """
+    """Check if Authentik groups grant a permission; a name not in PERMISSION_MAP must match a group exactly."""
     if permission_name == "blue_team":
         return any(
             BLUETEAM_GROUP_PATTERN.match(g) or g in ("WCComps_GoldTeam", "WCComps_Discord_Admin") for g in groups
@@ -38,5 +33,4 @@ def check_groups_for_permission(groups: list[str], permission_name: str) -> bool
     if permission_name in PERMISSION_MAP:
         return any(g in groups for g in PERMISSION_MAP[permission_name])
 
-    # Direct group check
     return permission_name in groups

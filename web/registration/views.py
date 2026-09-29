@@ -1,5 +1,3 @@
-"""Views for team registration."""
-
 import random
 
 from django.contrib import messages
@@ -48,15 +46,11 @@ def registration_edit(request: HttpRequest, token: str) -> HttpResponse:
     """Token-based self-service editing of registration."""
     registration = get_object_or_404(TeamRegistration, edit_token=token)
 
-    # Check if token has expired
     if registration.edit_token_expires and timezone.now() > registration.edit_token_expires:
         messages.error(request, "This edit link has expired.")
         return render(request, "registration/edit_locked.html", {"registration": registration})
 
-    # Pending and rejected registrations can be edited; approved ones can't, to prevent:
-    # - Changing school_name after approval
-    # - Changing region to bypass event restrictions
-    # - Changing contact info to hijack registration
+    # Lock after approval so school name, region (event restrictions) and contacts can't be changed or hijacked.
     if registration.status not in ("pending", "rejected"):
         messages.error(request, "This registration can no longer be edited after approval.")
         return render(request, "registration/edit_locked.html", {"registration": registration})
@@ -68,7 +62,6 @@ def registration_edit(request: HttpRequest, token: str) -> HttpResponse:
             messages.success(request, "Registration updated successfully!")
             return redirect("registration_edit", token=token)
     else:
-        # Pre-populate form with existing data
         captain = registration.contacts.filter(role="captain").first()
         coach = registration.contacts.filter(role="coach").first()
         enrolled_events = list(registration.event_enrollments.values_list("event_id", flat=True))
@@ -96,7 +89,6 @@ def registration_edit(request: HttpRequest, token: str) -> HttpResponse:
 
 @require_permission("gold_team")
 def review_list(request: HttpRequest) -> HttpResponse:
-    """Admin review list of all registrations (Gold Team and Admin only)."""
     status_filter = request.GET.get("status", "")
 
     registrations = TeamRegistration.objects.prefetch_related("contacts", "event_enrollments__event").all()
@@ -118,7 +110,6 @@ def review_list(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team")
 def approve_registration(request: HttpRequest, registration_id: int) -> HttpResponse:
-    """Approve a registration (Gold Team and Admin only)."""
     if request.method != "POST":
         return redirect("registration_review_list")
 
@@ -132,7 +123,6 @@ def approve_registration(request: HttpRequest, registration_id: int) -> HttpResp
 
 @require_permission("gold_team")
 def reject_registration(request: HttpRequest, registration_id: int) -> HttpResponse:
-    """Reject a registration (Gold Team and Admin only)."""
     registration = get_object_or_404(TeamRegistration, id=registration_id)
 
     context = {"registration": registration, "subnav_active": "registrations"}
@@ -153,7 +143,6 @@ def reject_registration(request: HttpRequest, registration_id: int) -> HttpRespo
 
 @require_permission("gold_team")
 def mark_paid(request: HttpRequest, registration_id: int) -> HttpResponse:
-    """Mark a registration as paid (Gold Team only)."""
     if request.method != "POST":
         return redirect("registration_review_list")
 
@@ -164,19 +153,14 @@ def mark_paid(request: HttpRequest, registration_id: int) -> HttpResponse:
     return redirect("registration_review_list")
 
 
-# Season views
-
-
 @require_permission("gold_team")
 def season_list(request: HttpRequest) -> HttpResponse:
-    """List all seasons (Gold Team only)."""
     seasons = Season.objects.prefetch_related("events").all()
     return render(request, "registration/seasons/list.html", {"seasons": seasons, "subnav_active": "seasons"})
 
 
 @require_permission("gold_team")
 def season_create(request: HttpRequest) -> HttpResponse:
-    """Create a new season (Gold Team only)."""
     if request.method == "POST":
         form = SeasonForm(request.POST)
         if form.is_valid():
@@ -193,7 +177,6 @@ def season_create(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team")
 def season_edit(request: HttpRequest, season_id: int) -> HttpResponse:
-    """Edit a season (Gold Team only)."""
     season = get_object_or_404(Season, id=season_id)
 
     if request.method == "POST":
@@ -214,7 +197,6 @@ def season_edit(request: HttpRequest, season_id: int) -> HttpResponse:
 
 @require_permission("gold_team")
 def season_delete(request: HttpRequest, season_id: int) -> HttpResponse:
-    """Delete a season (Gold Team only)."""
     season = get_object_or_404(Season, id=season_id)
 
     if request.method == "POST":
@@ -226,12 +208,8 @@ def season_delete(request: HttpRequest, season_id: int) -> HttpResponse:
     return render(request, "registration/seasons/delete_confirm.html", {"season": season, "subnav_active": "seasons"})
 
 
-# Event views
-
-
 @require_permission("gold_team")
 def event_list(request: HttpRequest, season_id: int) -> HttpResponse:
-    """List events for a season (Gold Team only)."""
     season = get_object_or_404(Season, id=season_id)
     events = season.events.annotate_enrollment_count()
 
@@ -242,7 +220,6 @@ def event_list(request: HttpRequest, season_id: int) -> HttpResponse:
 
 @require_permission("gold_team")
 def event_create(request: HttpRequest, season_id: int) -> HttpResponse:
-    """Create a new event (Gold Team only)."""
     season = get_object_or_404(Season, id=season_id)
 
     if request.method == "POST":
@@ -265,7 +242,6 @@ def event_create(request: HttpRequest, season_id: int) -> HttpResponse:
 
 @require_permission("gold_team")
 def event_edit(request: HttpRequest, event_id: int) -> HttpResponse:
-    """Edit an event (Gold Team only)."""
     event = get_object_or_404(Event, id=event_id)
 
     if request.method == "POST":
@@ -286,7 +262,6 @@ def event_edit(request: HttpRequest, event_id: int) -> HttpResponse:
 
 @require_permission("gold_team")
 def event_delete(request: HttpRequest, event_id: int) -> HttpResponse:
-    """Delete an event (Gold Team only)."""
     event = get_object_or_404(Event, id=event_id)
     season_id = event.season_id
 
@@ -310,10 +285,8 @@ def event_detail(request: HttpRequest, event_id: int) -> HttpResponse:
     )
     assignments = EventTeamAssignment.objects.filter(event=event).select_related("registration", "team")
 
-    # Build lookup of registration_id -> assignment
     assignment_map = {a.registration_id: a for a in assignments}
 
-    # Enrich enrollments with assignment info
     enrollment_data = []
     for enrollment in enrollments:
         assignment = assignment_map.get(enrollment.registration_id)
@@ -346,7 +319,6 @@ def assign_teams(request: HttpRequest, event_id: int) -> HttpResponse:
 
     event = get_object_or_404(Event, id=event_id)
 
-    # Get paid registrations enrolled in this event that don't have assignments yet
     enrolled_registrations = (
         RegistrationEventEnrollment.objects.filter(
             event=event,
@@ -360,7 +332,6 @@ def assign_teams(request: HttpRequest, event_id: int) -> HttpResponse:
         messages.warning(request, "No eligible registrations to assign.")
         return redirect("registration_event_detail", event_id=event_id)
 
-    # Get available teams (not already assigned to this event)
     assigned_team_ids = EventTeamAssignment.objects.filter(event=event).values_list("team_id", flat=True)
     available_teams = list(Team.objects.exclude(id__in=assigned_team_ids).order_by("team_number"))
 
@@ -373,7 +344,6 @@ def assign_teams(request: HttpRequest, event_id: int) -> HttpResponse:
         )
         return redirect("registration_event_detail", event_id=event_id)
 
-    # Randomly shuffle and assign
     random.shuffle(available_teams)
 
     with transaction.atomic():
@@ -390,7 +360,6 @@ def assign_teams(request: HttpRequest, event_id: int) -> HttpResponse:
 
 @require_permission("gold_team")
 def unassign_team(request: HttpRequest, assignment_id: int) -> HttpResponse:
-    """Remove a team assignment (Gold Team only)."""
     if request.method != "POST":
         return redirect("registration_season_list")
 

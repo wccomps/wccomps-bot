@@ -1,13 +1,8 @@
-"""Django admin configuration for WCComps."""
-
 from django.contrib import admin
 from django.db.models import QuerySet
 from django.http import HttpRequest
 
 from .auth_utils import get_authentik_groups
-
-# Team, DiscordLink, LinkToken, LinkAttempt moved to team.admin
-# Ticket, TicketAttachment, TicketComment, TicketHistory moved to ticketing.admin
 from .models import (
     AuditLog,
     BotState,
@@ -18,7 +13,6 @@ from .models import (
 )
 
 
-# Custom admin site with Authentik group-based permissions
 class AuthentikAdminSite(admin.AdminSite):
     """Admin site that checks Authentik groups for access."""
 
@@ -28,7 +22,6 @@ class AuthentikAdminSite(admin.AdminSite):
     site_url = "/ops/tickets/"
 
     def has_permission(self, request: HttpRequest) -> bool:
-        """Check admin access via Authentik groups."""
         if not request.user.is_active or not request.user.is_authenticated:
             return False
 
@@ -36,20 +29,8 @@ class AuthentikAdminSite(admin.AdminSite):
         return "WCComps_Discord_Admin" in groups or "WCComps_Ticketing_Admin" in groups
 
 
-# Replace default admin site
 admin.site = AuthentikAdminSite()
 admin.sites.site = admin.site
-
-
-# ============================================================================
-# TEAM MANAGEMENT MOVED TO team.admin
-# Team, DiscordLink, LinkToken, LinkAttempt, SchoolInfo now managed in team app
-# ============================================================================
-
-
-# ============================================================================
-# Audit and Debugging - Read-only models for audit trails
-# ============================================================================
 
 
 @admin.register(AuditLog)
@@ -68,18 +49,6 @@ class AuditLogAdmin(admin.ModelAdmin[AuditLog]):
 
     def has_delete_permission(self, request: HttpRequest, obj: AuditLog | None = None) -> bool:
         return False
-
-
-# ============================================================================
-# TICKETING SYSTEM MOVED TO ticketing.admin
-# Ticket, TicketAttachment, TicketComment, TicketHistory now managed in ticketing app
-# ============================================================================
-
-
-# ============================================================================
-# SYSTEM INTERNALS (Limited access)
-# Background tasks and bot state - mostly read-only
-# ============================================================================
 
 
 @admin.register(DiscordTask)
@@ -183,7 +152,6 @@ class CompetitionConfigAdmin(admin.ModelAdmin[CompetitionConfig]):
 
     @admin.display(description="Status")
     def competition_status(self, obj: CompetitionConfig) -> str:
-        """Display current competition status."""
         from django.utils import timezone
 
         if obj.applications_enabled:
@@ -195,7 +163,6 @@ class CompetitionConfigAdmin(admin.ModelAdmin[CompetitionConfig]):
         return "Not Scheduled"
 
     def has_add_permission(self, request: HttpRequest) -> bool:
-        # Only allow creation if no config exists
         return not CompetitionConfig.objects.exists()
 
     def has_delete_permission(self, request: HttpRequest, obj: CompetitionConfig | None = None) -> bool:

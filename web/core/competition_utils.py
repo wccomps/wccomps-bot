@@ -1,5 +1,3 @@
-"""Shared competition utilities."""
-
 from orange_team.models import OrangeAssignment, OrangeCheckIn
 from scoring.models import (
     FinalScore,
@@ -18,32 +16,15 @@ from ticketing.models import Ticket, TicketAttachment, TicketComment, TicketHist
 
 
 def wipe_competition_data() -> dict[str, int]:
-    """
-    Wipe competition data for a fresh start.
+    """Wipe competition data for a fresh start, returning deleted counts by model.
 
-    Deletes:
-    - Scoring data (findings, incidents, inject grades, orange scores, service and final scores)
-    - Orange team assignments (with their results and follow-ups) and check-ins
-    - All tickets and history
-    - Blue team Discord links (staff/volunteer links preserved)
-
-    Preserves:
-    - Teams (static config, always BlueTeam01-50)
-    - Orange checks (reusable rubrics)
-    - AuditLog (compliance/history)
-    - BotState (dashboard message IDs, etc.)
-    - DiscordTask (task history)
-    - LinkToken/LinkAttempt (harmless)
-
-    Returns dict of model names to deleted counts.
+    Preserves teams, orange checks (reusable rubrics), AuditLog, BotState, DiscordTask and LinkToken/LinkAttempt.
     """
     counts = {
-        # Ticketing
         "TicketAttachment": TicketAttachment.objects.all().delete()[0],
         "TicketComment": TicketComment.objects.all().delete()[0],
         "TicketHistory": TicketHistory.objects.all().delete()[0],
         "Ticket": Ticket.objects.all().delete()[0],
-        # Scoring
         "RedTeamScreenshot": RedTeamScreenshot.objects.all().delete()[0],
         "IncidentScreenshot": IncidentScreenshot.objects.all().delete()[0],
         "IncidentReport": IncidentReport.objects.all().delete()[0],

@@ -1,5 +1,3 @@
-"""URL configuration for admin packet management views."""
-
 from django.urls import path
 
 from . import views

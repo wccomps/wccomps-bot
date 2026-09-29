@@ -1,5 +1,3 @@
-"""Middleware to enforce Authentik authentication on all pages."""
-
 import logging
 import time
 import zoneinfo
@@ -19,15 +17,12 @@ error_logger = logging.getLogger("wccomps.errors")
 
 
 class SecurityHeadersMiddleware:
-    """Add security headers to all responses."""
-
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         response = self.get_response(request)
 
-        # Content-Security-Policy
         if "Content-Security-Policy" not in response:
             response["Content-Security-Policy"] = (
                 "default-src 'self'; "
@@ -117,27 +112,23 @@ class AuthentikRequiredMiddleware:
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
-        # Prefix paths that don't require authentication
         self.whitelist_prefixes = [
-            "/static/",  # Static files
+            "/static/",
         ]
-        # Exact paths
         self.whitelist_exact = [
             "/health/",  # Health check endpoint for monitoring
             "/livez/",  # Liveness probe (no database)
             "/register/",  # Public registration form
-            "/auth/login/",  # OAuth login initiation
-            "/auth/callback/",  # OAuth callback
-            "/auth/logout/",  # Logout
+            "/auth/login/",
+            "/auth/callback/",
+            "/auth/logout/",
             "/auth/link",  # Discord account linking (token-based)
         ]
-        # Startswith for token-based public pages
         self.whitelist_startswith = [
             "/register/edit/",  # Token-based registration editing
         ]
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        # Skip if path is whitelisted
         for prefix in self.whitelist_prefixes:
             if request.path.startswith(prefix):
                 return self.get_response(request)
@@ -147,7 +138,6 @@ class AuthentikRequiredMiddleware:
             if request.path.startswith(prefix):
                 return self.get_response(request)
 
-        # Require authentication for all other paths
         if not request.user.is_authenticated:
             # Validate and sanitize the next parameter to prevent open redirect
             next_url = request.path
@@ -197,7 +187,6 @@ class AccessLoggingMiddleware:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        # Skip static files
         if request.path.startswith("/static/"):
             return self.get_response(request)
 

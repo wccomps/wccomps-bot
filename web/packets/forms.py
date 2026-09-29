@@ -1,5 +1,3 @@
-"""Django forms for packet distribution views."""
-
 from django import forms
 
 

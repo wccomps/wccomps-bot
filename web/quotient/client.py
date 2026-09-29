@@ -45,8 +45,6 @@ class QuotientService:
 
 @dataclass
 class QuotientBox:
-    """Represents an infrastructure box."""
-
     name: str
     ip: str
     services: list[QuotientService]
@@ -54,8 +52,6 @@ class QuotientBox:
 
 @dataclass
 class QuotientInfrastructure:
-    """Complete infrastructure from Quotient."""
-
     boxes: list[QuotientBox]
     event_name: str
     team_count: int
@@ -64,8 +60,6 @@ class QuotientInfrastructure:
 
 @dataclass
 class TeamScore:
-    """Team scoring data from Quotient."""
-
     team_name: str
     team_number: int
     total_score: float
@@ -84,8 +78,6 @@ class ServiceExportEntry:
 
 @dataclass
 class TeamServiceExport:
-    """Per-team service export from Quotient."""
-
     team_id: int
     team_name: str
     services: list[ServiceExportEntry]
@@ -96,8 +88,6 @@ class TeamServiceExport:
 
 @dataclass
 class TeamUptime:
-    """Per-team uptime data from Quotient."""
-
     team_name: str
     team_id: int
     uptimes: dict[str, float]  # service_name -> uptime (0.0-1.0)
@@ -105,8 +95,6 @@ class TeamUptime:
 
 @dataclass
 class Inject:
-    """Inject from Quotient."""
-
     inject_id: int
     title: str
     description: str
@@ -122,31 +110,20 @@ class QuotientAPIError(Exception):
 
 
 class QuotientClient:
-    """Client for Quotient scoring engine REST API."""
-
     def __init__(
         self,
         base_url: str | None = None,
-        cache_ttl: int = 300,  # 5 minutes
+        cache_ttl: int = 300,
     ):
-        """
-        Initialize Quotient API client.
-
-        Args:
-            base_url: URL for Quotient API (default from settings)
-            cache_ttl: Cache time-to-live in seconds (default 300)
-        """
         base = base_url or str(getattr(settings, "QUOTIENT_API_URL", ""))
         self.base_url = base.rstrip("/")
         self.cache_ttl = cache_ttl
         self.client: httpx.Client | None = None
 
     def _get_client(self, force_reauth: bool = False) -> httpx.Client:
-        """Get or create authenticated client."""
         if self.client is None or force_reauth:
             self.client = httpx.Client()
 
-            # Credentials from settings (QUOTIENT_USERNAME / QUOTIENT_PASSWORD)
             username = getattr(settings, "QUOTIENT_USERNAME", "")
             password = getattr(settings, "QUOTIENT_PASSWORD", "")
 
@@ -194,18 +171,9 @@ class QuotientClient:
         return response
 
     def get_infrastructure(self, force_refresh: bool = False) -> QuotientInfrastructure | None:
-        """
-        Fetch infrastructure from Quotient API.
-
-        Args:
-            force_refresh: Skip cache and fetch fresh data
-
-        Returns:
-            QuotientInfrastructure object or None if unavailable
-        """
+        """Fetch infrastructure from Quotient API, or None if unavailable."""
         cache_key = "quotient_infrastructure"
 
-        # Check cache first
         if not force_refresh:
             cached: QuotientInfrastructure | None = cache.get(cache_key)
             if cached:
@@ -218,7 +186,6 @@ class QuotientClient:
 
             data = response.json()
 
-            # Parse response into dataclasses
             # /api/metadata returns: {"boxes": [{"name": str, "ip": str, "services": [str]}]}
             boxes = []
             for box_data in data.get("boxes", []):
@@ -247,7 +214,6 @@ class QuotientClient:
                 api_version="v1",
             )
 
-            # Cache the result
             cache.set(cache_key, infrastructure, self.cache_ttl)
             logger.info(f"Fetched {len(boxes)} boxes from Quotient API")
 
@@ -261,15 +227,7 @@ class QuotientClient:
             return None
 
     def get_scores(self, force_refresh: bool = False) -> list[TeamScore] | None:
-        """
-        Fetch team scores from Quotient API.
-
-        Args:
-            force_refresh: Skip cache and fetch fresh data
-
-        Returns:
-            List of TeamScore objects or None if unavailable
-        """
+        """Fetch team scores from Quotient API, or None if unavailable."""
         cache_key = "quotient_scores"
 
         if not force_refresh:
@@ -311,12 +269,7 @@ class QuotientClient:
             return None
 
     def get_injects(self, force_refresh: bool = False) -> list[Inject] | None:
-        """
-        Fetch injects from Quotient API.
-
-        Returns:
-            List of Inject objects or None if unavailable
-        """
+        """Fetch injects from Quotient API, or None if unavailable."""
         cache_key = "quotient_injects"
 
         if not force_refresh:
@@ -346,7 +299,7 @@ class QuotientClient:
                 for i in inject_list
             ]
 
-            cache.set(cache_key, injects, 60)  # 1 minute cache
+            cache.set(cache_key, injects, 60)
             logger.info(f"Fetched {len(injects)} injects")
             return injects
 
@@ -358,12 +311,7 @@ class QuotientClient:
             return None
 
     def get_service_export(self, force_refresh: bool = False) -> list[TeamServiceExport] | None:
-        """
-        Fetch per-service score breakdown from Quotient.
-
-        Returns:
-            List of TeamServiceExport objects or None if unavailable
-        """
+        """Fetch per-service score breakdown from Quotient, or None if unavailable."""
         cache_key = "quotient_service_export"
 
         if not force_refresh:
@@ -410,12 +358,7 @@ class QuotientClient:
             return None
 
     def get_uptimes(self, force_refresh: bool = False) -> list[TeamUptime] | None:
-        """
-        Fetch per-service uptime percentages from Quotient.
-
-        Returns:
-            List of TeamUptime objects or None if unavailable
-        """
+        """Fetch per-service uptime percentages from Quotient, or None if unavailable."""
         cache_key = "quotient_uptimes"
 
         if not force_refresh:
@@ -453,12 +396,7 @@ class QuotientClient:
             return None
 
     def get_service_choices(self) -> list[dict[str, str]]:
-        """
-        Get formatted service choices for ticket dropdown.
-
-        Returns:
-            List of dicts with 'value', 'label', and 'box_ip' keys
-        """
+        """Service choices for the ticket dropdown, as dicts with 'value', 'label' and 'box_ip' keys."""
         infrastructure = self.get_infrastructure()
         if not infrastructure:
             return []
@@ -479,7 +417,6 @@ class QuotientClient:
         return sorted(choices, key=lambda x: x["label"])
 
     def get_box_names(self) -> list[str]:
-        """Get list of all box names."""
         infrastructure = self.get_infrastructure()
         if not infrastructure:
             return []
@@ -489,5 +426,4 @@ class QuotientClient:
 
 @lru_cache(maxsize=1)
 def get_quotient_client() -> QuotientClient:
-    """Get or create the global Quotient client instance."""
     return QuotientClient()

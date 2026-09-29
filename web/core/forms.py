@@ -1,5 +1,3 @@
-"""Django forms for core views and admin views."""
-
 from django import forms
 
 from core.authentik_utils import parse_team_range
@@ -100,14 +98,10 @@ class ResetPasswordsForm(forms.Form):
 
 
 class ActionForm(forms.Form):
-    """Simple action dispatcher form."""
-
     action = forms.CharField()
 
 
 class ReadinessFixForm(forms.Form):
-    """Form for readiness fix dispatch."""
-
     fix = forms.CharField()
 
 
