@@ -320,6 +320,14 @@ class DiscordQueueProcessor:
 
         logger.info(f"Removed team {team_number} role from {member}")
 
+    async def _handle_cleanup_competition(self, task: DiscordTask) -> None:
+        """Run the competition cleanup requested from the ops page."""
+        from bot.competition_actions import run_competition_cleanup
+
+        if not self.discord_manager:
+            raise RuntimeError("Discord manager not initialized")
+        await run_competition_cleanup(self.bot, self.discord_manager.guild, task.payload["requested_by"])
+
     async def _handle_setup_team_infrastructure(self, task: DiscordTask) -> None:
         """Handle setup_team_infrastructure task."""
         if not self.discord_manager:
@@ -743,6 +751,7 @@ DiscordQueueProcessor._task_handlers = {
     "setup_team_infrastructure": DiscordQueueProcessor._handle_setup_team_infrastructure,
     "log_to_channel": DiscordQueueProcessor._handle_log_to_channel,
     "ticket_created_web": DiscordQueueProcessor._handle_ticket_created_web,
+    "cleanup_competition": DiscordQueueProcessor._handle_cleanup_competition,
     "post_comment": DiscordQueueProcessor._handle_post_comment,
     "post_ticket_update": DiscordQueueProcessor._handle_post_ticket_update,
     "add_user_to_thread": DiscordQueueProcessor._handle_add_user_to_thread,

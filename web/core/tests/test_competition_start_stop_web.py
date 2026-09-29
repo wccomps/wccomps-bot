@@ -53,3 +53,20 @@ def test_setting_a_start_time_mid_competition_keeps_it_running(admin_client):
     config = CompetitionConfig.get_config()
     assert config.applications_enabled
     assert config.competition_start_time is not None
+
+
+def test_cleanup_is_queued_for_the_bot(admin_client):
+    CompetitionConfig.objects.update_or_create(pk=1, defaults={"applications_enabled": False})
+
+    response = _post(admin_client, "cleanup_competition")
+
+    assert response.json()["success"]
+    task = DiscordTask.objects.get(task_type="cleanup_competition")
+    assert task.payload["requested_by"]
+
+
+def test_cleanup_refused_while_running(admin_client):
+    CompetitionConfig.objects.update_or_create(pk=1, defaults={"applications_enabled": True})
+
+    assert _post(admin_client, "cleanup_competition").status_code == 400
+    assert not DiscordTask.objects.filter(task_type="cleanup_competition").exists()

@@ -87,6 +87,7 @@ class DiscordTask(models.Model):
         add_user_to_thread:      {"discord_id": int, "thread_id": int}
         assign_role_by_username: {"role_id": int, "usernames": list[str],
                                   "guild_id": int (optional)}
+        cleanup_competition:     {"requested_by": str}
     """
 
     STATUS_CHOICES = [
@@ -114,6 +115,7 @@ class DiscordTask(models.Model):
         ("sync_roles", "Sync Roles Between Guilds"),
         ("add_user_to_thread", "Add User to Thread"),
         ("assign_role_by_username", "Assign Role by Username"),
+        ("cleanup_competition", "Clean Up Competition"),
     ]
 
     task_type = models.CharField(max_length=50, choices=TASK_TYPE_CHOICES)
@@ -159,6 +161,7 @@ class DiscordTask(models.Model):
             "sync_roles": {"requested_by", "dry_run"},
             "add_user_to_thread": {"discord_id", "thread_id"},
             "assign_role_by_username": {"role_id", "usernames"},
+            "cleanup_competition": {"requested_by"},
         }
         if self.task_type in required_keys:
             missing = required_keys[self.task_type] - set(self.payload.keys())
@@ -187,6 +190,15 @@ class DiscordTask(models.Model):
         return cls.objects.create(
             task_type="remove_role",
             payload={"discord_id": discord_id, "team_number": team_number},
+            status="pending",
+        )
+
+    @classmethod
+    def create_cleanup_competition(cls, requested_by: str) -> DiscordTask:
+        """Create a task for the bot to tear down the competition (see run_competition_cleanup)."""
+        return cls.objects.create(
+            task_type="cleanup_competition",
+            payload={"requested_by": requested_by},
             status="pending",
         )
 

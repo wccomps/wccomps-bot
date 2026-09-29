@@ -11,7 +11,6 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseBase, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
-from django.utils import timezone
 from scoring.models import QuotientMetadataCache
 from scoring.quotient_sync import sync_quotient_metadata
 
@@ -19,7 +18,7 @@ from core.admin_views.readiness import action_readiness_check, action_readiness_
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import reset_team_password
 from core.forms import ActionForm, AppSlugForm, ResetPasswordsForm, SetMaxMembersForm, SetTimeForm
-from core.models import AuditLog, CompetitionConfig, DiscordTask, QueuedAnnouncement
+from core.models import AuditLog, CompetitionConfig, DiscordTask
 from core.services.competition import CompetitionRunResult, run_competition
 from core.utils import ndjson_progress as _progress
 from team.models import MAX_TEAMS
@@ -262,67 +261,12 @@ def _action_stop_competition(
 def _action_cleanup_competition(
     request: HttpRequest, config: CompetitionConfig, authentik_username: str
 ) -> JsonResponse:
-    """Handle cleanup_competition action."""
-    from team.models import DiscordLink, Team
-
+    """Queue the competition cleanup for the bot, which also removes the Discord side."""
     if config.applications_enabled:
         return JsonResponse({"error": "Competition must be stopped before cleanup"}, status=400)
 
-    # Deactivate team member links
-    links = DiscordLink.objects.filter(is_active=True, team__isnull=False)
-    deactivated = 0
-    for link in links:
-        link.is_active = False
-        link.unlinked_at = timezone.now()
-        link.save()
-        deactivated += 1
-
-        AuditLog.objects.create(
-            action="user_unlinked",
-            admin_user=authentik_username,
-            target_entity="discord_link",
-            target_id=link.discord_id,
-            details={
-                "discord_id": link.discord_id,
-                "team_name": link.team.team_name if link.team else "Unknown",
-                "authentik_username": link.user.username,
-                "reason": "competition_cleanup",
-            },
-        )
-
-    # Clear team Discord IDs
-    Team.objects.all().update(discord_category_id=None, discord_role_id=None)
-
-    # Clear competition times
-    config.competition_start_time = None
-    config.competition_end_time = None
-    config.save()
-
-    # Clear queued announcements
-    deleted_count = QueuedAnnouncement.objects.all().delete()[0]
-
-    # Clear Quotient metadata cache
-    QuotientMetadataCache.objects.all().delete()
-
-    AuditLog.objects.create(
-        action="competition_cleanup",
-        admin_user=authentik_username,
-        target_entity="competition",
-        target_id=0,
-        details={
-            "deactivated_links": deactivated,
-            "cleared_announcements": deleted_count,
-            "cleared_quotient_metadata": True,
-        },
-    )
-
-    return JsonResponse(
-        {
-            "success": True,
-            "message": f"Cleanup complete. Deactivated {deactivated} links, cleared {deleted_count} announcements, "
-            "cleared Quotient metadata. Discord cleanup requires bot commands.",
-        }
-    )
+    DiscordTask.create_cleanup_competition(requested_by=authentik_username)
+    return JsonResponse({"success": True, "message": "Cleanup queued. The bot reports progress in the ops channel."})
 
 
 def _action_wipe_competition(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:

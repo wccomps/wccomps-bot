@@ -1,14 +1,18 @@
 """Shared competition actions for commands and timer."""
 
 import logging
+import re
 
 import discord
 from asgiref.sync import sync_to_async
+from django.utils import timezone
+from scoring.models import QuotientMetadataCache
 
 from bot.permissions import clear_permission_cache
-from core.models import CompetitionConfig
+from bot.utils import log_to_ops_channel
+from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
 from core.services.competition import CompetitionRunResult, run_competition_to_completion
-from team.models import MAX_TEAMS
+from team.models import MAX_TEAMS, DiscordLink, Team
 
 logger = logging.getLogger(__name__)
 
@@ -129,3 +133,187 @@ def _build_status_embed(config: CompetitionConfig) -> discord.Embed:
     embed.timestamp = discord.utils.utcnow()
 
     return embed
+
+
+async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, actor: str) -> None:
+    """Tear down the competition in Discord and the database; progress goes to the ops channel.
+
+    The one implementation behind /competition cleanup-competition and the ops page's cleanup
+    (queued as a cleanup_competition task). Never raises: failures are reported to ops.
+    """
+    config = await sync_to_async(CompetitionConfig.get_config)()
+    if config.applications_enabled:
+        await log_to_ops_channel(bot, "Cleanup refused: the competition is still running")
+        return
+
+    try:
+        await log_to_ops_channel(bot, f"Competition Cleanup Started by {actor}")
+
+        # Deactivate team member links only (preserve admin/support links)
+        links_to_deactivate = [
+            link
+            async for link in DiscordLink.objects.filter(is_active=True, team__isnull=False).select_related(
+                "team", "user"
+            )
+        ]
+
+        deactivated = 0
+        for link in links_to_deactivate:
+            link.is_active = False
+            link.unlinked_at = timezone.now()
+            await link.asave()
+            deactivated += 1
+
+            await AuditLog.objects.acreate(
+                action="user_unlinked",
+                admin_user=actor,
+                target_entity="discord_link",
+                target_id=link.discord_id,
+                details={
+                    "discord_id": link.discord_id,
+                    "team_name": link.team.team_name if link.team else "Unknown",
+                    "authentik_username": link.user.username,
+                    "reason": "competition_cleanup",
+                },
+            )
+
+        await log_to_ops_channel(bot, f"Deactivated {deactivated} team member links")
+
+        # Delete ALL team categories/channels
+        deleted_count = 0
+        for category in guild.categories:
+            match = re.match(r"^team\s*(\d+)$", category.name, re.IGNORECASE)
+            if match:
+                try:
+                    for channel in category.channels:
+                        await channel.delete(reason="Competition cleanup")
+                    await category.delete(reason="Competition cleanup")
+                    deleted_count += 1
+                    logger.info(f"Deleted {category.name}")
+                except Exception as e:
+                    logger.exception(f"Failed to delete {category.name}: {e}")
+
+        await log_to_ops_channel(bot, f"Deleted {deleted_count} team categories")
+
+        # Remove team roles from members
+        from bot.discord_manager import DiscordManager
+
+        discord_manager = DiscordManager(guild, bot)
+        removed_count = await discord_manager.remove_all_team_roles()
+        await log_to_ops_channel(bot, f"Removed roles from {removed_count} members")
+
+        # Clear Discord IDs from teams
+        await Team.objects.all().aupdate(discord_category_id=None, discord_role_id=None)
+
+        # Remove student helper roles
+        active_helpers = [
+            dl async for dl in DiscordLink.objects.filter(is_student_helper=True, is_active=True).select_related("user")
+        ]
+
+        helpers_removed = 0
+        for discord_link in active_helpers:
+            try:
+                if discord_link.helper_role_id:
+                    role = guild.get_role(discord_link.helper_role_id)
+                    if role:
+                        for member in guild.members:
+                            if role in member.roles:
+                                try:
+                                    await member.remove_roles(role, reason="Competition cleanup")
+                                except Exception as e:
+                                    logger.warning(f"Could not remove helper role from {member}: {e}")
+
+                discord_link.is_student_helper = False
+                discord_link.helper_removal_reason = "Competition cleanup"
+                discord_link.helper_deactivated_at = timezone.now()
+                await discord_link.asave()
+                helpers_removed += 1
+
+                await AuditLog.objects.acreate(
+                    action="helper_removed",
+                    admin_user=actor,
+                    target_entity="discordlink",
+                    target_id=discord_link.id,
+                    details={
+                        "discord_id": discord_link.discord_id,
+                        "discord_username": discord_link.discord_username,
+                        "role_name": discord_link.helper_role_name,
+                        "reason": "competition_cleanup",
+                    },
+                )
+            except Exception as e:
+                logger.exception(f"Error removing helper {discord_link.user.username}: {e}")
+
+        if helpers_removed > 0:
+            await log_to_ops_channel(bot, f"Removed {helpers_removed} student helper role(s)")
+
+        # Remove helper roles from all members
+        helper_role_ids: set[int] = set()
+        async for role_id in DiscordLink.objects.filter(helper_role_id__isnull=False).values_list(
+            "helper_role_id", flat=True
+        ):
+            if role_id is not None:
+                helper_role_ids.add(role_id)
+
+        helper_role_removals = 0
+        for role_id in helper_role_ids:
+            role = guild.get_role(role_id)
+            if role:
+                for member in role.members:
+                    try:
+                        await member.remove_roles(role, reason="Competition cleanup")
+                        helper_role_removals += 1
+                    except Exception as e:
+                        logger.warning(f"Could not remove {role.name} from {member}: {e}")
+
+        # Remove WCComps Room Judge role
+        room_judge_role = discord.utils.get(guild.roles, name="WCComps Room Judge")
+        if room_judge_role:
+            for member in room_judge_role.members:
+                try:
+                    await member.remove_roles(room_judge_role, reason="Competition cleanup")
+                    helper_role_removals += 1
+                except Exception as e:
+                    logger.warning(f"Could not remove Room Judge from {member}: {e}")
+
+        if helper_role_removals > 0:
+            await log_to_ops_channel(bot, f"Removed helper/judge roles from {helper_role_removals} members")
+
+        await CompetitionConfig.objects.filter(pk=config.pk).aupdate(
+            competition_start_time=None, competition_end_time=None
+        )
+        await QuotientMetadataCache.objects.all().adelete()
+
+        # Clear queued announcements
+        deleted_announcements = await QueuedAnnouncement.objects.all().adelete()
+        if deleted_announcements[0] > 0:
+            await log_to_ops_channel(bot, f"Cleared {deleted_announcements[0]} queued announcements")
+
+        # Create audit log
+        await AuditLog.objects.acreate(
+            action="competition_cleanup",
+            admin_user=actor,
+            target_entity="competition",
+            target_id=0,
+            details={
+                "deactivated_links": deactivated,
+                "deleted_categories": deleted_count,
+                "removed_roles": removed_count,
+                "helpers_removed": helpers_removed,
+            },
+        )
+
+        await log_to_ops_channel(
+            bot,
+            f"Competition Cleanup Complete\n"
+            f"- Deactivated {deactivated} team links\n"
+            f"- Deleted {deleted_count} team categories\n"
+            f"- Removed {removed_count} role assignments",
+        )
+
+        # Update status channel
+        await update_status_channel(bot)
+
+    except Exception as e:
+        logger.exception(f"Cleanup error: {e}")
+        await log_to_ops_channel(bot, f"Cleanup Error: {e}")
