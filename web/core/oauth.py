@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 from django.core import signing
-from django.db import transaction
+from django.db import connection, transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -65,12 +65,13 @@ def oauth_login(request: HttpRequest) -> HttpResponse:
     if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
         next_url = "/"
 
-    # Encode next URL and a nonce in a signed state parameter.
-    # The state travels through Authentik and back, so it works regardless
-    # of which browser/session completes the flow. The signature provides
-    # CSRF protection (can't be forged without SECRET_KEY), and signing.loads
-    # with max_age handles expiry.
-    state = signing.dumps({"n": secrets.token_urlsafe(16), "next": next_url})
+    # The signature keeps `next` tamper-proof and signing.loads(max_age=...) expires the state.
+    # The nonce, also kept in this session, ties the callback to the browser that started the
+    # login: without it anyone could send a victim through a callback carrying the attacker's
+    # code and state, logging the victim in as the attacker (login CSRF).
+    nonce = secrets.token_urlsafe(16)
+    request.session["oauth_nonce"] = nonce
+    state = signing.dumps({"n": nonce, "next": next_url})
 
     # Build authorization URL
     redirect_uri = request.build_absolute_uri("/auth/callback/")
@@ -128,11 +129,7 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             {"error_title": "Login Failed", "error_message": "Please try again."},
         )
 
-    # Verify state parameter — the state is a signed token containing the
-    # nonce and next URL.  signing.loads verifies the HMAC signature (CSRF
-    # protection) and checks max_age (expiry).  Because the state is
-    # self-contained, it works even if the callback arrives in a different
-    # browser/session than the one that initiated the login.
+    # Verify the signed state, then that this browser's session started the login (see oauth_login).
     raw_state = request.GET.get("state")
     if not raw_state:
         logger.warning("OAuth state missing")
@@ -157,6 +154,15 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             request,
             "core/oauth_error.html",
             {"error_title": "Security Error", "error_message": "Please try again."},
+        )
+
+    session_nonce = request.session.pop("oauth_nonce", None)
+    if not session_nonce or not secrets.compare_digest(str(state_data.get("n", "")), session_nonce):
+        logger.warning("OAuth state was not issued to this session")
+        return render(
+            request,
+            "core/oauth_error.html",
+            {"error_title": "Session Expired", "error_message": "Please try logging in again."},
         )
 
     # Get authorization code
@@ -236,6 +242,11 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
     # Accounts are keyed by the Authentik sub only: usernames get reused, and matching on
     # them would hand a new identity someone else's account
     with transaction.atomic():
+        # A team account's members often log in at the same moment: without this, two first
+        # logins both see no account and the second create fails on the unique username.
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [f"authentik:{authentik_id}"])
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [f"username:{username}"])
         user_groups = UserGroups.objects.select_related("user").filter(authentik_id=authentik_id).first()
         if user_groups is None:
             _free_username(username)

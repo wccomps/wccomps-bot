@@ -2,6 +2,7 @@
 
 import logging
 import time
+import zoneinfo
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import quote
@@ -10,6 +11,7 @@ from django.conf import settings
 from django.db import connection
 from django.http import HttpRequest, HttpResponse, HttpResponsePermanentRedirect
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 
 logger = logging.getLogger("wccomps.access")
@@ -41,6 +43,23 @@ class SecurityHeadersMiddleware:
             )
 
         return response
+
+
+class UserTimezoneMiddleware:
+    """Show and read times in the browser's timezone, which static/js/utils.js puts in the tz cookie.
+
+    Without the cookie (first page view, scripts off) times stay in UTC, TIME_ZONE.
+    """
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        try:
+            timezone.activate(zoneinfo.ZoneInfo(request.COOKIES["tz"]))
+        except KeyError, ValueError, zoneinfo.ZoneInfoNotFoundError:
+            timezone.deactivate()
+        return self.get_response(request)
 
 
 class SubdomainRedirectMiddleware:

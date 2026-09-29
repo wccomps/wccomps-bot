@@ -7,6 +7,18 @@
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
+// Tell the server this browser's timezone so it shows times in it and reads date/time
+// inputs in it (core.middleware.UserTimezoneMiddleware). Times are stored in UTC.
+(function rememberTimezone() {
+    let tz;
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return; }
+    if (!tz) return;
+    const value = 'tz=' + encodeURIComponent(tz);
+    if (document.cookie.split('; ').includes(value)) return;
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = value + '; path=/; max-age=31536000; SameSite=Lax' + secure;
+})();
+
 function getCSRFToken() {
     const c = document.cookie.split('; ').find(c => c.startsWith('csrftoken='));
     if (c) return c.split('=')[1];

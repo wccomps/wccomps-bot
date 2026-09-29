@@ -67,7 +67,7 @@ jobs:
         run: |
           cd web && DJANGO_SETTINGS_MODULE=portal.settings uv run python manage.py collectstatic --noinput
         env:
-          SECRET_KEY: test-secret-key-for-ci
+          DJANGO_SECRET_KEY: test-secret-key-for-ci
 
       - name: Run tests
         run: |
@@ -75,7 +75,7 @@ jobs:
         env:
           DJANGO_SETTINGS_MODULE: portal.settings
           PYTHONPATH: ${{ github.workspace }}/web:${{ github.workspace }}
-          SECRET_KEY: test-secret-key-for-ci
+          DJANGO_SECRET_KEY: test-secret-key-for-ci
 
   # The production image (deployed on the deoxys cluster by wccomps/wccomps-argocd).
   # PRs only build (to catch a broken Dockerfile); pushes to main also publish to GHCR.

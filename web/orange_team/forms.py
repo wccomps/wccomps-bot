@@ -10,7 +10,7 @@ from django.http import QueryDict
 class OrangeCheckForm(forms.Form):
     title = forms.CharField(max_length=200)
     description = forms.CharField(required=False)
-    scheduled_at = forms.CharField(required=False)
+    scheduled_at = forms.DateTimeField(required=False)  # read in the viewer's timezone
 
 
 class CheckAssignForm(forms.Form):
