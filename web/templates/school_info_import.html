@@ -16,6 +16,10 @@
                     <strong>Import completed successfully!</strong>
                     <br>
                     Created: {{ import_results.created }} school info record(s)
+                    {% if import_results.activated %}
+                        <br>
+                        Activated: {{ import_results.activated }} team(s)
+                    {% endif %}
                     {% if import_results.assigned %}
                         <br>
                         Assigned: {{ import_results.assigned }} team(s) to active event
@@ -97,7 +101,10 @@
             {% else %}
                 {# Step 1: Upload form #}
                 <div class="max-w-800">
-                    <p>Upload a CSV file to bulk import school information for teams. Team numbers are assigned randomly.</p>
+                    <p>
+                        Upload a CSV file with one row per school. The import replaces all existing school information,
+                        assigns the schools to teams 1 through N in random order, and activates those teams.
+                    </p>
                     <h3 class="mt-20">CSV Format Requirements</h3>
                     <p>Your CSV file must include the following columns:</p>
                     <ul class="ml-20">

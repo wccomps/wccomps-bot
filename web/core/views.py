@@ -377,15 +377,13 @@ def _apply_school_info_import(
     teams_to_create: list[CSVRowData] = import_data["teams_to_create"]  # type: ignore[assignment]
 
     team_numbers = [row["team_number"] for row in teams_to_create]
-    teams_by_number: dict[int, Team] = {
-        t.team_number: t for t in Team.objects.filter(team_number__in=team_numbers, is_active=True)
-    }
+    teams_by_number: dict[int, Team] = {t.team_number: t for t in Team.objects.filter(team_number__in=team_numbers)}
 
     errors = []
     for row in teams_to_create:
         team_number = row["team_number"]
         if team_number not in teams_by_number:
-            errors.append(f"Team {team_number} is no longer available")
+            errors.append(f"Team {team_number} no longer exists")
         else:
             row["_team"] = teams_by_number[team_number]
 
@@ -397,7 +395,7 @@ def _apply_school_info_import(
         }, None
 
     result = apply_csv_import(teams_to_create, authentik_username)
-    return None, {"created": result["created"], "assigned": result["assigned"]}
+    return None, result
 
 
 @require_permission("gold_team")

@@ -135,6 +135,35 @@ Springfield High,captain@example.edu
         assert len(result["errors"]) == 0
         assert not any("auto-detected" in w.lower() for w in result["warnings"])
 
+    def test_two_email_columns_keep_both_emails(self) -> None:
+        """Every email column used to map to contact_email, so the last one overwrote the rest."""
+        csv_content = """School,Team Captain Email,Coach Email
+Example U,captain@example.edu,coach@example.edu
+"""
+        csv_file = SimpleUploadedFile("test.csv", csv_content.encode("utf-8"), content_type="text/csv")
+
+        result = parse_csv_file(csv_file)
+
+        assert result["errors"] == []
+        assert result["rows"][0]["contact_email"] == "captain@example.edu"
+        assert result["rows"][0]["secondary_email"] == "coach@example.edu"
+
+    @pytest.mark.parametrize(
+        ("header", "row"),
+        [
+            ("school_name,contact_email,Coach Email", "Example U,captain@example.edu,coach@example.edu"),
+            ("school_name,Coach Email,contact_email", "Example U,coach@example.edu,captain@example.edu"),
+        ],
+    )
+    def test_named_contact_column_wins_and_other_email_is_secondary(self, header: str, row: str) -> None:
+        csv_file = SimpleUploadedFile("test.csv", f"{header}\n{row}\n".encode(), content_type="text/csv")
+
+        result = parse_csv_file(csv_file)
+
+        assert result["errors"] == []
+        assert result["rows"][0]["contact_email"] == "captain@example.edu"
+        assert result["rows"][0]["secondary_email"] == "coach@example.edu"
+
 
 class TestCSVValidation:
     """Test CSV data validation against database."""
@@ -165,61 +194,32 @@ class TestCSVValidation:
             assert "_team" in row
             assert "team_number" in row
 
+    def test_validate_uses_teams_one_to_n_and_reports_what_it_replaces(self) -> None:
+        """The CSV is the whole school list: teams 1..N regardless of state, existing info replaced."""
+        for i in range(1, 5):
+            Team.objects.create(team_name=f"Team {i}", team_number=i, is_active=i == 1)
+        SchoolInfo.objects.create(team=Team.objects.get(team_number=1), school_name="Old", contact_email="o@x.edu")
+
+        result = validate_csv_data([_row("University One"), _row("University Two"), _row("University Three")])
+
+        assert result["errors"] == []
+        assert sorted(r["team_number"] for r in result["teams_to_create"]) == [1, 2, 3]
+        assert "Replaces the 1 existing school record(s)." in result["warnings"]
+        assert "Activates team(s) 2, 3." in result["warnings"]
+
     def test_validate_not_enough_teams(self, setup_teams: list[Team]) -> None:
-        """Test validation fails when more rows than available teams."""
-        # Create school info for all but one team
-        for team in setup_teams[:-1]:
-            SchoolInfo.objects.create(
-                team=team,
-                school_name=f"School for {team.team_name}",
-                contact_email=f"contact{team.team_number}@example.edu",
-            )
+        result = validate_csv_data([_row(f"University {i}") for i in range(6)])
 
-        # Try to import 2 rows when only 1 team is available
-        rows = [
-            {
-                "school_name": "University One",
-                "contact_email": "contact1@example.edu",
-                "secondary_email": "",
-                "notes": "",
-            },
-            {
-                "school_name": "University Two",
-                "contact_email": "contact2@example.edu",
-                "secondary_email": "",
-                "notes": "",
-            },
-        ]
+        assert result["errors"] == ["The CSV has 6 schools but only 5 teams exist."]
 
-        result = validate_csv_data(rows)
+    def test_validate_rejects_a_repeated_school(self, setup_teams: list[Team]) -> None:
+        result = validate_csv_data([_row("University One"), _row("University One")])
 
-        assert len(result["errors"]) > 0
-        assert "Not enough available teams" in result["errors"][0]
+        assert result["errors"] == ["Each school can appear only once; repeated: University One"]
 
-    def test_validate_excludes_teams_with_school_info(self, setup_teams: list[Team]) -> None:
-        """Test validation only assigns teams without existing school info."""
-        # Create school info for first team
-        SchoolInfo.objects.create(
-            team=setup_teams[0],
-            school_name="Existing School",
-            contact_email="existing@example.edu",
-        )
 
-        rows = [
-            {
-                "school_name": "New School",
-                "contact_email": "new@example.edu",
-                "secondary_email": "",
-                "notes": "",
-            },
-        ]
-
-        result = validate_csv_data(rows)
-
-        assert len(result["errors"]) == 0
-        assert len(result["teams_to_create"]) == 1
-        # Assigned team should not be the one with existing school info
-        assert result["teams_to_create"][0]["_team"].id != setup_teams[0].id
+def _row(school_name: str) -> dict[str, str]:
+    return {"school_name": school_name, "contact_email": "contact@example.edu", "secondary_email": "", "notes": ""}
 
 
 class TestCSVImport:
@@ -257,3 +257,32 @@ class TestCSVImport:
         assert school_info1.secondary_email == "alt1@example.edu"
         assert school_info1.notes == "Test note"
         assert school_info1.updated_by == "testuser"
+
+    def test_apply_replaces_school_info_activates_teams_and_reassigns_the_event(self) -> None:
+        from datetime import date
+
+        from registration.models import Event, EventTeamAssignment, Season, TeamRegistration
+
+        teams = [Team.objects.create(team_name=f"Team {i}", team_number=i, is_active=i == 1) for i in (1, 2, 3)]
+        SchoolInfo.objects.create(team=teams[2], school_name="Old", contact_email="o@x.edu")
+        season = Season.objects.create(name="2026", year=2026, is_active=True)
+        event = Event.objects.create(
+            season=season, name="Invitational", event_type="invitational", date=date(2026, 10, 3), is_active=True
+        )
+        # Last import put this school on team 3; this one moves it to team 1
+        EventTeamAssignment.objects.create(
+            event=event, team=teams[2], registration=TeamRegistration.objects.create(school_name="University One")
+        )
+
+        result = apply_csv_import(
+            [{**_row("University One"), "_team": teams[0]}, {**_row("University Two"), "_team": teams[1]}], "gold"
+        )
+
+        assert result == {"created": 2, "assigned": 2, "activated": 1}
+        assert sorted(SchoolInfo.objects.values_list("school_name", flat=True)) == ["University One", "University Two"]
+        assert sorted(Team.objects.filter(is_active=True).values_list("team_number", flat=True)) == [1, 2]
+        assert sorted(
+            EventTeamAssignment.objects.filter(event=event).values_list(
+                "team__team_number", "registration__school_name"
+            )
+        ) == [(1, "University One"), (2, "University Two")]

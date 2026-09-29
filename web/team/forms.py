@@ -1,14 +1,19 @@
 import csv
 import io
 import random
-from typing import TypedDict, cast
+from collections import Counter
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from django import forms
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.core.validators import validate_email
+from django.db import transaction
 
 from team.models import SchoolInfo, Team
+
+if TYPE_CHECKING:
+    from registration.models import Event
 
 
 def _infer_header_mapping(fieldnames: list[str]) -> dict[str, str] | None:
@@ -191,34 +196,44 @@ def parse_csv_file(csv_file: UploadedFile[bytes]) -> CSVParseResult:
 
 
 def validate_csv_data(rows: list[CSVRowData]) -> CSVValidationResult:
-    """Validate CSV data against database and assign random team numbers."""
+    """Assign the rows to teams 1..N in random order; the import replaces all existing school info."""
+    from registration.models import EventTeamAssignment
+
     teams_to_create: list[CSVRowData] = []
     errors: list[str] = []
     warnings: list[str] = []
 
-    num_rows = len(rows)
-    existing_school_info_team_ids = set(SchoolInfo.objects.values_list("team_id", flat=True))
-    available_teams = list(
-        Team.objects.filter(is_active=True)
-        .exclude(id__in=existing_school_info_team_ids)
-        .order_by("team_number")[:num_rows]
-    )
+    # Each school gets one registration, and a registration can hold one team per event
+    repeated = [name for name, n in Counter(row["school_name"] for row in rows).items() if n > 1]
+    if repeated:
+        errors.append(f"Each school can appear only once; repeated: {', '.join(repeated)}")
 
-    if len(available_teams) < num_rows:
-        errors.append(
-            f"Not enough available teams. CSV has {num_rows} rows but only "
-            f"{len(available_teams)} teams without school info."
-        )
+    num_rows = len(rows)
+    teams = list(Team.objects.order_by("team_number")[:num_rows])
+
+    if len(teams) < num_rows:
+        errors.append(f"The CSV has {num_rows} schools but only {len(teams)} teams exist.")
+    if errors:
         return {
             "teams_to_create": teams_to_create,
             "errors": errors,
             "warnings": warnings,
         }
 
-    random.shuffle(available_teams)
+    existing = SchoolInfo.objects.count()
+    if existing:
+        warnings.append(f"Replaces the {existing} existing school record(s).")
+    event = _active_event()
+    assignments = EventTeamAssignment.objects.filter(event=event).count() if event else 0
+    if assignments:
+        warnings.append(f"Replaces the {assignments} team assignment(s) for {event}.")
+    inactive = [t.team_number for t in teams if not t.is_active]
+    if inactive:
+        warnings.append(f"Activates team(s) {', '.join(map(str, inactive))}.")
 
-    for i, row in enumerate(rows):
-        team = available_teams[i]
+    random.shuffle(teams)
+
+    for team, row in zip(teams, rows, strict=True):
         row["_team"] = team
         row["team_number"] = team.team_number
         teams_to_create.append(row)
@@ -230,18 +245,31 @@ def validate_csv_data(rows: list[CSVRowData]) -> CSVValidationResult:
     }
 
 
+def _active_event() -> Event | None:
+    from registration.models import Event, Season
+
+    season = Season.objects.filter(is_active=True).first()
+    return Event.objects.filter(is_active=True, season=season).first() if season else None
+
+
+@transaction.atomic
 def apply_csv_import(
     teams_to_create: list[CSVRowData],
     updated_by: str,
 ) -> dict[str, int]:
-    """Create SchoolInfo for each team and assign it to the active event, returning created/assigned counts."""
-    from registration.models import Event, EventTeamAssignment, Season, TeamRegistration
+    """Replace all school info with the rows, activate their teams, and reassign the active event's teams."""
+    from registration.models import EventTeamAssignment, TeamRegistration
 
     created = 0
     assigned = 0
 
-    season = Season.objects.filter(is_active=True).first()
-    event = Event.objects.filter(is_active=True, season=season).first() if season else None
+    event = _active_event()
+    SchoolInfo.objects.all().delete()
+    if event:
+        EventTeamAssignment.objects.filter(event=event).delete()
+    activated = Team.objects.filter(pk__in=[row["_team"].pk for row in teams_to_create], is_active=False).update(
+        is_active=True
+    )
 
     for row in teams_to_create:
         team = row["_team"]
@@ -260,12 +288,7 @@ def apply_csv_import(
                 school_name=row["school_name"],
                 defaults={"status": "approved"},
             )
-            _, eta_created = EventTeamAssignment.objects.get_or_create(
-                event=event,
-                team=team,
-                defaults={"registration": registration},
-            )
-            if eta_created:
-                assigned += 1
+            EventTeamAssignment.objects.create(event=event, team=team, registration=registration)
+            assigned += 1
 
-    return {"created": created, "assigned": assigned}
+    return {"created": created, "assigned": assigned, "activated": activated}
