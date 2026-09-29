@@ -119,7 +119,7 @@ class TestWipeCompetitionData:
             discord_username="testuser",
             expires_at="2099-01-01T00:00:00Z",
         )
-        DiscordTask.objects.create(task_type="update_dashboard", payload={}, status="pending")
+        DiscordTask.objects.create(task_type="log_to_channel", payload={"message": "hi"}, status="pending")
         return team
 
     def test_deletes_all_data_with_confirm(self, populated_database):
