@@ -14,6 +14,7 @@ from team.models import Team
 from ..calculator import calculate_suggested_recovery_points, suggest_red_score_matches
 from ..forms import IncidentMatchForm, IncidentReportForm
 from ..models import IncidentReport, IncidentScreenshot
+from ..quotient_sync import get_box_metadata
 from ..screenshots import read_screenshot, screenshot_response
 from ._helpers import _get_user_team
 
@@ -79,24 +80,11 @@ def submit_incident_report(request: HttpRequest) -> HttpResponse:
     else:
         form = IncidentReportForm(team, is_admin)
 
-    # Get box metadata for JavaScript (IP auto-population and service filtering)
-    from quotient.client import QuotientClient
-
-    box_metadata = {}
-    client = QuotientClient()
-    infra = client.get_infrastructure()
-    if infra:
-        for box in infra.boxes:
-            box_metadata[box.name] = {
-                "ip": box.ip,
-                "services": [svc.name for svc in box.services],
-            }
-
     context = {
         "form": form,
         "team": team,
         "is_admin": is_admin,
-        "box_metadata": box_metadata,
+        "box_metadata": get_box_metadata(),
     }
     return render(request, "scoring/submit_incident.html", context)
 

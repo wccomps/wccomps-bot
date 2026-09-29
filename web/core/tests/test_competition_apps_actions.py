@@ -112,3 +112,24 @@ def test_page_sets_csrf_cookie_for_fresh_session(admin_user):
     assert response.status_code == 200
     assert "csrftoken" in response.cookies
     assert 'name="csrf-token"' in response.content.decode()
+
+
+def test_app_list_is_fetched_separately_from_the_page(admin_client):
+    """Authentik's app list takes ~1s, so the page renders without it and the picker fetches it."""
+    from unittest.mock import patch
+
+    with patch("core.admin_views.competition.AuthentikManager") as manager:
+        manager.return_value.list_applications.return_value = ["netbird", "scoring"]
+        page = admin_client.get(reverse("admin_competition"))
+        manager.return_value.list_applications.assert_not_called()
+        apps = admin_client.get(reverse("admin_competition_apps"))
+
+    assert page.status_code == 200
+    assert apps.json() == {"apps": ["netbird", "scoring"]}
+
+
+def test_app_list_denied_without_admin_or_gold(blue_team_user):
+    client = Client()
+    client.force_login(blue_team_user)
+    response = client.get(reverse("admin_competition_apps"))
+    assert response.status_code == 403
