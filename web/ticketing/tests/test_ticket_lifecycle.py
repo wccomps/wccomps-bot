@@ -279,10 +279,12 @@ class TestBulkOperations:
         assert t2.status == "claimed"
 
     def test_bulk_resolve(self, ticketing_support_user, team, category):
+        """Fixed-point tickets resolve at their category's points; variable ones need a value, so are skipped."""
+        fixed = TicketCategory.objects.get(pk=2)
         t1 = Ticket.objects.create(
             ticket_number="T001-020",
             team=team,
-            category=category,
+            category=fixed,
             title="A",
             status="claimed",
             assigned_to=ticketing_support_user,
@@ -298,13 +300,32 @@ class TestBulkOperations:
 
         client = Client()
         client.force_login(ticketing_support_user)
-        response = client.post(reverse("tickets_bulk_resolve"), {"ticket_numbers": "T001-020,T001-021"})
-        assert response.status_code == 302
+        response = client.post(reverse("tickets_bulk_resolve"), {"ticket_numbers": "T001-020,T001-021"}, follow=True)
+        assert response.status_code == 200
 
         t1.refresh_from_db()
         t2.refresh_from_db()
         assert t1.status == "resolved"
-        assert t2.status == "resolved"
+        assert t1.points_charged == fixed.points
+        assert t2.status == "claimed"
+        assert "T001-021" in response.content.decode()
+
+    def test_bulk_resolve_skips_tickets_assigned_to_others(self, ticketing_support_user, ticketing_admin_user, team):
+        ticket = Ticket.objects.create(
+            ticket_number="T001-022",
+            team=team,
+            category=TicketCategory.objects.get(pk=2),
+            title="A",
+            status="claimed",
+            assigned_to=ticketing_admin_user,
+        )
+
+        client = Client()
+        client.force_login(ticketing_support_user)
+        client.post(reverse("tickets_bulk_resolve"), {"ticket_numbers": "T001-022"})
+
+        ticket.refresh_from_db()
+        assert ticket.status == "claimed"
 
     def test_blue_team_cannot_bulk_claim(self, blue_team_user, team, category):
         Ticket.objects.create(ticket_number="T001-030", team=team, category=category, title="A", status="open")

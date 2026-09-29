@@ -31,7 +31,7 @@ class TicketingCog(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def archive_threads_task(self) -> None:
-        """Background task to archive resolved ticket threads after 60s grace period."""
+        """Archive the threads of resolved and cancelled tickets once their scheduled time passes."""
         try:
             # Find tickets with threads scheduled for archiving
             now = timezone.now()
@@ -46,38 +46,20 @@ class TicketingCog(commands.Cog):
 
             for ticket in tickets_to_archive:
                 try:
-                    # Get thread
-                    if ticket.discord_thread_id is None:
-                        continue
-                    thread = self.bot.get_channel(ticket.discord_thread_id)
-                    if not thread:
-                        # Thread not found, clear scheduled time
-                        ticket.thread_archive_scheduled_at = None
-                        await ticket.asave()
-                        continue
-
-                    # Archive thread
+                    thread = self.bot.get_channel(ticket.discord_thread_id) if ticket.discord_thread_id else None
                     if isinstance(thread, discord.Thread):
                         await thread.edit(archived=True, locked=True)
-
-                    # Clear scheduled time
-                    ticket.thread_archive_scheduled_at = None
-                    await ticket.asave()
-
-                    # Log action
-                    await TicketHistory.objects.acreate(
-                        ticket=ticket,
-                        action="thread_archived",
-                        details={"archived_at": str(now), "actor": "System"},
-                    )
-
-                    logger.info(f"Archived thread for ticket #{ticket.id} (60s grace period expired)")
-
+                        await TicketHistory.objects.acreate(
+                            ticket=ticket,
+                            action="thread_archived",
+                            details={"archived_at": str(now), "actor": "System"},
+                        )
+                        logger.info(f"Archived thread for ticket #{ticket.id}")
                 except Exception as e:
                     logger.exception(f"Failed to archive thread for ticket #{ticket.id}: {e}")
-                    # Clear scheduled time on error to avoid retrying
-                    ticket.thread_archive_scheduled_at = None
-                    await ticket.asave()
+                # Cleared whatever happened, so a failure isn't retried every minute. Only this field:
+                # a full save of the stale row would undo a reopen made while the thread was edited.
+                await Ticket.objects.filter(pk=ticket.pk).aupdate(thread_archive_scheduled_at=None)
 
         except Exception as e:
             logger.exception(f"Error in archive_threads_task: {e}")

@@ -1,7 +1,7 @@
 """Ticketing utilities for atomic ticket creation and lifecycle management.
 
-Each sync function has an async variant with 'a' prefix (e.g., acreate_ticket_atomic)
-created via _make_async(). New lifecycle functions should follow this pattern.
+Each *_ticket_atomic function has an async variant with an 'a' prefix (e.g.,
+acreate_ticket_atomic) created via _make_async(). New lifecycle functions should follow this pattern.
 """
 
 import functools
@@ -17,6 +17,9 @@ from django.utils import timezone
 from core.tickets_config import get_category_config
 from team.models import DiscordLink, Team
 from ticketing.models import Ticket, TicketCategory, TicketHistory
+
+# How long a resolved or cancelled ticket's Discord thread stays open before the bot archives it.
+THREAD_ARCHIVE_DELAY = timedelta(seconds=60)
 
 
 def _make_async[**P, T](fn: Callable[P, T]) -> Callable[P, Awaitable[T]]:
@@ -285,11 +288,8 @@ def resolve_ticket_atomic(
         if not ticket.assigned_to and resolver:
             ticket.assigned_to = resolver
 
-        # Schedule thread archiving if Discord thread exists
         if ticket.discord_thread_id:
-            from datetime import timedelta
-
-            ticket.thread_archive_scheduled_at = timezone.now() + timedelta(seconds=60)
+            ticket.thread_archive_scheduled_at = timezone.now() + THREAD_ARCHIVE_DELAY
 
         ticket.save()
 
@@ -425,14 +425,20 @@ def cancel_ticket_atomic(
     ticket_id: int,
     actor_username: str,
     user: User | None = None,
+    reason: str = "",
+    staff: bool = False,
 ) -> tuple[Ticket | None, str | None]:
     """
-    Cancel a ticket atomically.
+    Cancel a ticket atomically, with no point penalty.
+
+    Teams cancel only open tickets; staff (``staff=True``) may also cancel claimed ones.
 
     Args:
         ticket_id: ID of ticket to cancel
         actor_username: Username for history
         user: User performing the cancel (optional, for history actor)
+        reason: Stored as the resolution notes (default "Cancelled by <actor>")
+        staff: Whether the canceller is ticketing staff
 
     Returns:
         Tuple of (ticket, error_message). If error, ticket is None.
@@ -444,22 +450,81 @@ def cancel_ticket_atomic(
             return None, "Ticket not found."
 
         if not ticket.can_transition_to(Ticket.STATUS_CANCELLED):
-            return None, f"Only open tickets can be cancelled. This ticket is {ticket.status}."
+            return None, f"Cannot cancel ticket with status: {ticket.status}."
+
+        if ticket.status == Ticket.STATUS_CLAIMED and not staff:
+            return None, "Claimed tickets can only be cancelled by ticketing staff."
 
         ticket.status = Ticket.STATUS_CANCELLED
         ticket.resolved_at = timezone.now()
-        ticket.resolution_notes = f"Cancelled by {actor_username}"
+        ticket.resolution_notes = reason or f"Cancelled by {actor_username}"
         ticket.points_charged = 0
+        if ticket.discord_thread_id:
+            ticket.thread_archive_scheduled_at = timezone.now() + THREAD_ARCHIVE_DELAY
         ticket.save()
 
         TicketHistory.objects.create(
             ticket=ticket,
             action="cancelled",
             actor=user,
-            details={"cancelled_by": actor_username},
+            details={"cancelled_by": actor_username, "reason": reason},
         )
 
         return ticket, None
+
+
+acancel_ticket_atomic = _make_async(cancel_ticket_atomic)
+
+
+def change_ticket_category_atomic(
+    ticket_id: int,
+    new_category_id: int,
+    actor_username: str,
+    user: User | None = None,
+) -> tuple[Ticket | None, str | None]:
+    """
+    Move a ticket to another category atomically, recording both categories' names and points.
+
+    Returns:
+        Tuple of (ticket, error_message). If error, ticket is None.
+    """
+    with transaction.atomic():
+        ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
+
+        if not ticket:
+            return None, "Ticket not found."
+
+        new_cat_info = get_category_config(new_category_id)
+        if new_cat_info is None:
+            return None, "Invalid category."
+
+        old_category_id = ticket.category_id
+        if old_category_id == new_category_id:
+            return None, f"Ticket {ticket.ticket_number} is already in that category."
+        old_cat_info = get_category_config(old_category_id) or {}
+
+        ticket.category_id = new_category_id
+        ticket.save(update_fields=["category", "updated_at"])
+
+        TicketHistory.objects.create(
+            ticket=ticket,
+            action="category_changed",
+            actor=user,
+            details={
+                "changed_by": actor_username,
+                "old_category": old_category_id,
+                "old_category_name": old_cat_info.get("display_name", "Unknown"),
+                "new_category": new_category_id,
+                "new_category_name": new_cat_info.get("display_name", "Unknown"),
+                "old_points": old_cat_info.get("points", 0),
+                "new_points": new_cat_info.get("points", 0),
+            },
+        )
+
+        return ticket, None
+
+
+achange_ticket_category_atomic = _make_async(change_ticket_category_atomic)
 
 
 def reopen_ticket_atomic(
@@ -490,13 +555,15 @@ def reopen_ticket_atomic(
             return None, f"Cannot reopen - ticket is {ticket.status}."
 
         old_assignee = ticket.assigned_to
+        refunded_points = ticket.points_charged
 
         ticket.status = Ticket.STATUS_OPEN
         ticket.assigned_to = None
         ticket.resolved_at = None
+        ticket.points_charged = 0  # charged again when it is resolved again
         ticket.save()
 
-        details: dict[str, object] = {"reopened_by": actor_username}
+        details: dict[str, object] = {"reopened_by": actor_username, "refunded_points": refunded_points}
         if old_assignee:
             details["previous_assignee"] = old_assignee.username
         if reopen_reason:
@@ -510,3 +577,6 @@ def reopen_ticket_atomic(
         )
 
         return ticket, None
+
+
+areopen_ticket_atomic = _make_async(reopen_ticket_atomic)

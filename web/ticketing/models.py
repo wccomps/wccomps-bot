@@ -65,7 +65,7 @@ class Ticket(models.Model):
     # Valid state transitions: {current_status: [allowed_next_statuses]}
     VALID_TRANSITIONS: dict[str, list[str]] = {
         STATUS_OPEN: [STATUS_CLAIMED, STATUS_RESOLVED, STATUS_CANCELLED],
-        STATUS_CLAIMED: [STATUS_OPEN, STATUS_RESOLVED],  # unclaim goes back to open
+        STATUS_CLAIMED: [STATUS_OPEN, STATUS_RESOLVED, STATUS_CANCELLED],  # unclaim goes back to open
         STATUS_RESOLVED: [STATUS_OPEN],  # reopen goes back to open
         STATUS_CANCELLED: [],  # terminal state
     }

@@ -4,7 +4,6 @@ import logging
 
 import discord
 from asgiref.sync import sync_to_async
-from django.utils import timezone
 
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT
 from core.tickets_config import TicketCategoryConfig, get_category_config
@@ -264,7 +263,6 @@ class TicketActionView(discord.ui.View):
 
         from bot.permissions import can_support_tickets_async
         from team.models import DiscordLink
-        from ticketing.models import TicketHistory
 
         # Extract ticket_id from message embed or instance variable
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
@@ -308,41 +306,17 @@ class TicketActionView(discord.ui.View):
             await interaction.response.send_message("This ticket does not belong to your team.", ephemeral=True)
             return
 
-        # Only allow cancellation if unclaimed
-        if ticket.status != "open":
-            await interaction.response.send_message(
-                f"Cannot cancel this ticket. It is already {ticket.status}.\n"
-                f"Claimed or in-progress tickets must be cancelled by an admin.",
-                ephemeral=True,
-            )
+        from ticketing.utils import acancel_ticket_atomic
+
+        cancelled, error = await acancel_ticket_atomic(ticket_id=ticket.id, actor_username=str(interaction.user))
+        if error or cancelled is None:
+            await interaction.response.send_message(error or "Failed to cancel ticket.", ephemeral=True)
             return
 
-        # Cancel ticket
-        ticket.status = "cancelled"
-        ticket.resolved_at = timezone.now()
-        ticket.resolution_notes = f"Cancelled by {interaction.user}"
-        ticket.points_charged = 0
-
-        # Schedule thread archiving if Discord thread exists
-        if ticket.discord_thread_id:
-            from datetime import timedelta
-
-            ticket.thread_archive_scheduled_at = timezone.now() + timedelta(seconds=60)
-
-        await ticket.asave()
-
-        # Create history entry
-        await TicketHistory.objects.acreate(
-            ticket=ticket,
-            action="cancelled",
-            details={"reason": "Cancelled by team member (unclaimed)", "actor": str(interaction.user)},
-        )
-
-        # Update dashboard
-        await update_ticket_dashboard(interaction.client, ticket)
+        await update_ticket_dashboard(interaction.client, cancelled)
 
         await interaction.response.send_message(
-            f"Ticket {ticket.ticket_number} has been cancelled (no point penalty).",
+            f"Ticket {cancelled.ticket_number} has been cancelled (no point penalty).",
             ephemeral=True,
         )
 
