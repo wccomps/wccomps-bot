@@ -48,9 +48,6 @@
     </script>
     <c-page_header title="Orange Team Dashboard"
                    subtitle="Check-in status and assigned checks" />
-    {% if messages %}
-        {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-    {% endif %}
     <c-module>
         <div class="status-bar">
             <div class="d-flex justify-between items-center flex-wrap gap-10">

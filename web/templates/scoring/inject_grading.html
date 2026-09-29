@@ -15,9 +15,6 @@
     </script>
     {% load cotton %}
     <c-page_header title="Inject Grading" />
-    {% if messages %}
-        {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-    {% endif %}
     <c-module>
         {% if not quotient_available %}
             <c-empty_state title="Quotient Unavailable"

@@ -49,9 +49,6 @@
                        subtitle="Team {{ ticket.team.team_number }}"
                        parent_url="{% url 'ticket_list' %}"
                        parent_label="Tickets" />
-        {% if messages %}
-            {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
-        {% endif %}
         <c-module>
             <div class="status-bar">
                 <div class="d-flex items-center gap-10 flex-wrap">
