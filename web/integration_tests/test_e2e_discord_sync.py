@@ -38,7 +38,7 @@ class TestTicketCreatesDiscordThread:
         ticket = Ticket.objects.filter(title=unique_title).first()
         assert ticket is not None
 
-        thread_tasks = DiscordTask.objects.filter(task_type="create_thread", ticket=ticket)
+        thread_tasks = DiscordTask.objects.filter(task_type="ticket_created_web", payload__ticket_id=ticket.id)
         assert thread_tasks.count() >= 1, "Should queue thread creation task"
 
         task = thread_tasks.first()
@@ -61,23 +61,19 @@ class TestTicketCreatesDiscordThread:
             status="open",
         )
 
-        DiscordTask.objects.create(
-            task_type="create_thread",
-            ticket=ticket,
-            payload={
-                "ticket_id": ticket.id,
-                "ticket_number": ticket.ticket_number,
-                "team_number": team.team_number,
-                "team_name": team.team_name,
-                "category": ticket.category,
-                "title": ticket.title,
-            },
+        DiscordTask.create_ticket_created_web(
+            ticket_id=ticket.id,
+            ticket_number=ticket.ticket_number,
+            team_number=team.team_number,
+            category=str(ticket.category),
+            title=ticket.title,
+            created_by="e2e",
         )
 
-        task = DiscordTask.objects.filter(task_type="create_thread", ticket=ticket).first()
+        task = DiscordTask.objects.filter(task_type="ticket_created_web", payload__ticket_id=ticket.id).first()
         assert task is not None
         assert task.payload.get("ticket_number") == ticket.ticket_number
-        assert task.payload.get("team_name") == team.team_name
+        assert task.payload.get("team_number") == team.team_number
 
         ticket.delete()
 
@@ -164,7 +160,7 @@ class TestStatusChangeUpdatesDiscord:
             ticket.delete()
 
     def test_resolve_queues_embed_update(self, ops_page: Page, claimed_ticket_with_thread, db, live_server_url):
-        """Resolving ticket should queue embed update."""
+        """Resolving a ticket queues a ticket update for Discord."""
         from core.models import DiscordTask
 
         ops_page.goto(f"{live_server_url}/ops/ticket/{claimed_ticket_with_thread.ticket_number}/")
@@ -178,11 +174,12 @@ class TestStatusChangeUpdatesDiscord:
             resolve_button.click()
             ops_page.wait_for_timeout(2000)
 
-            embed_task_count = DiscordTask.objects.filter(
-                task_type="update_embed",
+            update_count = DiscordTask.objects.filter(
+                task_type="post_ticket_update",
                 ticket=claimed_ticket_with_thread,
+                payload__action="resolved",
             ).count()
-            assert embed_task_count >= 1, "Should queue embed update task after resolve"
+            assert update_count >= 1, "Should queue a ticket update after resolve"
 
 
 class TestDiscordTaskQueue:
@@ -205,14 +202,15 @@ class TestDiscordTaskQueue:
         )
 
         task = DiscordTask.objects.create(
-            task_type="create_thread",
+            task_type="ticket_created_web",
             ticket=ticket,
             payload={
                 "ticket_id": ticket.id,
                 "ticket_number": ticket.ticket_number,
                 "team_number": team.team_number,
-                "category": ticket.category,
+                "category": str(ticket.category),
                 "title": ticket.title,
+                "created_by": "e2e",
             },
             status="failed",
             retry_count=2,
@@ -246,14 +244,15 @@ class TestDiscordTaskQueue:
         )
 
         task = DiscordTask.objects.create(
-            task_type="create_thread",
+            task_type="ticket_created_web",
             ticket=ticket,
             payload={
                 "ticket_id": ticket.id,
                 "ticket_number": ticket.ticket_number,
                 "team_number": team.team_number,
-                "category": ticket.category,
+                "category": str(ticket.category),
                 "title": ticket.title,
+                "created_by": "e2e",
             },
             status="pending",
         )
@@ -282,14 +281,15 @@ class TestDiscordTaskQueue:
         )
 
         task = DiscordTask.objects.create(
-            task_type="create_thread",
+            task_type="ticket_created_web",
             ticket=ticket,
             payload={
                 "ticket_id": ticket.id,
                 "ticket_number": ticket.ticket_number,
                 "team_number": team.team_number,
-                "category": ticket.category,
+                "category": str(ticket.category),
                 "title": ticket.title,
+                "created_by": "e2e",
             },
             status="failed",
             retry_count=5,
@@ -306,7 +306,7 @@ class TestDashboardUpdateSync:
     """Test dashboard update synchronization."""
 
     def test_claim_triggers_dashboard_update(self, db, test_team_id):
-        """Claiming ticket should trigger dashboard update task."""
+        """Claiming a ticket queues the update that also refreshes the dashboard."""
         from core.models import DiscordTask
         from team.models import Team
         from ticketing.models import Ticket
@@ -319,18 +319,13 @@ class TestDashboardUpdateSync:
             status="open",
         )
 
-        DiscordTask.objects.create(
-            task_type="update_dashboard",
-            payload={"reason": "ticket_claimed", "ticket_id": ticket.id},
-        )
+        # post_ticket_update also refreshes the #ticket-queue dashboard (bot/discord_queue.py)
+        DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor="e2e")
 
-        task = DiscordTask.objects.filter(
-            task_type="update_dashboard",
-            payload__ticket_id=ticket.id,
-        ).first()
+        task = DiscordTask.objects.filter(task_type="post_ticket_update", ticket=ticket).first()
 
         assert task is not None
-        assert task.payload["reason"] == "ticket_claimed"
+        assert task.payload["action"] == "claimed"
 
         ticket.delete()
 

@@ -571,57 +571,6 @@ class DiscordQueueProcessor:
 
         logger.info(f"Role sync completed: {summary}")
 
-    async def _handle_assign_role_by_username(self, task: DiscordTask) -> None:
-        """Assign a role to users by their Discord username."""
-        from bot.config import DISCORD_GUILD_ID
-
-        guild_id = task.payload.get("guild_id") or DISCORD_GUILD_ID
-        role_id = task.payload.get("role_id")
-        usernames = task.payload.get("usernames", [])
-
-        if not role_id or not usernames:
-            raise ValueError("Missing role_id or usernames in payload")
-
-        guild = self.bot.get_guild(guild_id)
-        if not guild:
-            raise RuntimeError(f"Guild {guild_id} not found")
-
-        # Ensure members are cached with timeout
-        if not guild.chunked:
-            try:
-                await asyncio.wait_for(guild.chunk(), timeout=30.0)
-            except TimeoutError:
-                logger.warning(f"Guild chunk timed out, using {len(guild.members)} cached members")
-
-        role = guild.get_role(role_id)
-        if not role:
-            raise RuntimeError(f"Role {role_id} not found in guild {guild.name}")
-
-        results = []
-        for username in usernames:
-            member = discord.utils.get(guild.members, name=username)
-            if not member:
-                member = discord.utils.get(guild.members, display_name=username)
-
-            if member:
-                if role in member.roles:
-                    results.append(f"{username}: already has role")
-                else:
-                    await member.add_roles(role, reason="Assigned via admin task")
-                    results.append(f"{username}: role added")
-                    logger.info(f"Added role {role.name} to {member} in {guild.name}")
-            else:
-                results.append(f"{username}: not found in guild")
-                logger.warning(f"User {username} not found in guild {guild.name}")
-
-        @sync_to_async
-        def store_results() -> None:
-            task.payload["result"] = {"results": results}
-            task.save()
-
-        await store_results()
-        logger.info(f"Role assignment complete: {results}")
-
     async def _handle_broadcast_message(self, task: DiscordTask) -> None:
         """Broadcast a message to announcement channel or team channels."""
         from bot.config import BLUETEAM_ROLE_ID, DISCORD_ANNOUNCEMENT_CHANNEL_ID, DISCORD_GUILD_ID
@@ -756,6 +705,5 @@ DiscordQueueProcessor._task_handlers = {
     "post_ticket_update": DiscordQueueProcessor._handle_post_ticket_update,
     "add_user_to_thread": DiscordQueueProcessor._handle_add_user_to_thread,
     "sync_roles": DiscordQueueProcessor._handle_sync_roles,
-    "assign_role_by_username": DiscordQueueProcessor._handle_assign_role_by_username,
     "broadcast_message": DiscordQueueProcessor._handle_broadcast_message,
 }

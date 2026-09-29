@@ -137,12 +137,12 @@ class TestDiscordTaskModel:
 
     def test_str_representation(self):
         """__str__ should return task_type and status."""
-        task = DiscordTask.objects.create(task_type="update_dashboard", payload={}, status="pending")
-        assert str(task) == "update_dashboard (pending)"
+        task = DiscordTask.objects.create(task_type="log_to_channel", payload={"message": "hi"}, status="pending")
+        assert str(task) == "log_to_channel (pending)"
 
     def test_default_values(self):
         """Should have correct default values."""
-        task = DiscordTask.objects.create(task_type="update_dashboard", payload={})
+        task = DiscordTask.objects.create(task_type="log_to_channel", payload={"message": "hi"})
         assert task.status == "pending"
         assert task.retry_count == 0
         assert task.max_retries == 5
@@ -369,26 +369,9 @@ class TestDiscordTaskTypeConsistency:
             with contextlib.suppress(Exception):
                 task.clean()
 
-    def test_queue_handlers_cover_all_task_types(self):
-        """Every TASK_TYPE_CHOICES entry should have a queue handler."""
+    def test_every_task_type_has_a_queue_handler_and_vice_versa(self):
+        """A type without a handler fails forever in the bot; a handler without a type can't be queued."""
         from bot.discord_queue import DiscordQueueProcessor
 
         choice_types = {t for t, _ in DiscordTask.TASK_TYPE_CHOICES}
-        handler_types = set(DiscordQueueProcessor._task_handlers.keys())
-
-        # Some task types may be handled elsewhere (update_embed, update_dashboard,
-        # archive_thread, send_message are handled by other subsystems or are no-ops)
-        # but every handler must correspond to a valid task type
-        unknown_handlers = handler_types - choice_types
-        assert not unknown_handlers, (
-            f"Queue handlers exist for unknown task types: {unknown_handlers}. "
-            f"Add them to DiscordTask.TASK_TYPE_CHOICES."
-        )
-
-    def test_all_handler_types_are_valid_choices(self):
-        """Every queue handler task type must be a valid TASK_TYPE_CHOICES entry."""
-        from bot.discord_queue import DiscordQueueProcessor
-
-        choice_types = {t for t, _ in DiscordTask.TASK_TYPE_CHOICES}
-        for handler_type in DiscordQueueProcessor._task_handlers:
-            assert handler_type in choice_types, f"Handler '{handler_type}' is not in TASK_TYPE_CHOICES"
+        assert choice_types == set(DiscordQueueProcessor._task_handlers)

@@ -65,13 +65,7 @@ class DiscordTask(models.Model):
       4. Factory classmethod on this class
       5. Handler + dispatch entry in bot/discord_queue.py
 
-    Payload schemas by task_type (validated by clean()):
-        create_thread:           {"ticket_id": int, "ticket_number": str,
-                                  "team_number": int, "category": str, "title": str}
-        update_embed:            {"ticket_id": int}
-        update_dashboard:        {}
-        archive_thread:          {"ticket_id": int}
-        send_message:            {"channel_id": int, "message": str}
+    Payload schemas by task_type (clean() checks the required keys are present when a task is first saved):
         post_comment:            {"ticket_id": int, "comment_id": int}
         broadcast_message:       {"target": str, "message": str, "sender": str}
         assign_role:             {"discord_id": int, "team_number": int}
@@ -85,8 +79,6 @@ class DiscordTask(models.Model):
                                   "title": str, "created_by": str}
         sync_roles:              {"requested_by": str, "dry_run": bool}
         add_user_to_thread:      {"discord_id": int, "thread_id": int}
-        assign_role_by_username: {"role_id": int, "usernames": list[str],
-                                  "guild_id": int (optional)}
         cleanup_competition:     {"requested_by": str}
     """
 
@@ -98,11 +90,6 @@ class DiscordTask(models.Model):
     ]
 
     TASK_TYPE_CHOICES = [
-        ("create_thread", "Create Thread"),
-        ("update_embed", "Update Embed"),
-        ("update_dashboard", "Update Dashboard"),
-        ("archive_thread", "Archive Thread"),
-        ("send_message", "Send Message"),
         ("post_comment", "Post Comment to Thread"),
         ("broadcast_message", "Broadcast Message"),
         ("assign_role", "Assign Team Role"),
@@ -112,9 +99,8 @@ class DiscordTask(models.Model):
         ("log_to_channel", "Log to Ops Channel"),
         ("post_ticket_update", "Post Ticket Update to Thread"),
         ("ticket_created_web", "Ticket Created via Web"),
-        ("sync_roles", "Sync Roles Between Guilds"),
+        ("sync_roles", "Sync Roles from Authentik Groups"),
         ("add_user_to_thread", "Add User to Thread"),
-        ("assign_role_by_username", "Assign Role by Username"),
         ("cleanup_competition", "Clean Up Competition"),
     ]
 
@@ -144,11 +130,6 @@ class DiscordTask(models.Model):
         from django.core.exceptions import ValidationError
 
         required_keys: dict[str, set[str]] = {
-            "create_thread": {"ticket_id", "ticket_number", "team_number", "category", "title"},
-            "update_embed": {"ticket_id"},
-            "update_dashboard": set(),
-            "archive_thread": {"ticket_id"},
-            "send_message": {"channel_id", "message"},
             "post_comment": {"ticket_id", "comment_id"},
             "broadcast_message": {"target", "message", "sender"},
             "assign_role": {"discord_id", "team_number"},
@@ -160,7 +141,6 @@ class DiscordTask(models.Model):
             "ticket_created_web": {"ticket_id", "ticket_number", "team_number", "category", "title", "created_by"},
             "sync_roles": {"requested_by", "dry_run"},
             "add_user_to_thread": {"discord_id", "thread_id"},
-            "assign_role_by_username": {"role_id", "usernames"},
             "cleanup_competition": {"requested_by"},
         }
         if self.task_type in required_keys:
@@ -303,20 +283,6 @@ class DiscordTask(models.Model):
             task_type="add_user_to_thread",
             ticket=ticket,
             payload={"discord_id": discord_id, "thread_id": thread_id},
-            status="pending",
-        )
-
-    @classmethod
-    def create_assign_role_by_username(
-        cls, role_id: int, usernames: list[str], guild_id: int | None = None
-    ) -> DiscordTask:
-        """Create a task to assign a role to users by their Discord username."""
-        payload: dict[str, object] = {"role_id": role_id, "usernames": usernames}
-        if guild_id is not None:
-            payload["guild_id"] = guild_id
-        return cls.objects.create(
-            task_type="assign_role_by_username",
-            payload=payload,
             status="pending",
         )
 
