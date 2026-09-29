@@ -10,6 +10,7 @@ from bot.cogs.authentik_groups import refresh_groups_now
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import toggle_all_blueteam_accounts
 from core.models import CompetitionConfig
+from team.models import MAX_TEAMS
 
 logger = logging.getLogger(__name__)
 
@@ -243,7 +244,7 @@ def _build_status_embed(config: CompetitionConfig) -> discord.Embed:
     account_status = "Enabled" if config.applications_enabled else "Disabled"
     embed.add_field(
         name="Team Accounts",
-        value=f"{account_status} (50 teams)",
+        value=f"{account_status} ({MAX_TEAMS} teams)",
         inline=True,
     )
 

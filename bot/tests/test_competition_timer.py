@@ -145,3 +145,27 @@ class TestCompetitionTimer:
 
         # Should not raise exception - get_config creates if missing
         await timer._check_competition_times()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_repeated_auto_start_failure_is_posted_once() -> None:
+    """The timer retries a failed start every minute; ops hears about it once."""
+    bot = AsyncMock(spec=discord.Client)
+    timer = CompetitionTimer(bot)
+    await CompetitionConfig.objects.aupdate_or_create(
+        pk=1,
+        defaults={"competition_start_time": timezone.now() - timedelta(minutes=1), "applications_enabled": False},
+    )
+    failure = {"success": False, "error": "No controlled applications configured"}
+
+    with (
+        patch("bot.competition_timer.start_competition", new=AsyncMock(return_value=failure)) as start,
+        patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock) as ops,
+        patch("bot.competition_timer.update_status_channel", new_callable=AsyncMock),
+    ):
+        await timer._check_competition_times()
+        await timer._check_competition_times()
+
+    assert start.await_count == 2
+    ops.assert_awaited_once()

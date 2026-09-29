@@ -21,6 +21,9 @@ class Command(BaseCommand):
     def handle(self, *args: str, **options: int) -> None:
         verbosity = options.get("verbosity", 1)
         with connection.cursor() as cursor:
+            # The settings' 30s statement_timeout would cancel the wait for the lock while another
+            # container migrates, and any slow migration; neither should be cut off.
+            cursor.execute("SET statement_timeout = 0")
             cursor.execute("SELECT pg_advisory_lock(%s)", [LOCK_ID])
             try:
                 call_command("migrate", interactive=False, verbosity=verbosity)

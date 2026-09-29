@@ -132,22 +132,18 @@ class UnifiedDashboard:
     async def _check_and_update(self) -> None:
         """Check if dashboard needs update and update if needed."""
 
+        # DB errors propagate so the loop skips its heartbeat.
         @sync_to_async
         def check_needs_update() -> bool:
-            try:
-                dashboard_update = DashboardUpdate.objects.first()
-                if not dashboard_update:
-                    dashboard_update = DashboardUpdate.objects.create(needs_update=True)
+            dashboard_update = DashboardUpdate.objects.first()
+            if not dashboard_update:
+                dashboard_update = DashboardUpdate.objects.create(needs_update=True)
 
-                if dashboard_update.needs_update:
-                    # Clear the flag
-                    dashboard_update.needs_update = False
-                    dashboard_update.save()
-                    return True
-                return False
-            except Exception as e:
-                logger.exception(f"Error checking dashboard update: {e}")
-                return False
+            if dashboard_update.needs_update:
+                dashboard_update.needs_update = False
+                dashboard_update.save()
+                return True
+            return False
 
         needs_update = await check_needs_update()
         if needs_update:
@@ -338,7 +334,8 @@ class UnifiedDashboard:
         except discord.NotFound:
             self.dashboard_message_id = None
             self.dashboard_channel_id = None
-        except Exception as e:
+        except discord.HTTPException as e:
+            # Discord trouble is not ours to fix by restarting; anything else (the DB) propagates.
             logger.exception(f"Error updating dashboard: {e}")
 
     async def trigger_update(self) -> None:

@@ -23,6 +23,8 @@ class CompetitionTimer:
         self.bot = bot
         self.task: asyncio.Task[None] | None = None
         self.running = False
+        # Last start/stop failure posted to ops, so a retry that fails the same way stays quiet.
+        self._last_failure: str | None = None
 
     def start(self) -> None:
         """Start the competition timer task."""
@@ -54,28 +56,21 @@ class CompetitionTimer:
     async def _check_competition_times(self) -> None:
         """Check if competition should start or stop."""
 
+        # Errors here propagate so _check_loop skips its heartbeat: a timer that can't read the
+        # config is not alive in any useful sense.
         @sync_to_async
-        def check_and_update() -> tuple[bool, bool, CompetitionConfig | None]:
-            try:
-                config = CompetitionConfig.get_config()
+        def check_and_update() -> tuple[bool, bool]:
+            config = CompetitionConfig.get_config()
+            config.last_check = timezone.now()
+            config.save(update_fields=["last_check"])
+            return config.should_enable_applications(), config.should_disable_applications()
 
-                # Update last check time
-                config.last_check = timezone.now()
-                config.save(update_fields=["last_check"])
-
-                should_start = config.should_enable_applications()
-                should_stop = config.should_disable_applications()
-                return should_start, should_stop, config
-            except Exception as e:
-                logger.exception(f"Error checking competition config: {e}")
-                return False, False, None
+        should_start, should_stop = await check_and_update()
+        if not (should_start or should_stop):
+            self._last_failure = None
+            return
 
         try:
-            should_start, should_stop, config = await check_and_update()
-
-            if not config:
-                return
-
             # Handle competition start
             if should_start:
                 logger.info("Competition start time reached! Starting competition...")
@@ -98,6 +93,10 @@ class CompetitionTimer:
                         result_msg += f" ({result['accounts_failed']} failed)"
                 else:
                     result_msg = f"**Competition Auto-Start Failed:** {result.get('error', 'Unknown error')}"
+                    # The start is retried every minute until it works; say so once, not every minute.
+                    if result_msg == self._last_failure:
+                        return
+                    self._last_failure = result_msg
 
                 await log_to_ops_channel(self.bot, result_msg)
                 await update_status_channel(self.bot)
@@ -124,14 +123,17 @@ class CompetitionTimer:
                         result_msg += f" ({stop_result['accounts_failed']} failed)"
                 else:
                     result_msg = f"**Competition Auto-Stop Failed:** {stop_result.get('error', 'Unknown error')}"
+                    if result_msg == self._last_failure:
+                        return
+                    self._last_failure = result_msg
 
                 await log_to_ops_channel(self.bot, result_msg)
                 await update_status_channel(self.bot)
 
         except Exception as e:
             logger.exception(f"Failed to start/stop competition: {e}")
-            with contextlib.suppress(Exception):
-                await log_to_ops_channel(
-                    self.bot,
-                    f"**Error in competition timer:** {e}",
-                )
+            message = f"**Error in competition timer:** {e}"
+            if message != self._last_failure:
+                self._last_failure = message
+                with contextlib.suppress(Exception):
+                    await log_to_ops_channel(self.bot, message)

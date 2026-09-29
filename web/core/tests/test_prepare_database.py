@@ -55,3 +55,35 @@ def test_waits_while_another_container_holds_the_lock():
         other.close()
     worker.join(timeout=60)
     assert not worker.is_alive()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_waiting_for_the_lock_outlasts_the_statement_timeout():
+    """A container waiting behind a long migration must not be cancelled by statement_timeout."""
+    db = connection.settings_dict
+    other = psycopg2.connect(
+        host=db["HOST"], port=db["PORT"], user=db["USER"], password=db["PASSWORD"], dbname=db["NAME"]
+    )
+    other.autocommit = True
+    other.cursor().execute("SELECT pg_advisory_lock(%s)", [LOCK_ID])
+    errors: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SET statement_timeout = 500")  # stands in for the settings' 30s
+            call_command("prepare_database", verbosity=0)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            connection.close()
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    try:
+        worker.join(timeout=2)
+    finally:
+        other.cursor().execute("SELECT pg_advisory_unlock(%s)", [LOCK_ID])
+        other.close()
+    worker.join(timeout=60)
+    assert errors == []
