@@ -48,9 +48,6 @@ async def log_to_ops_channel(bot: discord.Client, message: str, embed: discord.E
         logger.exception(f"Failed to log to ops channel: {e}")
 
 
-# -- Team Utilities --
-
-
 async def recycle_db_connection() -> None:
     """Drop the bot's DB connection if it is broken or past CONN_MAX_AGE; the next query reconnects.
 
@@ -71,7 +68,7 @@ async def report_missing_discord_settings(bot: discord.Client) -> None:
     if not missing:
         return
     message = (
-        f"⚠️ Discord settings missing from .env (set to 0): {', '.join(missing)}. "
+        f"⚠️ Discord settings missing from the environment (set to 0): {', '.join(missing)}. "
         "Role sync, /link roles and announcements that depend on them will not work."
     )
     logger.error(message)

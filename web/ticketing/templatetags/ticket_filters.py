@@ -21,7 +21,7 @@ def format_history_details(details: dict[str, object]) -> str:
     if "points_charged" in details:
         parts.append(f"{details['points_charged']} pts")
 
-    # Notes/reasons (check both old and new key names for backwards compatibility with existing history records)
+    # Notes and reasons, under whichever key the action that wrote the entry used
     parts.extend(
         str(details[key])
         for key in ("notes", "resolution_notes", "approval_notes", "verification_notes", "reason")

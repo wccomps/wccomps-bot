@@ -1,7 +1,6 @@
 """Remove legacy authentik_username and authentik_user_id fields from DiscordLink.
 
-These are now computed properties that derive values from user.username and
-user.usergroups.authentik_id respectively.
+Their values are read from user.username and user.usergroups.authentik_id instead.
 """
 
 from django.db import migrations

@@ -391,7 +391,7 @@ class HelpPanelsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
-        """Post help panels to configured channels on bot startup."""
+        """Post (or refresh) the help panels whenever the bot connects; on_ready also fires on reconnect."""
         try:
             # Post link panel to link channel (hidden after linking)
             link_channel_id = getattr(settings, "DISCORD_LINK_CHANNEL_ID", None)

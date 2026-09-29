@@ -42,4 +42,5 @@ Runs on the deoxys Kubernetes cluster, deployed by Argo CD from `wccomps/wccomps
 
 - **Bot not responding:** `kubectl -n wccomps-portal logs deploy/bot`
 - **OAuth errors:** the Authentik provider must list `https://<host>/auth/callback/` for the host used
-- **Permissions stale:** the bot re-reads everyone's Authentik groups every 5 minutes; a login refreshes them at once
+- **Permissions stale:** the bot re-reads everyone's Authentik groups every 5 minutes. A login refreshes that user's
+  groups at once for the web; the bot's own permission cache can lag up to 5 minutes more

@@ -207,3 +207,17 @@ class TestCommentRateLimitAdmin:
         request.user = superuser
 
         assert rate_limit_admin.has_add_permission(request) is False
+
+
+def test_audit_log_is_read_only_in_admin():
+    from django.contrib.admin.sites import AdminSite
+    from django.test import RequestFactory
+
+    from core.admin import AuditLogAdmin
+    from core.models import AuditLog
+
+    model_admin = AuditLogAdmin(AuditLog, AdminSite())
+    request = RequestFactory().get("/")
+    assert not model_admin.has_add_permission(request)
+    assert not model_admin.has_change_permission(request)
+    assert not model_admin.has_delete_permission(request)

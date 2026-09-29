@@ -13,9 +13,6 @@ django_stubs_ext.monkeypatch()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", secrets.token_urlsafe(50))
 
@@ -37,7 +34,8 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Requests on LEGACY_HOSTS are permanently redirected to CANONICAL_HOST (path and query preserved).
 # Set CANONICAL_HOST= (empty) in the environment to disable the redirects without a code change.
-# Legacy hosts must stay in ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, and the HTTPRoute to be redirected.
+# Legacy hosts must stay in ALLOWED_HOSTS and the HTTPRoute to be redirected (the redirect runs
+# before the CSRF check), and in CSRF_TRUSTED_ORIGINS so their forms still work with it switched off.
 CANONICAL_HOST = os.environ.get("CANONICAL_HOST", "portal.wccomps.org")
 LEGACY_HOSTS = [
     "bot.wccomps.org",
@@ -121,7 +119,7 @@ DATABASES = {
         "PASSWORD": os.environ.get("DB_PASSWORD", "wccomps"),
         "HOST": os.environ.get("DB_HOST", "localhost"),
         "PORT": os.environ.get("DB_PORT", "5432"),
-        # Connection pooling: Reuse connections for 10 minutes
+        # Persistent connections: each worker reuses its connection for up to 10 minutes
         "CONN_MAX_AGE": 600,
         # Health checks: Verify connection is alive before using
         "CONN_HEALTH_CHECKS": True,
@@ -278,7 +276,7 @@ AUTHENTIK_TOKEN = os.environ.get("AUTHENTIK_TOKEN", "")
 # Quotient API settings
 QUOTIENT_API_URL = os.environ.get("QUOTIENT_API_URL", "https://scoring.wccomps.org")
 
-# Quotient authentication (hardcoded admin in event.conf)
+# Quotient login: an [[admin]] account from Quotient's event.conf
 QUOTIENT_USERNAME = os.environ.get("QUOTIENT_USERNAME", "")
 QUOTIENT_PASSWORD = os.environ.get("QUOTIENT_PASSWORD", "")
 

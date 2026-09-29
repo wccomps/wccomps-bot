@@ -597,7 +597,7 @@ class AuthentikManager:
             username: Authentik username (e.g., "team01")
 
         Returns:
-            User dict with groups_obj list, or None if not found.
+            User dict with groups_obj list, or None if not found or the lookup failed (logged).
         """
         try:
             response = self.client.get(

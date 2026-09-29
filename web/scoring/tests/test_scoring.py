@@ -233,22 +233,12 @@ class TestLeaderboardAccess:
         assert response.status_code == 200
 
     def test_ticketing_admin_can_access_leaderboard(self, create_user_with_groups) -> None:
-        """Ticketing Admin should be able to access the leaderboard (passes permission check)."""
-        from django.urls.exceptions import NoReverseMatch
-
+        """Ticketing Admin should be able to access the leaderboard."""
         user = create_user_with_groups("ticketing_admin", ["WCComps_Ticketing_Admin"])
         client = Client()
         client.force_login(user)
 
-        # Permission check should pass - if it doesn't, we'd get 403 before template rendering
-        # Template has an unrelated error (missing ops_review_tickets URL) that causes NoReverseMatch
-        # We verify the permission check passes by confirming we get past it (no 403)
-        try:
-            response = client.get(reverse("leaderboard_page"))
-            assert response.status_code == 200
-        except NoReverseMatch:
-            # Expected due to template issue - permission check passed (otherwise would be 403)
-            pass
+        assert client.get(reverse("leaderboard_page")).status_code == 200
 
     def test_admin_can_access_leaderboard(self) -> None:
         """System Admin (Gold Team) should be able to access the leaderboard."""

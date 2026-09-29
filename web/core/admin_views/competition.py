@@ -287,7 +287,7 @@ def _action_wipe_competition(request: HttpRequest, config: CompetitionConfig, au
     deleted_items = {k: v for k, v in counts.items() if v > 0}
     total_deleted = sum(counts.values())
 
-    # Create a new audit log entry (after wiping, so it's the first entry)
+    # The wipe keeps AuditLog, so the wipe itself is recorded alongside the history
     AuditLog.objects.create(
         action="competition_wiped",
         admin_user=authentik_username,

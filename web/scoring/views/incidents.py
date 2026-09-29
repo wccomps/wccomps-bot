@@ -182,7 +182,7 @@ def incident_screenshot_download(request: HttpRequest, screenshot_id: int) -> Ht
 
     screenshot = get_object_or_404(IncidentScreenshot, id=screenshot_id)
 
-    # Check permission: must be gold_team/staff or the team that submitted it
+    # Gold and White Team see every screenshot; a team sees its own incidents'
     user = cast(User, request.user)
     if not has_permission(user, "gold_team") and not has_permission(user, "white_team"):
         user_team = _get_user_team(user)

@@ -146,7 +146,7 @@ class QuotientClient:
         if self.client is None or force_reauth:
             self.client = httpx.Client()
 
-            # Use hardcoded admin credentials from settings
+            # Credentials from settings (QUOTIENT_USERNAME / QUOTIENT_PASSWORD)
             username = getattr(settings, "QUOTIENT_USERNAME", "")
             password = getattr(settings, "QUOTIENT_PASSWORD", "")
 

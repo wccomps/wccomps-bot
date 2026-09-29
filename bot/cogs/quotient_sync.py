@@ -27,7 +27,7 @@ class QuotientSyncCog(commands.Cog):
 
     @tasks.loop(minutes=SYNC_MINUTES)
     async def sync_quotient_task(self) -> None:
-        """Sync Quotient metadata every 5 minutes, clear cache if unavailable."""
+        """Sync Quotient metadata every SYNC_MINUTES, or BACKOFF_MINUTES while Quotient is unavailable."""
         await self.run_sync()
 
     async def run_sync(self) -> None:

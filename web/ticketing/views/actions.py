@@ -73,7 +73,7 @@ def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
 
 @require_POST
 def ticket_claim(request: HttpRequest, ticket_number: str) -> HttpResponse:
-    """Claim a ticket (operations team only)."""
+    """Claim a ticket (ticketing staff only)."""
     user = cast(User, request.user)
     authentik_username = user.username
     get_authentik_id(user)
@@ -128,7 +128,7 @@ def ticket_claim(request: HttpRequest, ticket_number: str) -> HttpResponse:
 
 @require_POST
 def ticket_unclaim(request: HttpRequest, ticket_number: str) -> HttpResponse:
-    """Unclaim a ticket (operations team only)."""
+    """Unclaim a ticket (ticketing staff only)."""
     user = cast(User, request.user)
     authentik_username = user.username
 
