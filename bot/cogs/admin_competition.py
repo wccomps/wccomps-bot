@@ -12,7 +12,7 @@ from django.conf import settings
 
 from bot.competition_actions import run_competition_cleanup
 from bot.permissions import permission_check
-from bot.utils import TEAM_CHAT_CHANNEL_KEYWORD, ConfirmView, log_to_ops_channel
+from bot.utils import ConfirmView, log_to_ops_channel, team_chat_channel
 from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
 from core.utils import parse_datetime_to_utc
@@ -513,18 +513,7 @@ class AdminCompetitionCog(commands.Cog):
                     failed_channels.append(f"Team {team_number:02d} (not found)")
                     continue
 
-                chat_channel = None
-                if team.discord_category_id:
-                    category = guild.get_channel(team.discord_category_id)
-                    if category and isinstance(category, discord.CategoryChannel):
-                        for channel in category.channels:
-                            if (
-                                isinstance(channel, discord.TextChannel)
-                                and TEAM_CHAT_CHANNEL_KEYWORD in channel.name.lower()
-                            ):
-                                chat_channel = channel
-                                break
-
+                chat_channel = team_chat_channel(guild, team)
                 if chat_channel:
                     await chat_channel.send(f"**Announcement from {interaction.user.name}:**\n\n{message}")
                     sent_count += 1

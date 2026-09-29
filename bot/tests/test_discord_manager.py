@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import discord
 import pytest
 import pytest_asyncio
+from django.conf import settings
 
 from bot.discord_manager import DiscordManager
 from team.models import Team
@@ -104,6 +105,34 @@ class TestSetupTeamInfrastructure:
 
         assert category is not None
         assert category.name == f"team {team.team_number:02d}"
+
+    async def test_white_and_orange_team_see_the_category_via_their_configured_roles(
+        self, team, mock_guild_with_base_roles, monkeypatch
+    ):
+        guild = mock_guild_with_base_roles
+        white, orange = MagicMock(spec=discord.Role, id=4101), MagicMock(spec=discord.Role, id=4102)
+        white.name, orange.name = "Judges", "Volunteers"
+        guild.roles.extend([white, orange])
+        monkeypatch.setattr(settings, "WHITETEAM_ROLE_ID", 4101)
+        monkeypatch.setattr(settings, "ORANGETEAM_ROLE_ID", 4102)
+
+        await DiscordManager(guild).setup_team_infrastructure(team.team_number)
+
+        overwrites = guild.create_category.await_args.kwargs["overwrites"]
+        assert overwrites[white].read_messages and overwrites[orange].send_messages
+
+    async def test_unset_role_ids_grant_nothing_even_if_a_role_has_the_old_name(
+        self, team, mock_guild_with_base_roles, monkeypatch
+    ):
+        guild = mock_guild_with_base_roles
+        white = MagicMock(spec=discord.Role, id=4101)
+        white.name = "White Team"
+        guild.roles.append(white)
+        monkeypatch.setattr(settings, "WHITETEAM_ROLE_ID", 0)
+
+        await DiscordManager(guild).setup_team_infrastructure(team.team_number)
+
+        assert white not in guild.create_category.await_args.kwargs["overwrites"]
 
     async def test_creates_channels_within_category(self, team, mock_guild_with_base_roles):
         """Test that text and voice channels are created."""
@@ -269,8 +298,8 @@ class TestAssignTeamRole:
 
         # Add Blueteam role to guild
         blueteam_role = MagicMock(spec=discord.Role)
-        blueteam_role.name = "Blueteam"
-        blueteam_role.id = 9001
+        blueteam_role.name = "Blue Team (renamed)"
+        blueteam_role.id = settings.BLUETEAM_ROLE_ID
         guild.roles.append(blueteam_role)
 
         member = MagicMock(spec=discord.Member)
@@ -374,8 +403,8 @@ class TestRemoveTeamRole:
 
         # Add Blueteam role
         blueteam_role = MagicMock(spec=discord.Role)
-        blueteam_role.name = "Blueteam"
-        blueteam_role.id = 9001
+        blueteam_role.name = "Blue Team (renamed)"
+        blueteam_role.id = settings.BLUETEAM_ROLE_ID
         guild.roles.append(blueteam_role)
 
         member = MagicMock(spec=discord.Member)
@@ -495,8 +524,8 @@ class TestRemoveAllTeamRoles:
 
         # Add Blueteam role
         blueteam_role = MagicMock(spec=discord.Role)
-        blueteam_role.name = "Blueteam"
-        blueteam_role.id = 9001
+        blueteam_role.name = "Blue Team (renamed)"
+        blueteam_role.id = settings.BLUETEAM_ROLE_ID
 
         member = MagicMock(spec=discord.Member)
         member.remove_roles = AsyncMock()
