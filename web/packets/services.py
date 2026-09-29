@@ -11,8 +11,7 @@ from django.db import close_old_connections
 from django.template.loader import render_to_string
 from registration.models import Event, EventTeamAssignment, TeamRegistration
 
-from core.authentik_manager import AuthentikManager
-from core.authentik_utils import generate_blueteam_password
+from core.authentik_utils import reset_team_password
 from team.models import SchoolInfo, Team
 
 from .models import Packet, PacketDistribution
@@ -131,13 +130,10 @@ class PacketDistributionService:
             logger.info(f"Created EventTeamAssignment for team {team.team_number} in {event.name}")
 
         if not assignment.password_generated:
-            password = generate_blueteam_password()
-            auth_manager = AuthentikManager()
-            success, error = auth_manager.reset_blueteam_password(team.team_number, password)
-            if not success:
+            password, error = reset_team_password(team.team_number)
+            if password is None:
                 raise ValueError(f"Failed to set Authentik password for team {team.team_number}: {error}")
-            assignment.password_generated = password
-            assignment.save(update_fields=["password_generated"])
+            assignment.refresh_from_db(fields=["password_generated"])
             logger.info(f"Generated credentials for team {team.team_number}")
 
         return assignment

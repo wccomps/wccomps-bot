@@ -79,9 +79,8 @@ class TestLinkTokenGeneration:
         call_args = mock_interaction.response.send_message.call_args
         assert "rate limit" in call_args.args[0].lower()
 
-    async def test_link_command_with_orphaned_link(self, mock_interaction: Any, mock_bot: Any) -> None:
-        """Test that /link command allows relinking when user has orphaned link (no team)."""
-        # Create orphaned link (linked but no team)
+    async def test_link_command_with_staff_link(self, mock_interaction: Any, mock_bot: Any) -> None:
+        """A staff member (linked without a team) may run /link again."""
         discord_id = mock_interaction.user.id
         user = await User.objects.acreate(username="olduser")
         await DiscordLink.objects.acreate(
@@ -98,12 +97,15 @@ class TestLinkTokenGeneration:
             mock_settings.BASE_URL = "https://test.example.com"
             await cog.link_command.callback(cog, mock_interaction)
 
-        # Verify new token was created (orphaned link didn't block new link attempt)
+        # Verify new token was created (the staff link didn't block a new link attempt)
         token = await LinkToken.objects.filter(discord_id=discord_id).afirst()
         assert token is not None
 
         # Verify response was sent
         mock_interaction.response.send_message.assert_called_once()
+
+        # The staff link stays active until the new link replaces it.
+        assert await DiscordLink.objects.filter(discord_id=discord_id, is_active=True).aexists()
 
 
 @pytest.mark.asyncio

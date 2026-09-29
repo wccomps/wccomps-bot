@@ -17,9 +17,7 @@ from scoring.quotient_sync import sync_quotient_metadata
 
 from core.admin_views.readiness import action_readiness_check, action_readiness_fix
 from core.authentik_manager import AuthentikManager
-from core.authentik_utils import (
-    generate_blueteam_password,
-)
+from core.authentik_utils import reset_team_password
 from core.forms import ActionForm, AppSlugForm, ResetPasswordsForm, SetMaxMembersForm, SetTimeForm
 from core.models import AuditLog, CompetitionConfig, DiscordTask, QueuedAnnouncement
 from core.services.competition import CompetitionRunResult, run_competition
@@ -374,15 +372,13 @@ def _action_reset_passwords(request: HttpRequest, config: CompetitionConfig, aut
 
     team_numbers = form.cleaned_data["team_numbers"] or list(range(1, MAX_TEAMS + 1))
 
-    auth_manager = AuthentikManager()
     password_list = []
     failed_resets = []
 
     for team_num in team_numbers:
         username = f"team{team_num:02d}"
-        password = generate_blueteam_password()
-        success, error = auth_manager.reset_blueteam_password(team_num, password)
-        if success:
+        password, error = reset_team_password(team_num)
+        if password:
             password_list.append((team_num, username, password))
         else:
             failed_resets.append((username, error))

@@ -31,6 +31,26 @@ def validate_team_account(user_data: AuthentikUser, expected_username: str) -> t
     return (True, "")
 
 
+def reset_team_password(team_number: int) -> tuple[str | None, str]:
+    """Give a team account a new random password and record it for credential and packet emails.
+
+    The password is stored on the team's assignments for events not yet finalized, which is where
+    those emails read it. Returns (password, "") on success, (None, error) otherwise.
+    """
+    from registration.models import EventTeamAssignment
+
+    from .authentik_manager import AuthentikManager
+
+    password = generate_blueteam_password()
+    success, error = AuthentikManager().reset_blueteam_password(team_number, password)
+    if not success:
+        return None, error
+    EventTeamAssignment.objects.filter(team__team_number=team_number, event__is_finalized=False).update(
+        password_generated=password
+    )
+    return password, ""
+
+
 def generate_blueteam_password() -> str:
     """Generate a readable password for blue team accounts using EFF wordlist.
 
