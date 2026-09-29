@@ -1,6 +1,8 @@
 """Models for team packet distribution system."""
 
 from django.db import models
+from django.db.models import F, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 
@@ -151,19 +153,15 @@ class PacketDistribution(models.Model):
         self.save(update_fields=["email_status", "email_error_message", "updated_at"])
 
     def record_download(self, username: str) -> None:
-        """Record a packet download."""
+        """Record a packet download (one UPDATE, so concurrent downloads all count)."""
         now = timezone.now()
-        if not self.downloaded_at:
-            self.downloaded_at = now
-        self.download_count += 1
-        self.last_downloaded_at = now
-        self.downloaded_by = username
-        self.save(
-            update_fields=[
-                "downloaded_at",
-                "download_count",
-                "last_downloaded_at",
-                "downloaded_by",
-                "updated_at",
-            ]
+        PacketDistribution.objects.filter(pk=self.pk).update(
+            downloaded_at=Coalesce("downloaded_at", Value(now)),
+            download_count=F("download_count") + 1,
+            last_downloaded_at=now,
+            downloaded_by=username,
+            updated_at=now,
+        )
+        self.refresh_from_db(
+            fields=["downloaded_at", "download_count", "last_downloaded_at", "downloaded_by", "updated_at"]
         )

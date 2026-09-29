@@ -51,11 +51,16 @@ def home(request: HttpRequest) -> HttpResponse:
     if url != "/":
         return redirect(url)
 
-    # Blue team accounts go to ticket list; unknown roles to leaderboard
-    _team, _, is_team = get_team_from_groups(groups)
-    if is_team:
-        return redirect("ticket_list")
-    return redirect("leaderboard_page")
+    # Redirecting to a page the user can't open would bounce back here forever.
+    return render(
+        request,
+        "error.html",
+        {
+            "error": "No access",
+            "message": "Your account has no portal role yet. Ask an organizer to add you to the right group.",
+        },
+        status=403,
+    )
 
 
 def link_initiate(request: HttpRequest) -> HttpResponse:

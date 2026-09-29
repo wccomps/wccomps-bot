@@ -274,24 +274,11 @@ def get_leaderboard() -> list[FinalScore]:
 
 
 def suggest_red_score_matches(incident: IncidentReport) -> QuerySet[RedTeamScore]:
-    """
-    Suggest potential red team scores that match an incident report.
-
-    Matching criteria (prioritized):
-    1. Source IP match (most reliable - same attacker IP, including IP pools)
-    2. Team is in affected_teams
-    3. Same box and/or service
-
-    Args:
-        incident: IncidentReport instance
-
-    Returns:
-        QuerySet of potential RedTeamScore matches ordered by relevance
+    """Red team scores against the incident's team that share its source IP (or an IP pool
+    containing it), one of its boxes, or its service. Newest first, at most 10.
     """
     from .models import RedTeamIPPool
 
-    # Primary match: source_ip (most reliable indicator)
-    # Secondary match: team + box/service
     query = Q(affected_teams=incident.team)
 
     # Build optional filters

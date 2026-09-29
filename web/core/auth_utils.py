@@ -84,7 +84,7 @@ def get_role_based_landing_url(groups: list[str]) -> str:
         or check_groups_for_permission(groups, "ticketing_support")
     ):
         return reverse("ticket_list")
-    if check_groups_for_permission(groups, "gold_team"):
+    if check_groups_for_permission(groups, "gold_team") or check_groups_for_permission(groups, "white_team"):
         return reverse("leaderboard_page")
     if check_groups_for_permission(groups, "red_team"):
         return reverse("scoring:submit_red_score")

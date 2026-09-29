@@ -33,16 +33,19 @@ class TestBulkApproveRedFindingsView:
         # Should not be 404, even if we get validation error
         assert response.status_code != 404
 
-    def test_red_team_can_access_bulk_approve(self, create_user_with_groups: Callable[..., User]) -> None:
-        """Red Team should be able to access bulk approve."""
+    def test_red_team_cannot_approve_findings(self, create_user_with_groups: Callable[..., User]) -> None:
+        """Red Team submits findings; only Gold Team approves them."""
         red_user = create_user_with_groups("red_user", ["WCComps_RedTeam"])
+        finding = RedTeamScore.objects.create(
+            attack_vector="SQLi", source_ip="10.0.0.5", points_per_team=Decimal("-10"), submitted_by=red_user
+        )
         client = Client()
         client.force_login(red_user)
 
-        response = client.post(reverse("scoring:bulk_approve_red_scores"), {"finding_ids": []})
+        client.post(reverse("scoring:bulk_approve_red_scores"), {"finding_ids": [finding.id]})
 
-        # Red Team should have access
-        assert response.status_code in [200, 302]
+        finding.refresh_from_db()
+        assert not finding.is_approved
 
     def test_admin_can_access_bulk_approve(self, db) -> None:
         """Admin users should be able to access bulk approve."""

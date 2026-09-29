@@ -180,8 +180,8 @@ class IncidentReportAdmin(admin.ModelAdmin[IncidentReport]):
     @admin.display(description="Status")
     def reviewed_status(self, obj: IncidentReport) -> str:
         if obj.is_approved:
-            return format_html('<span style="color: green;">✓ Reviewed</span>')
-        return format_html('<span style="color: orange;">Pending</span>')
+            return format_html('<span style="color: {};">{}</span>', "green", "✓ Reviewed")
+        return format_html('<span style="color: {};">{}</span>', "orange", "Pending")
 
 
 @admin.register(InjectScore)
@@ -211,7 +211,7 @@ class InjectScoreAdmin(admin.ModelAdmin[InjectScore]):
         if obj.max_points and obj.max_points > 0:
             pct = (obj.points_awarded / obj.max_points) * 100
             color = "green" if pct >= 80 else "orange" if pct >= 60 else "red"
-            return format_html(f'<span style="color: {color};">{pct:.1f}%</span>')
+            return format_html('<span style="color: {};">{}%</span>', color, f"{pct:.1f}")
         return "N/A"
 
 
@@ -251,7 +251,7 @@ class ServiceScoreAdmin(admin.ModelAdmin[ServiceScore]):
     def net_score(self, obj: ServiceScore) -> str:
         total = obj.service_points + obj.sla_violations
         color = "green" if total > 0 else "red" if total < 0 else "black"
-        return format_html(f'<span style="color: {color};">{total:.2f}</span>')
+        return format_html('<span style="color: {};">{}</span>', color, f"{total:.2f}")
 
 
 @admin.register(FinalScore)

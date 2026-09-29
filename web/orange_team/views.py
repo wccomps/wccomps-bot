@@ -21,7 +21,7 @@ from orange_team.models import (
     OrangeCheckIn,
     OrangeFollowUp,
 )
-from orange_team.services import assign_teams_round_robin, create_orange_score_from_assignment
+from orange_team.services import assign_teams_round_robin, create_orange_score_from_assignment, update_check_criteria
 from team.models import Team
 
 
@@ -222,20 +222,12 @@ def check_edit(request: HttpRequest, check_id: int) -> HttpResponse:
             orange_check.description = description
             orange_check.scheduled_at = scheduled_at
             orange_check.save()
-            # Replace criteria
-            orange_check.criteria.all().delete()
-            for c in criteria_data:
-                OrangeCheckCriterion.objects.create(
-                    orange_check=orange_check,
-                    label=c["label"],
-                    points=c["points"],
-                    sort_order=c["sort_order"],
-                )
+            update_check_criteria(orange_check, criteria_data)
 
         messages.success(request, f"Check '{title}' updated.")
         return redirect("orange_team:check_detail", check_id=orange_check.pk)
 
-    existing_criteria = list(orange_check.criteria.values("label", "points"))
+    existing_criteria = list(orange_check.criteria.values("id", "label", "points"))
     return render(
         request,
         "orange_team/check_form.html",
@@ -299,9 +291,10 @@ def check_assign(request: HttpRequest, check_id: int) -> HttpResponse:
     return redirect("orange_team:check_detail", check_id=check_id)
 
 
-@require_permission("orange_team", "gold_team", error_message="Only Orange Team members can access this page")
 def assignment_save(request: HttpRequest, assignment_id: int) -> HttpResponse:
     """Autosave a criterion result for an assignment."""
+    if not (has_permission(request.user, "orange_team") or has_permission(request.user, "gold_team")):
+        return JsonResponse({"error": "Access denied"}, status=403)
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
 
@@ -404,21 +397,23 @@ def assignment_approve(request: HttpRequest, assignment_id: int) -> HttpResponse
         return redirect("orange_team:review_queue")
 
     user = cast(User, request.user)
-    assignment = get_object_or_404(
-        OrangeAssignment.objects.select_related("orange_check", "team", "user"),
-        pk=assignment_id,
-    )
+    # Locked so a double submit or a racing reject can't act on the same submission twice.
+    with transaction.atomic():
+        assignment = get_object_or_404(
+            OrangeAssignment.objects.select_for_update(of=("self",)).select_related("orange_check", "team", "user"),
+            pk=assignment_id,
+        )
 
-    if assignment.status != "submitted":
-        messages.error(request, "Only submitted assignments can be approved.")
-        return redirect("orange_team:review_queue")
+        if assignment.status != "submitted":
+            messages.error(request, "Only submitted assignments can be approved.")
+            return redirect("orange_team:review_queue")
 
-    assignment.status = "approved"
-    assignment.reviewed_by = user
-    assignment.reviewed_at = timezone.now()
-    assignment.save()
+        assignment.status = "approved"
+        assignment.reviewed_by = user
+        assignment.reviewed_at = timezone.now()
+        assignment.save()
 
-    create_orange_score_from_assignment(assignment, user)
+        create_orange_score_from_assignment(assignment, user)
 
     messages.success(
         request,
@@ -434,20 +429,23 @@ def assignment_reject(request: HttpRequest, assignment_id: int) -> HttpResponse:
         return redirect("orange_team:review_queue")
 
     user = cast(User, request.user)
-    assignment = get_object_or_404(OrangeAssignment, pk=assignment_id)
-
-    if assignment.status != "submitted":
-        messages.error(request, "Only submitted assignments can be rejected.")
-        return redirect("orange_team:review_queue")
-
     form = AssignmentRejectForm(request.POST)
     form.is_valid()  # Always valid (optional field)
-    notes = form.cleaned_data.get("notes", "")
-    assignment.status = "rejected"
-    assignment.reviewed_by = user
-    assignment.reviewed_at = timezone.now()
-    assignment.notes = notes
-    assignment.save()
+    with transaction.atomic():
+        assignment = get_object_or_404(
+            OrangeAssignment.objects.select_for_update(of=("self",)).select_related("orange_check", "team"),
+            pk=assignment_id,
+        )
+
+        if assignment.status != "submitted":
+            messages.error(request, "Only submitted assignments can be rejected.")
+            return redirect("orange_team:review_queue")
+
+        assignment.status = "rejected"
+        assignment.reviewed_by = user
+        assignment.reviewed_at = timezone.now()
+        assignment.notes = form.cleaned_data.get("notes", "")
+        assignment.save()
 
     messages.success(
         request,

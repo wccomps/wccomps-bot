@@ -224,15 +224,11 @@ def red_team_scores(request: HttpRequest) -> HttpResponse:
     return render(request, "scoring/red_team_findings.html", context)
 
 
-@require_permission(
-    "red_team",
-    "gold_team",
-    error_message="Only Red Team or Gold Team members can approve findings",
-)
+@require_permission("gold_team", error_message="Only Gold Team members can approve findings")
 @transaction.atomic
 @require_http_methods(["POST"])
 def bulk_approve_red_scores(request: HttpRequest) -> HttpResponse:
-    """Bulk approve red team findings (Gold Team only)."""
+    """Bulk approve red team findings; red submits, gold approves."""
     from core.utils import bulk_approve
 
     user = cast(User, request.user)
@@ -546,9 +542,10 @@ def ip_pool_delete(request: HttpRequest, pool_id: int) -> HttpResponse:
     return redirect("scoring:ip_pool_list")
 
 
-@require_permission("red_team", error_message="Only Red Team members can view IP pools")
 def api_user_ip_pools(request: HttpRequest) -> JsonResponse:
     """API endpoint to get user's IP pools for dropdown."""
+    if not has_permission(request.user, "red_team"):
+        return JsonResponse({"error": "Access denied"}, status=403)
     from ..models import RedTeamIPPool
 
     user = cast(User, request.user)

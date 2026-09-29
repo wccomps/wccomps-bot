@@ -5,12 +5,13 @@ import logging
 from typing import cast
 
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
 from core.auth_utils import get_authentik_groups, has_permission
 from core.models import DiscordTask
-from core.tickets_config import TicketCategoryConfig, get_all_categories, get_category_config
+from core.tickets_config import get_all_categories
 from core.utils import get_team_from_groups
 from team.models import Team
 from ticketing.forms import CreateTicketForm
@@ -71,23 +72,27 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
     except QuotientAPIError:
         logger.warning("Quotient API unavailable, ticket form will have limited functionality")
 
+    # Staff file tickets in any category; teams only in user-creatable ones.
+    categories = get_all_categories(user_creatable_only=not is_admin)
+
+    def form_page(error: str | None = None, status: int = 200) -> HttpResponse:
+        context: dict[str, object] = {
+            "team": team,
+            "teams": teams,
+            "categories": categories,
+            "service_choices": service_choices,
+            "box_names": box_names,
+            "box_ip_map": box_ip_map,
+        }
+        if error:
+            context["error"] = error
+            context["form_data"] = request.POST
+        return render(request, "create_ticket.html", context, status=status)
+
     if request.method == "POST":
         form = CreateTicketForm(request.POST)
         if not form.is_valid():
-            return render(
-                request,
-                "create_ticket.html",
-                {
-                    "team": team,
-                    "teams": teams,
-                    "categories": get_all_categories(),
-                    "service_choices": service_choices,
-                    "box_names": box_names,
-                    "box_ip_map": box_ip_map,
-                    "error": " ".join(str(err) for errors in form.errors.values() for err in errors),
-                    "form_data": request.POST,
-                },
-            )
+            return form_page(" ".join(str(err) for errors in form.errors.values() for err in errors))
 
         title = form.cleaned_data["title"]
         description = form.cleaned_data["description"]
@@ -98,39 +103,13 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
 
         # Admins must select a team
         if is_admin and not team:
-            return render(
-                request,
-                "create_ticket.html",
-                {
-                    "team": team,
-                    "teams": teams,
-                    "categories": get_all_categories(),
-                    "service_choices": service_choices,
-                    "box_names": box_names,
-                    "box_ip_map": box_ip_map,
-                    "error": "Please select a team.",
-                    "form_data": request.POST,
-                },
-            )
+            return form_page("Please select a team.")
 
-        # Validate category
-        if not TicketCategory.objects.filter(pk=category_id).exists():
-            return render(
-                request,
-                "create_ticket.html",
-                {
-                    "team": team,
-                    "teams": teams,
-                    "categories": get_all_categories(),
-                    "service_choices": service_choices,
-                    "box_names": box_names,
-                    "box_ip_map": box_ip_map,
-                    "error": "Invalid ticket category selected.",
-                },
-            )
+        if category_id not in categories:
+            return form_page("Invalid ticket category selected.")
 
         category_obj = TicketCategory.objects.get(pk=category_id)
-        cat_info: TicketCategoryConfig = get_category_config(category_id) or {}
+        cat_info = categories[category_id]
 
         # Validate required fields
         errors = []
@@ -151,20 +130,7 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
             errors.append("Description is required for this category.")
 
         if errors:
-            return render(
-                request,
-                "create_ticket.html",
-                {
-                    "team": team,
-                    "teams": teams,
-                    "categories": get_all_categories(),
-                    "service_choices": service_choices,
-                    "box_names": box_names,
-                    "box_ip_map": box_ip_map,
-                    "error": " ".join(errors),
-                    "form_data": request.POST,
-                },
-            )
+            return form_page(" ".join(errors))
 
         # For box-reset, use hostname as description
         if cat_info.get("display_name", "").lower() == "box reset" and hostname:
@@ -182,27 +148,27 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
         from ticketing.utils import TicketRateLimitError, create_ticket_atomic
 
         try:
-            ticket = create_ticket_atomic(
-                team=team,
-                category=category_obj,
-                title=title,
-                description=description,
-                hostname=hostname,
-                ip_address=ip_address,
-                service_name=service_name,
-                actor_username=authentik_username,
-                enforce_team_limit=not is_admin,
-            )
-
-            # Create Discord task to notify bot (so it can create thread)
-            DiscordTask.create_ticket_created_web(
-                ticket_id=ticket.id,
-                ticket_number=ticket.ticket_number,
-                team_number=team.team_number,
-                category=category_obj.display_name,
-                title=title,
-                created_by=authentik_username,
-            )
+            # One transaction, so a ticket never exists without the task that gives it a thread.
+            with transaction.atomic():
+                ticket = create_ticket_atomic(
+                    team=team,
+                    category=category_obj,
+                    title=title,
+                    description=description,
+                    hostname=hostname,
+                    ip_address=ip_address,
+                    service_name=service_name,
+                    actor_username=authentik_username,
+                    enforce_team_limit=not is_admin,
+                )
+                DiscordTask.create_ticket_created_web(
+                    ticket_id=ticket.id,
+                    ticket_number=ticket.ticket_number,
+                    team_number=team.team_number,
+                    category=category_obj.display_name,
+                    title=title,
+                    created_by=authentik_username,
+                )
 
             logger.info(f"Ticket {ticket.ticket_number} created via web by {authentik_username} for {team.team_name}")
 
@@ -210,49 +176,11 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
 
         except TicketRateLimitError as e:
             logger.warning(f"Ticket rate limit hit by {authentik_username} for {team.team_name}")
-            return render(
-                request,
-                "create_ticket.html",
-                {
-                    "team": team,
-                    "teams": teams,
-                    "categories": get_all_categories(),
-                    "service_choices": service_choices,
-                    "box_names": box_names,
-                    "box_ip_map": box_ip_map,
-                    "error": str(e),
-                    "form_data": request.POST,
-                },
-                status=429,
-            )
+            return form_page(str(e), status=429)
         except Exception:
             logger.exception("Failed to create ticket")
 
-            return render(
-                request,
-                "create_ticket.html",
-                {
-                    "team": team,
-                    "teams": teams,
-                    "categories": get_all_categories(),
-                    "service_choices": service_choices,
-                    "box_names": box_names,
-                    "box_ip_map": box_ip_map,
-                    "error": "Failed to create ticket. Please try again or contact support if the problem persists.",
-                    "form_data": request.POST,
-                },
-            )
+            return form_page("Failed to create ticket. Please try again or contact support if the problem persists.")
 
     # GET request - show form
-    return render(
-        request,
-        "create_ticket.html",
-        {
-            "team": team,
-            "teams": teams,
-            "categories": get_all_categories(),
-            "service_choices": service_choices,
-            "box_names": box_names,
-            "box_ip_map": box_ip_map,
-        },
-    )
+    return form_page()

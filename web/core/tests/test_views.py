@@ -55,6 +55,24 @@ class TestHomeView:
         assert response.status_code == 302
         assert response.url == reverse("ticket_list")
 
+    def test_white_team_lands_on_leaderboard(self, white_team_user):
+        client = Client()
+        client.force_login(white_team_user)
+
+        response = client.get(reverse("home"))
+
+        assert response.status_code == 302
+        assert response.url == reverse("leaderboard_page")
+
+    def test_user_without_role_gets_403_not_a_redirect_loop(self, create_user_with_groups):
+        client = Client()
+        client.force_login(create_user_with_groups("injects_only", ["WCComps_Quotient_Injects"]))
+
+        response = client.get(reverse("home"))
+
+        assert response.status_code == 403
+        assert b"no portal role" in response.content
+
 
 class TestTeamTicketsView:
     """Tests for team_tickets view."""

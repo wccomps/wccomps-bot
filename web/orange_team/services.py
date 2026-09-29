@@ -7,10 +7,12 @@ from django.db import transaction
 from django.utils import timezone
 from scoring.models import OrangeTeamScore
 
+from orange_team.forms import CriterionInput
 from orange_team.models import (
     OrangeAssignment,
     OrangeAssignmentResult,
     OrangeCheck,
+    OrangeCheckCriterion,
 )
 from team.models import Team
 
@@ -53,6 +55,35 @@ def assign_teams_round_robin(
         check.save()
 
     return count
+
+
+def update_check_criteria(check: OrangeCheck, criteria: list[CriterionInput]) -> None:
+    """Apply an edited rubric in place, so grading already done on kept criteria survives.
+
+    Posted rows with a known id are updated; rows without one are created, with an unmet
+    result on every existing assignment so they can be graded; criteria left out are
+    deleted along with their results.
+    """
+    with transaction.atomic():
+        existing = {c.pk: c for c in check.criteria.select_for_update()}
+        posted_ids = {c["id"] for c in criteria if c["id"] in existing}
+        check.criteria.exclude(pk__in=posted_ids).delete()
+
+        assignments = list(check.assignments.all())
+        for c in criteria:
+            criterion = existing.get(c["id"]) if c["id"] is not None else None
+            if criterion is not None:
+                criterion.label = c["label"]
+                criterion.points = c["points"]
+                criterion.sort_order = c["sort_order"]
+                criterion.save(update_fields=["label", "points", "sort_order"])
+                continue
+            criterion = OrangeCheckCriterion.objects.create(
+                orange_check=check, label=c["label"], points=c["points"], sort_order=c["sort_order"]
+            )
+            OrangeAssignmentResult.objects.bulk_create(
+                OrangeAssignmentResult(assignment=a, criterion=criterion) for a in assignments
+            )
 
 
 def create_orange_score_from_assignment(
