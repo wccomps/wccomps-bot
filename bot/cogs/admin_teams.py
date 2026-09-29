@@ -15,6 +15,7 @@ from bot.utils import (
     log_to_ops_channel,
     remove_blueteam_role,
     safe_remove_role,
+    send_lines,
 )
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import parse_team_range, reset_team_password
@@ -209,14 +210,7 @@ class AdminTeamsCog(commands.Cog):
                 summary += f"❌ Failed: {error_count}\n"
             summary += f"Total processed: {len(user_ids)}\n\n"
 
-            # Show results (limit to first 20 to avoid message length issues)
-            if len(results) <= 20:
-                summary += "**Details:**\n" + "\n".join(results)
-            else:
-                summary += "**Details (first 20):**\n" + "\n".join(results[:20])
-                summary += f"\n... and {len(results) - 20} more"
-
-            await interaction.followup.send(summary, ephemeral=True)
+            await send_lines(interaction, summary.rstrip(), results, title="Details", filename="results.txt")
             await log_to_ops_channel(
                 self.bot,
                 f"Bulk Unlink: {interaction.user.mention} unlinked {success_count} user(s) "
@@ -455,13 +449,7 @@ class AdminTeamsCog(commands.Cog):
         summary = "**Team Activation Results**\n\n"
         summary += f"✓ Activated: {success_count}/{len(team_numbers)}\n\n"
 
-        if len(results) <= 20:
-            summary += "**Details:**\n" + "\n".join(results)
-        else:
-            summary += "**Details (first 20):**\n" + "\n".join(results[:20])
-            summary += f"\n... and {len(results) - 20} more"
-
-        await interaction.followup.send(summary, ephemeral=True)
+        await send_lines(interaction, summary.rstrip(), results, title="Details", filename="results.txt")
 
     @teams_group.command(
         name="deactivate",
@@ -522,13 +510,7 @@ class AdminTeamsCog(commands.Cog):
         summary = "**Team Deactivation Results**\n\n"
         summary += f"✓ Deactivated: {success_count}/{len(team_numbers)}\n\n"
 
-        if len(results) <= 20:
-            summary += "**Details:**\n" + "\n".join(results)
-        else:
-            summary += "**Details (first 20):**\n" + "\n".join(results[:20])
-            summary += f"\n... and {len(results) - 20} more"
-
-        await interaction.followup.send(summary, ephemeral=True)
+        await send_lines(interaction, summary.rstrip(), results, title="Details", filename="results.txt")
 
     @teams_group.command(
         name="recreate",
@@ -611,13 +593,7 @@ class AdminTeamsCog(commands.Cog):
             summary += f"❌ Failed: {failed_count}/{len(team_numbers)}\n"
         summary += "\n"
 
-        if len(results) <= 20:
-            summary += "**Details:**\n" + "\n".join(results)
-        else:
-            summary += "**Details (first 20):**\n" + "\n".join(results[:20])
-            summary += f"\n... and {len(results) - 20} more"
-
-        await interaction.followup.send(summary, ephemeral=True)
+        await send_lines(interaction, summary.rstrip(), results, title="Details", filename="results.txt")
 
 
 async def setup(bot: commands.Bot) -> None:

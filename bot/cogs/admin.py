@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.permissions import check_admin
-from bot.utils import log_to_ops_channel
+from bot.utils import log_to_ops_channel, send_lines
 from core.models import AuditLog
 
 logger = logging.getLogger(__name__)
@@ -56,20 +56,16 @@ class AdminCog(commands.Cog):
             if stats["errors"]:
                 result_parts.append(f"• Errors: {stats['errors']}")
 
-            result_msg = "\n".join(result_parts)
-
             changes = stats.get("changes", [])
-            if isinstance(changes, list) and changes:
-                result_msg += "\n\n**Changes:**\n"
-                # Limit to 20 changes to avoid message length limits
-                for change in changes[:20]:
-                    result_msg += f"{change}\n"
-                if len(changes) > 20:
-                    result_msg += f"\n... and {len(changes) - 20} more"
+            changes_list = [str(c) for c in changes] if isinstance(changes, list) else []
+            await send_lines(
+                interaction,
+                "\n".join(result_parts),
+                changes_list,
+                title="Changes",
+                filename="role_sync_preview.txt",
+            )
 
-            await interaction.followup.send(result_msg, ephemeral=True)
-
-            changes_list = changes if isinstance(changes, list) else []
             await AuditLog.objects.acreate(
                 action="role_sync",
                 admin_user=str(interaction.user),
@@ -83,7 +79,10 @@ class AdminCog(commands.Cog):
                 },
             )
 
-            ops_msg = f"Role sync executed by {interaction.user.mention}\n{result_msg}"
+            summary = "\n".join(result_parts)
+            ops_msg = (
+                f"Role sync preview by {interaction.user.mention}\n{summary}\n• Changes listed: {len(changes_list)}"
+            )
             await log_to_ops_channel(self.bot, ops_msg)
 
         except Exception as e:
