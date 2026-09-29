@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import UploadedFile
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 def format_boxes_display(boxes: list[str] | str | None) -> str:
@@ -22,6 +23,23 @@ def validate_file_size(file: UploadedFile[bytes]) -> UploadedFile[bytes]:
 
         raise ValidationError(f"File size cannot exceed {max_size_mb}MB")
     return file
+
+
+class Approvable(models.Model):
+    """A submission that counts toward scores only once a reviewer approves it."""
+
+    is_approved = models.BooleanField(default=False)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta:
+        abstract = True
+
+    def approve(self, user: User) -> None:
+        self.is_approved = True
+        self.approved_by = user
+        self.approved_at = timezone.now()
+        self.save()
 
 
 class ScoringTemplate(models.Model):
@@ -223,7 +241,7 @@ class AttackType(models.Model):
         return self.name
 
 
-class RedTeamScore(models.Model):
+class RedTeamScore(Approvable):
     """Red team vulnerability score affecting one or more teams."""
 
     event = models.ForeignKey(
@@ -343,24 +361,6 @@ class RedTeamScore(models.Model):
         max_digits=10,
         decimal_places=2,
         help_text="Points deducted per affected team (auto-calculated from outcomes)",
-    )
-
-    is_approved = models.BooleanField(
-        default=False,
-        help_text="Whether this finding has been approved by Gold Team",
-    )
-    approved_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When this finding was approved",
-    )
-    approved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="red_scores_approved",
-        help_text="Gold Team member who approved this finding",
     )
 
     notes = models.TextField(blank=True)
@@ -486,7 +486,7 @@ class RedTeamScreenshot(models.Model):
         return f"{self.filename} ({self.finding})"
 
 
-class IncidentReport(models.Model):
+class IncidentReport(Approvable):
     """Blue team incident report submission."""
 
     event = models.ForeignKey(
@@ -528,7 +528,6 @@ class IncidentReport(models.Model):
 
     evidence_notes = models.TextField(blank=True)
 
-    is_approved = models.BooleanField(default=False)
     matched_to_red_score = models.ForeignKey(
         RedTeamScore,
         on_delete=models.SET_NULL,
@@ -544,14 +543,6 @@ class IncidentReport(models.Model):
         help_text="Points awarded for detecting/reporting this incident",
     )
     approval_notes = models.TextField(blank=True)
-    approved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="incidents_approved",
-    )
-    approved_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -601,7 +592,7 @@ class IncidentScreenshot(models.Model):
         return f"{self.filename} ({self.incident})"
 
 
-class InjectScore(models.Model):
+class InjectScore(Approvable):
     """White/Gold team scoring of inject submissions."""
 
     event = models.ForeignKey(
@@ -647,24 +638,6 @@ class InjectScore(models.Model):
         help_text="User who approved this feedback",
     )
 
-    is_approved = models.BooleanField(
-        default=False,
-        help_text="Grade has been approved by supervisor",
-    )
-    approved_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When the grade was approved",
-    )
-    approved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="injects_approved",
-        help_text="User who approved this grade",
-    )
-
     graded_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -691,7 +664,7 @@ class InjectScore(models.Model):
         return f"{self.team.team_name} - {self.inject_name}: {self.points_awarded}"
 
 
-class OrangeTeamScore(models.Model):
+class OrangeTeamScore(Approvable):
     """Orange team checks for customer service evaluation (positive or negative)."""
 
     event = models.ForeignKey(
@@ -720,23 +693,6 @@ class OrangeTeamScore(models.Model):
         help_text="Points to add (positive) or deduct (negative)",
     )
 
-    is_approved = models.BooleanField(
-        default=False,
-        help_text="Whether this check has been approved",
-    )
-    approved_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When this check was approved",
-    )
-    approved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="orange_scores_approved",
-        help_text="User who approved this check",
-    )
     orange_check = models.ForeignKey(
         "orange_team.OrangeCheck",
         on_delete=models.SET_NULL,
