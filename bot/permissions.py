@@ -18,7 +18,6 @@ class PermissionCacheEntry(TypedDict):
     expires_at: datetime
 
 
-# Permission cache: {discord_id: {'groups': [...], 'expires_at': datetime}}
 _permission_cache: dict[int, PermissionCacheEntry] = {}
 
 
@@ -28,27 +27,16 @@ def clear_permission_cache() -> None:
 
 
 def _get_authentik_groups_sync(discord_user_id: int) -> list[str]:
-    """
-    Get Authentik groups for a Discord user.
-
-    Checks:
-    1. Permission cache (5 minute TTL)
-    2. DiscordLink → User → UserGroups path
-
-    Returns empty list if user is not linked.
-    """
+    """Authentik groups of a linked Discord user, cached for 5 minutes; [] if not linked."""
     try:
-        # Check cache first
         now = datetime.now(UTC)
         if discord_user_id in _permission_cache:
             cached = _permission_cache[discord_user_id]
             if cached["expires_at"] > now:
                 logger.debug(f"Permission cache hit for {discord_user_id}")
                 return cached["groups"]
-            # Cache expired, remove it
             del _permission_cache[discord_user_id]
 
-        # Use DiscordLink → User → UserGroups path
         try:
             logger.debug(f"Checking DiscordLink table for {discord_user_id}")
             discord_link = (
@@ -59,7 +47,6 @@ def _get_authentik_groups_sync(discord_user_id: int) -> list[str]:
                 logger.debug(f"No DiscordLink found for {discord_user_id}")
                 return []
 
-            # Get groups via User → UserGroups
             try:
                 groups = discord_link.user.usergroups.groups
                 logger.debug(f"Found groups for {discord_user_id}: {groups}")
@@ -71,7 +58,6 @@ def _get_authentik_groups_sync(discord_user_id: int) -> list[str]:
             logger.exception(f"Database query failed: {db_error}")
             return []
 
-        # Cache the result
         _permission_cache[discord_user_id] = {
             "groups": groups,
             "expires_at": now + timedelta(minutes=5),
@@ -84,10 +70,8 @@ def _get_authentik_groups_sync(discord_user_id: int) -> list[str]:
 
 
 async def get_authentik_groups_async(discord_user_id: int) -> list[str]:
-    """Async version that properly handles database queries."""
     from asgiref.sync import sync_to_async
 
-    # Wrap the sync version in sync_to_async
     return await sync_to_async(_get_authentik_groups_sync)(discord_user_id)
 
 
@@ -133,7 +117,6 @@ async def is_gold_team_async(interaction: discord.Interaction) -> bool:
 
 # Permission check functions for use with @app_commands.check()
 async def check_admin(interaction: discord.Interaction) -> bool:
-    """Check if user has admin permissions."""
     has_permission = await is_admin_async(interaction)
     if not has_permission:
         await interaction.response.send_message(
@@ -146,7 +129,6 @@ async def check_admin(interaction: discord.Interaction) -> bool:
 
 
 async def check_ticketing_admin(interaction: discord.Interaction) -> bool:
-    """Check if user can manage tickets."""
     has_permission = await can_manage_tickets_async(interaction)
     if not has_permission:
         await interaction.response.send_message(
@@ -159,7 +141,6 @@ async def check_ticketing_admin(interaction: discord.Interaction) -> bool:
 
 
 async def check_ticketing_support(interaction: discord.Interaction) -> bool:
-    """Check if user can work on tickets."""
     has_permission = await can_support_tickets_async(interaction)
     if not has_permission:
         await interaction.response.send_message(
@@ -172,7 +153,6 @@ async def check_ticketing_support(interaction: discord.Interaction) -> bool:
 
 
 async def check_gold_team(interaction: discord.Interaction) -> bool:
-    """Check if user is member of GoldTeam."""
     has_permission = await is_gold_team_async(interaction)
     if not has_permission:
         await interaction.response.send_message(
@@ -185,7 +165,6 @@ async def check_gold_team(interaction: discord.Interaction) -> bool:
 
 
 async def is_blue_team_async(interaction: discord.Interaction) -> bool:
-    """Check if user is linked to a Blue Team."""
     try:
         from asgiref.sync import sync_to_async
 
@@ -203,7 +182,6 @@ async def is_blue_team_async(interaction: discord.Interaction) -> bool:
 
 
 async def check_blue_team(interaction: discord.Interaction) -> bool:
-    """Check if user is linked to a Blue Team."""
     has_permission = await is_blue_team_async(interaction)
     if not has_permission:
         await interaction.response.send_message(

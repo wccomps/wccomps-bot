@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 class AdminCog(commands.Cog):
     """General admin commands."""
 
-    # Create admin command group as class attribute
     admin_group = app_commands.Group(name="admin", description="General administrative commands")
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -37,10 +36,8 @@ class AdminCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         try:
-            # Create Authentik role sync manager for dry run preview
             role_sync = AuthentikRoleSyncManager(self.bot)
 
-            # Perform dry run only
             await interaction.followup.send(
                 "Starting role synchronization preview (dry run)...\n"
                 "No changes will be made. Run the add-only sync from the portal's Sync Roles page.",
@@ -49,7 +46,6 @@ class AdminCog(commands.Cog):
 
             stats = await role_sync.sync_roles(dry_run=True)
 
-            # Build result message with detailed changes (only show non-zero metrics)
             result_parts = ["**Role sync preview complete (dry run)**"]
             if stats["roles_added"]:
                 result_parts.append(f"• Would add roles: {stats['roles_added']}")
@@ -73,7 +69,6 @@ class AdminCog(commands.Cog):
 
             await interaction.followup.send(result_msg, ephemeral=True)
 
-            # Create audit log
             changes_list = changes if isinstance(changes, list) else []
             await AuditLog.objects.acreate(
                 action="role_sync",
@@ -84,11 +79,10 @@ class AdminCog(commands.Cog):
                     "roles_added": stats["roles_added"],
                     "roles_removed": stats["roles_removed"],
                     "errors": stats["errors"],
-                    "changes": changes_list[:50],  # Store first 50 changes
+                    "changes": changes_list[:50],
                 },
             )
 
-            # Log to ops channel with changes
             ops_msg = f"Role sync executed by {interaction.user.mention}\n{result_msg}"
             await log_to_ops_channel(self.bot, ops_msg)
 
@@ -98,5 +92,4 @@ class AdminCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Setup function to add cog to bot."""
     await bot.add_cog(AdminCog(bot))

@@ -24,18 +24,9 @@ class UserOrIdTransformer(app_commands.Transformer):
     """Transform either a User mention or a Discord ID string into a User object."""
 
     async def transform(self, interaction: discord.Interaction, value: discord.User | str) -> discord.User | None:
-        """
-        Transform input into a discord.User.
-
-        Accepts:
-        - @mention (discord automatically converts to discord.User)
-        - Raw Discord ID as string (we fetch the user)
-        """
-        # If the value is already a User, return it (from @mention)
         if isinstance(value, discord.User):
             return value
 
-        # Try to parse as Discord ID
         try:
             user_id = int(value)
             return await interaction.client.fetch_user(user_id)
@@ -46,7 +37,6 @@ class UserOrIdTransformer(app_commands.Transformer):
 class AdminTicketsCog(commands.Cog):
     """Admin commands for ticket management."""
 
-    # Create tickets command group as class attribute
     tickets_group = app_commands.Group(name="tickets", description="Ticket management commands")
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -148,14 +138,12 @@ class AdminTicketsCog(commands.Cog):
     ) -> None:
         """List tickets with optional filters."""
 
-        # Build query
         query = Ticket.objects.select_related("team", "assigned_to")
         if status != "all":
             query = query.filter(status=status)
         if team_number:
             query = query.filter(team__team_number=team_number)
 
-        # Get total count first
         total_count = await query.acount()
 
         if total_count == 0:
@@ -166,7 +154,6 @@ class AdminTicketsCog(commands.Cog):
         display_limit = 25
         tickets = [t async for t in query.order_by("-created_at")[:display_limit]]
 
-        # Build title showing count
         if total_count > display_limit:
             title = f"Tickets ({status}) - Showing {display_limit} of {total_count}"
         else:
@@ -316,7 +303,6 @@ class AdminTicketsCog(commands.Cog):
         new_cat_info = await sync_to_async(get_category_config)(new_category_id) or {}
         await update_ticket_dashboard(self.bot, ticket)
 
-        # Log to ops
         old_cat_name = old_cat_info.get("display_name", str(old_category_id))
         new_cat_name = new_cat_info.get("display_name", str(new_category_id))
 
@@ -359,7 +345,6 @@ class AdminTicketsCog(commands.Cog):
         old_assignee = ticket.assigned_to.username if ticket.assigned_to else "Unassigned"
 
         if volunteer:
-            # If ticket is open, claim it first
             if ticket.status == "open":
                 from ticketing.utils import aclaim_ticket_atomic
 
@@ -379,7 +364,6 @@ class AdminTicketsCog(commands.Cog):
                 ticket = claimed_ticket
                 new_assignee = str(volunteer)
             else:
-                # Reassign claimed ticket
                 from ticketing.utils import areassign_ticket_atomic
 
                 reassigned_ticket, error = await areassign_ticket_atomic(
@@ -398,7 +382,6 @@ class AdminTicketsCog(commands.Cog):
                 ticket = reassigned_ticket
                 new_assignee = str(volunteer)
 
-            # Add volunteer to Discord thread if it exists
             if ticket.discord_thread_id and interaction.guild:
                 try:
                     thread = interaction.guild.get_thread(ticket.discord_thread_id)
@@ -408,7 +391,6 @@ class AdminTicketsCog(commands.Cog):
                 except Exception as e:
                     logger.warning(f"Failed to add user to thread: {e}")
         else:
-            # Unassign - use unclaim
             from ticketing.utils import aunclaim_ticket_atomic
 
             unclaimed_ticket, error = await aunclaim_ticket_atomic(
@@ -425,7 +407,6 @@ class AdminTicketsCog(commands.Cog):
             ticket = unclaimed_ticket
             new_assignee = "Unassigned"
 
-        # Update dashboard
         try:
             await update_ticket_dashboard(self.bot, ticket)
         except Exception as e:
@@ -436,7 +417,6 @@ class AdminTicketsCog(commands.Cog):
             ephemeral=True,
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Ticket reassigned by {interaction.user.mention}\n"
@@ -487,7 +467,6 @@ class AdminTicketsCog(commands.Cog):
         from team.models import Team
         from ticketing.models import TicketAttachment, TicketComment
 
-        # Get counts
         ticket_count = await Ticket.objects.acount()
         attachment_count = await TicketAttachment.objects.acount()
         comment_count = await TicketComment.objects.acount()
@@ -531,7 +510,6 @@ class AdminTicketsCog(commands.Cog):
             view=None,
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"🗑️ All tickets cleared by {interaction.user.mention}\n"
@@ -541,5 +519,4 @@ class AdminTicketsCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Setup function to add cog to bot."""
     await bot.add_cog(AdminTicketsCog(bot))

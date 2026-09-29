@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 class AdminTeamsCog(commands.Cog):
     """Admin commands for team management."""
 
-    # Create teams command group as class attribute
     teams_group = app_commands.Group(name="teams", description="Team management commands")
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -89,7 +88,6 @@ class AdminTeamsCog(commands.Cog):
                 member_list = test_list
                 shown_count += 1
 
-            # Add overflow message if needed
             if shown_count < len(members):
                 remaining = len(members) - shown_count
                 member_list += f"... and {remaining} more"
@@ -112,7 +110,6 @@ class AdminTeamsCog(commands.Cog):
             await interaction.followup.send("This command must be used in a guild", ephemeral=True)
             return
 
-        # Parse user IDs from the input string (mentions or raw IDs)
         user_ids = []
         # Match Discord user mentions <@123456789> or <@!123456789> or raw IDs
         mention_pattern = r"<@!?(\d+)>|\b(\d{17,20})\b"
@@ -129,7 +126,6 @@ class AdminTeamsCog(commands.Cog):
             )
             return
 
-        # Remove duplicates
         user_ids = list(set(user_ids))
 
         results = []
@@ -138,7 +134,6 @@ class AdminTeamsCog(commands.Cog):
 
         for user_id in user_ids:
             try:
-                # Get member from guild
                 member = interaction.guild.get_member(user_id)
                 user_display = member.mention if member else f"User ID {user_id}"
 
@@ -159,12 +154,10 @@ class AdminTeamsCog(commands.Cog):
                     error_count += 1
                     continue
 
-                # Deactivate link
                 link.is_active = False
                 link.unlinked_at = timezone.now()
                 await link.asave()
 
-                # Remove roles if member is in server
                 if member:
                     if team.discord_role_id:
                         role = interaction.guild.get_role(team.discord_role_id)
@@ -181,7 +174,6 @@ class AdminTeamsCog(commands.Cog):
                         reason=f"Unlinked by {interaction.user}",
                     )
 
-                # Create audit log
                 await AuditLog.objects.acreate(
                     action="user_unlinked",
                     admin_user=str(interaction.user),
@@ -203,9 +195,7 @@ class AdminTeamsCog(commands.Cog):
                 results.append(f"❌ User ID {user_id}: Error - {str(e)[:50]}")
                 error_count += 1
 
-        # Build response message
         if len(user_ids) == 1:
-            # Single user - use simple format
             await interaction.followup.send(results[0], ephemeral=True)
             if success_count > 0:
                 await log_to_ops_channel(
@@ -213,7 +203,6 @@ class AdminTeamsCog(commands.Cog):
                     f"User Unlinked: {results[0].split(':')[0].replace('✓ ', '')} by {interaction.user.mention}",
                 )
         else:
-            # Multiple users - use summary format
             summary = "**Unlink Results**\n\n"
             summary += f"✓ Successfully unlinked: {success_count}\n"
             if error_count > 0:
@@ -270,7 +259,6 @@ class AdminTeamsCog(commands.Cog):
             guild, team, reason=f"Team {team_number} removed by {interaction.user}"
         )
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="team_removed",
             admin_user=str(interaction.user),
@@ -341,7 +329,6 @@ class AdminTeamsCog(commands.Cog):
 
         results.append(f"✓ Unlinked {unlinked_count} Discord user(s)")
 
-        # Step 2: Generate and reset Authentik password
         from asgiref.sync import sync_to_async
 
         auth_manager = AuthentikManager()
@@ -351,7 +338,6 @@ class AdminTeamsCog(commands.Cog):
         else:
             results.append(f"❌ Failed to reset password: {error}")
 
-        # Step 3: Revoke all sessions
         username = f"team{team_number:02d}"
         session_success, session_error, sessions_revoked = await sync_to_async(auth_manager.revoke_user_sessions)(
             username
@@ -361,7 +347,6 @@ class AdminTeamsCog(commands.Cog):
         else:
             results.append(f"❌ Failed to revoke sessions: {session_error}")
 
-        # Step 4: Optionally recreate channels and role
         if recreate_channels:
             deleted_items = await delete_team_infrastructure(
                 guild, team, reason=f"Team {team_number} reset by {interaction.user}"
@@ -370,7 +355,6 @@ class AdminTeamsCog(commands.Cog):
             if deleted_items:
                 results.append(f"✓ Deleted {', '.join(deleted_items)}")
 
-            # Recreate infrastructure
             from bot.discord_manager import DiscordManager
 
             discord_manager = DiscordManager(guild, self.bot)
@@ -387,7 +371,6 @@ class AdminTeamsCog(commands.Cog):
         else:
             results.append("⊘ Skipped channel recreation (recreate_channels=False)")
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="team_reset",
             admin_user=str(interaction.user),
@@ -401,14 +384,12 @@ class AdminTeamsCog(commands.Cog):
             },
         )
 
-        # Log to ops channel
         await log_to_ops_channel(
             self.bot,
             f"Team Reset: **{team.team_name}** by {interaction.user.mention}\n"
             + "\n".join([f"• {r}" for r in results]),
         )
 
-        # Send response
         response = f"**Team {team_number} Reset Complete**\n\n" + "\n".join(results)
         if new_password:
             response += f"\n\n**New Team Password:** `{new_password}`"
@@ -425,7 +406,6 @@ class AdminTeamsCog(commands.Cog):
         """Activate multiple teams in database (sets is_active=True)."""
         await interaction.response.defer(ephemeral=True)
 
-        # Parse team numbers
         try:
             team_numbers = parse_team_range(teams)
         except ValueError as e:
@@ -436,7 +416,6 @@ class AdminTeamsCog(commands.Cog):
             await interaction.followup.send("No teams specified", ephemeral=True)
             return
 
-        # Activate teams
         results = []
         success_count = 0
         for team_number in team_numbers:
@@ -454,7 +433,6 @@ class AdminTeamsCog(commands.Cog):
             results.append(f"✓ Team {team_number:02d}: Activated")
             success_count += 1
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="teams_activated",
             admin_user=str(interaction.user),
@@ -467,7 +445,6 @@ class AdminTeamsCog(commands.Cog):
             },
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Team Activation by {interaction.user.mention}\n"
@@ -475,7 +452,6 @@ class AdminTeamsCog(commands.Cog):
             f"• Activated: {success_count}/{len(team_numbers)}",
         )
 
-        # Build response
         summary = "**Team Activation Results**\n\n"
         summary += f"✓ Activated: {success_count}/{len(team_numbers)}\n\n"
 
@@ -497,7 +473,6 @@ class AdminTeamsCog(commands.Cog):
         """Deactivate multiple teams in database (sets is_active=False)."""
         await interaction.response.defer(ephemeral=True)
 
-        # Parse team numbers
         try:
             team_numbers = parse_team_range(teams)
         except ValueError as e:
@@ -508,7 +483,6 @@ class AdminTeamsCog(commands.Cog):
             await interaction.followup.send("No teams specified", ephemeral=True)
             return
 
-        # Deactivate teams
         results = []
         success_count = 0
         for team_number in team_numbers:
@@ -526,7 +500,6 @@ class AdminTeamsCog(commands.Cog):
             results.append(f"✓ Team {team_number:02d}: Deactivated")
             success_count += 1
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="teams_deactivated",
             admin_user=str(interaction.user),
@@ -539,7 +512,6 @@ class AdminTeamsCog(commands.Cog):
             },
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Team Deactivation by {interaction.user.mention}\n"
@@ -547,7 +519,6 @@ class AdminTeamsCog(commands.Cog):
             f"• Deactivated: {success_count}/{len(team_numbers)}",
         )
 
-        # Build response
         summary = "**Team Deactivation Results**\n\n"
         summary += f"✓ Deactivated: {success_count}/{len(team_numbers)}\n\n"
 
@@ -573,7 +544,6 @@ class AdminTeamsCog(commands.Cog):
             await interaction.followup.send("This command must be used in a guild", ephemeral=True)
             return
 
-        # Parse team numbers
         try:
             team_numbers = parse_team_range(teams)
         except ValueError as e:
@@ -602,7 +572,6 @@ class AdminTeamsCog(commands.Cog):
 
             await delete_team_infrastructure(guild, team, reason=f"Bulk recreate by {interaction.user}")
 
-            # Recreate infrastructure
             role, category = await discord_manager.setup_team_infrastructure(team_number)
 
             if role and category:
@@ -615,7 +584,6 @@ class AdminTeamsCog(commands.Cog):
                 results.append(f"❌ Team {team_number:02d}: Failed to recreate")
                 failed_count += 1
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="teams_recreated",
             admin_user=str(interaction.user),
@@ -629,7 +597,6 @@ class AdminTeamsCog(commands.Cog):
             },
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Team Infrastructure Recreate by {interaction.user.mention}\n"
@@ -638,7 +605,6 @@ class AdminTeamsCog(commands.Cog):
             f"• Failed: {failed_count}",
         )
 
-        # Build response
         summary = "**Team Recreation Results**\n\n"
         summary += f"✓ Success: {success_count}/{len(team_numbers)}\n"
         if failed_count > 0:
@@ -655,5 +621,4 @@ class AdminTeamsCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Setup function to add cog to bot."""
     await bot.add_cog(AdminTeamsCog(bot))

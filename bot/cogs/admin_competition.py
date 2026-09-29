@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 class AdminCompetitionCog(commands.Cog):
     """Admin commands for competition and account management."""
 
-    # Create competition command group as class attribute
     competition_group = app_commands.Group(
         name="competition",
         description="Competition management commands",
@@ -74,7 +73,6 @@ class AdminCompetitionCog(commands.Cog):
         else:
             await interaction.response.defer(ephemeral=True)
 
-        # Parse team numbers if provided
         if team_numbers:
             try:
                 teams = parse_team_range(team_numbers)
@@ -149,10 +147,8 @@ class AdminCompetitionCog(commands.Cog):
         config.max_team_members = max_members
         await config.asave(update_fields=["max_team_members"])
 
-        # Update all existing team records to match the new global max
         await Team.objects.aupdate(max_members=max_members)
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="max_team_members_updated",
             admin_user=str(interaction.user),
@@ -164,7 +160,6 @@ class AdminCompetitionCog(commands.Cog):
             },
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Max Team Members Updated by {interaction.user.mention}\n• Old: {old_max}\n• New: {max_members}",
@@ -215,7 +210,6 @@ class AdminCompetitionCog(commands.Cog):
             )
             return
 
-        # Get or create config
         config = await sync_to_async(CompetitionConfig.get_config)()
 
         # Populate controlled applications from Authentik if not already set
@@ -225,7 +219,6 @@ class AdminCompetitionCog(commands.Cog):
         config.competition_start_time = start_time
         await config.asave(update_fields=["competition_start_time"])
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="competition_start_time_set",
             admin_user=str(interaction.user),
@@ -237,7 +230,6 @@ class AdminCompetitionCog(commands.Cog):
             },
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Competition Start Time Set by {interaction.user.mention}\n"
@@ -293,7 +285,6 @@ class AdminCompetitionCog(commands.Cog):
             )
             return
 
-        # Get or create config
         config = await sync_to_async(CompetitionConfig.get_config)()
 
         # Populate controlled applications from Authentik if not already set
@@ -303,7 +294,6 @@ class AdminCompetitionCog(commands.Cog):
         config.competition_end_time = end_time
         await config.asave(update_fields=["competition_end_time"])
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="competition_end_time_set",
             admin_user=str(interaction.user),
@@ -315,7 +305,6 @@ class AdminCompetitionCog(commands.Cog):
             },
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Competition End Time Set by {interaction.user.mention}\n"
@@ -371,7 +360,6 @@ class AdminCompetitionCog(commands.Cog):
     async def admin_cleanup_competition(self, interaction: discord.Interaction) -> None:
         """Clean up Discord channels, roles, and links after competition."""
 
-        # Check if competition is stopped
         config = await sync_to_async(CompetitionConfig.get_config)()
         if config.applications_enabled:
             await interaction.response.send_message(
@@ -380,7 +368,6 @@ class AdminCompetitionCog(commands.Cog):
             )
             return
 
-        # Show confirmation
         view = ConfirmView(confirm_label="Confirm Cleanup")
         await interaction.response.send_message(
             "**This will permanently:**\n"
@@ -418,7 +405,6 @@ class AdminCompetitionCog(commands.Cog):
     async def admin_competition_set_apps(self, interaction: discord.Interaction, app_slugs: str) -> None:
         """Set which applications to control."""
 
-        # Parse slugs
         slugs = [s.strip() for s in app_slugs.split(",") if s.strip()]
 
         if not slugs:
@@ -429,7 +415,6 @@ class AdminCompetitionCog(commands.Cog):
         config.controlled_applications = slugs
         await config.asave()
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="competition_apps_configured",
             admin_user=str(interaction.user),
@@ -440,7 +425,6 @@ class AdminCompetitionCog(commands.Cog):
             },
         )
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Competition Applications Configured by {interaction.user.mention}\n• Applications: {', '.join(slugs)}",
@@ -471,9 +455,7 @@ class AdminCompetitionCog(commands.Cog):
         sent_count = 0
         failed_channels = []
 
-        # Determine broadcast target
         if target_lower == "announcements":
-            # Broadcast to announcements channel with @Blueteam mention
             announcement_channel_id = settings.DISCORD_ANNOUNCEMENT_CHANNEL_ID
             channel = guild.get_channel(announcement_channel_id)
 
@@ -484,7 +466,6 @@ class AdminCompetitionCog(commands.Cog):
                 )
                 return
 
-            # Get Blueteam role
             blueteam_role = guild.get_role(settings.BLUETEAM_ROLE_ID)
             role_mention = blueteam_role.mention if blueteam_role else "@Blueteam"
 
@@ -492,7 +473,6 @@ class AdminCompetitionCog(commands.Cog):
                 await channel.send(f"{role_mention}\n\n{message}")
                 sent_count = 1
 
-                # Log to ops
                 await log_to_ops_channel(
                     self.bot,
                     f"Broadcast to Announcements by {interaction.user.mention}\nMessage: {message[:100]}...",
@@ -505,12 +485,10 @@ class AdminCompetitionCog(commands.Cog):
             return
 
         if target_lower == "all-teams":
-            # Broadcast to all team chat channels
             teams = [t async for t in Team.objects.filter(is_active=True).order_by("team_number")]
             team_numbers = [t.team_number for t in teams]
 
         else:
-            # Parse specific team range
             try:
                 team_numbers = parse_team_range(target)
             except ValueError as e:
@@ -528,7 +506,6 @@ class AdminCompetitionCog(commands.Cog):
 
         queued_count = 0
 
-        # Send to team channels (or queue if channel doesn't exist yet)
         for team_number in team_numbers:
             try:
                 team = await Team.objects.filter(team_number=team_number).afirst()
@@ -536,7 +513,6 @@ class AdminCompetitionCog(commands.Cog):
                     failed_channels.append(f"Team {team_number:02d} (not found)")
                     continue
 
-                # Try to find team chat channel
                 chat_channel = None
                 if team.discord_category_id:
                     category = guild.get_channel(team.discord_category_id)
@@ -550,7 +526,6 @@ class AdminCompetitionCog(commands.Cog):
                                 break
 
                 if chat_channel:
-                    # Send message directly
                     await chat_channel.send(f"**Announcement from {interaction.user.name}:**\n\n{message}")
                     sent_count += 1
                 else:
@@ -567,7 +542,6 @@ class AdminCompetitionCog(commands.Cog):
                 failed_channels.append(f"Team {team_number:02d} ({str(e)[:50]})")
                 continue
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="broadcast_message",
             admin_user=str(interaction.user),
@@ -582,7 +556,6 @@ class AdminCompetitionCog(commands.Cog):
             },
         )
 
-        # Log to ops
         ops_msg_parts = [
             f"Broadcast by {interaction.user.mention}",
             f"• Target: {target}",
@@ -596,7 +569,6 @@ class AdminCompetitionCog(commands.Cog):
 
         await log_to_ops_channel(self.bot, "\n".join(ops_msg_parts))
 
-        # Build response
         result_msg = f"Broadcast complete\n• Sent: {sent_count} channels"
         if queued_count > 0:
             result_msg += f"\n• Queued: {queued_count} (will deliver when team channels are created)"
@@ -611,5 +583,4 @@ class AdminCompetitionCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Setup function to add cog to bot."""
     await bot.add_cog(AdminCompetitionCog(bot))

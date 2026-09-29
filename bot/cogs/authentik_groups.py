@@ -36,7 +36,6 @@ class AuthentikGroupsCog(commands.Cog):
         self.refresh_task.start()
 
     async def cog_unload(self) -> None:
-        """Clean up when cog is unloaded."""
         self.refresh_task.cancel()
 
     @tasks.loop(minutes=REFRESH_MINUTES)
@@ -46,7 +45,6 @@ class AuthentikGroupsCog(commands.Cog):
 
     @refresh_task.before_loop
     async def before_refresh(self) -> None:
-        """Wait for bot to be ready before starting task."""
         if self.bot.is_closed():
             return
         try:
@@ -57,5 +55,4 @@ class AuthentikGroupsCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Load the cog."""
     await bot.add_cog(AuthentikGroupsCog(bot))

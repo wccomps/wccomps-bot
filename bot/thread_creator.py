@@ -20,10 +20,7 @@ async def create_ticket_thread(
 ) -> discord.Thread | None:
     """Create a Discord thread for a ticket in the team's chat channel.
 
-    Finds the team's category channel (by discord_category_id), locates the
-    text channel with "chat" in its name, creates a thread, saves the thread ID
-    to the ticket, adds all active team members, and sends an embed with a
-    TicketActionView.
+    Saves the thread ID on the ticket, adds active team members, and posts the ticket embed with action buttons.
 
     Returns the thread, or None if the category or chat channel could not be
     found. Discord API errors propagate.
@@ -35,7 +32,6 @@ async def create_ticket_thread(
         logger.warning(f"Team {team.team_name} has no discord_category_id; cannot create ticket thread")
         return None
 
-    # Locate the category channel
     category = guild.get_channel(team.discord_category_id)
     if not category:
         logger.warning(f"Category channel {team.discord_category_id} not found in guild for team {team.team_name}")
@@ -45,7 +41,6 @@ async def create_ticket_thread(
         logger.warning(f"Channel {team.discord_category_id} is not a CategoryChannel for team {team.team_name}")
         return None
 
-    # Find the chat text channel within the category
     chat_channel: discord.TextChannel | None = None
     for channel in category.channels:
         if isinstance(channel, discord.TextChannel) and TEAM_CHAT_CHANNEL_KEYWORD in channel.name.lower():
@@ -56,7 +51,6 @@ async def create_ticket_thread(
         logger.warning(f"No text channel with 'chat' in name found in category {category.name}")
         return None
 
-    # Create the thread
     thread = await chat_channel.create_thread(
         name=f"{ticket.ticket_number} - Team {team.team_number:02d} - {ticket.title[:60]}",
         auto_archive_duration=THREAD_AUTO_ARCHIVE_MINUTES,
@@ -67,7 +61,6 @@ async def create_ticket_thread(
     ticket.discord_channel_id = category.id
     await Ticket.objects.filter(pk=ticket.pk).aupdate(discord_thread_id=thread.id, discord_channel_id=category.id)
 
-    # Add all active team members to the thread
     team_member_ids = await get_team_member_discord_ids(team)
     for member_id in team_member_ids:
         try:
@@ -77,7 +70,6 @@ async def create_ticket_thread(
         except Exception as e:
             logger.warning(f"Failed to add member {member_id} to thread {thread.id}: {e}")
 
-    # Send initial embed with action buttons
     embed = await sync_to_async(format_ticket_embed)(ticket)
     view = TicketActionView(ticket.id)
     message = await thread.send(
@@ -86,7 +78,6 @@ async def create_ticket_thread(
         view=view,
     )
 
-    # Optionally pin the embed message
     if pin_message:
         try:
             await message.pin()

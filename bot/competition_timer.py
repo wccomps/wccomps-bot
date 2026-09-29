@@ -27,21 +27,18 @@ class CompetitionTimer:
         self._last_failure: str | None = None
 
     def start(self) -> None:
-        """Start the competition timer task."""
         if not self.running:
             self.running = True
             self.task = asyncio.create_task(self._check_loop())
             logger.info("Competition timer started")
 
     def stop(self) -> None:
-        """Stop the competition timer task."""
         self.running = False
         if self.task:
             self.task.cancel()
             logger.info("Competition timer stopped")
 
     async def _check_loop(self) -> None:
-        """Main loop to check competition start/end times."""
         while self.running:
             try:
                 await recycle_db_connection()
@@ -50,11 +47,9 @@ class CompetitionTimer:
             except Exception as e:
                 logger.exception(f"Error in competition timer check: {e}")
 
-            # Check every minute
             await asyncio.sleep(60)
 
     async def _check_competition_times(self) -> None:
-        """Check if competition should start or stop."""
 
         # Errors here propagate so _check_loop skips its heartbeat: a timer that can't read the
         # config is not alive in any useful sense.

@@ -18,7 +18,6 @@ from bot.competition_timer import CompetitionTimer
 from bot.discord_queue import DiscordQueueProcessor
 from bot.unified_dashboard import UnifiedDashboard
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -30,8 +29,6 @@ logger = logging.getLogger(__name__)
 
 
 class PortalBot(commands.Bot):
-    """WCComps Discord Bot."""
-
     def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.message_content = True
@@ -55,19 +52,16 @@ class PortalBot(commands.Bot):
         return hasher.hexdigest()[:16]
 
     async def _should_sync_commands(self) -> bool:
-        """Check if commands have changed and need syncing."""
         from asgiref.sync import sync_to_async
 
         from core.models import BotState
 
         current_hash = self._get_command_hash()
 
-        # Force sync if explicitly requested
         if os.environ.get("SYNC_COMMANDS", "").lower() in ("true", "1", "yes"):
             logger.info(f"SYNC_COMMANDS=true, forcing sync (hash: {current_hash})")
             return True
 
-        # Check stored hash
         try:
             stored = await sync_to_async(BotState.objects.get)(key="command_hash")
             if stored.value == current_hash:
@@ -82,7 +76,6 @@ class PortalBot(commands.Bot):
         """Load cogs and sync slash commands; discord.py runs this during login, before on_ready."""
         logger.info("Loading cogs...")
 
-        # Load cogs
         await self.load_extension("bot.cogs.linking")
         await self.load_extension("bot.cogs.ticketing")
         await self.load_extension("bot.cogs.scoring")
@@ -102,7 +95,6 @@ class PortalBot(commands.Bot):
         self.add_view(TicketActionView(ticket_id=0))
         logger.info("Registered persistent ticket action view")
 
-        # Log registered commands for debugging
         commands_list = self.tree.get_commands()
         logger.info(f"Registered {len(commands_list)} top-level commands:")
         for cmd in commands_list:
@@ -111,7 +103,6 @@ class PortalBot(commands.Bot):
             else:
                 logger.info(f"  - {cmd.name} (Command)")
 
-        # Sync commands to guilds
         # Competition guild gets all commands
         from bot.config import DISCORD_GUILD_ID, VOLUNTEER_GUILD_ID
 
@@ -128,7 +119,6 @@ class PortalBot(commands.Bot):
         # Sync to competition guild (instant availability)
         if competition_guild_id:
             guild = discord.Object(id=competition_guild_id)
-            # Copy commands from global tree to guild tree before syncing
             self.tree.copy_global_to(guild=guild)
             try:
                 await self.tree.sync(guild=guild)
@@ -166,7 +156,6 @@ class PortalBot(commands.Bot):
             await BotState.objects.aupdate_or_create(key="command_hash", defaults={"value": self._get_command_hash()})
 
     async def on_ready(self) -> None:
-        """Called when bot is ready."""
         if not self.user:
             logger.error("Bot user is None in on_ready")
             return
@@ -176,7 +165,6 @@ class PortalBot(commands.Bot):
         for guild in self.guilds:
             logger.info(f"  - {guild.name} (ID: {guild.id})")
 
-        # Start queue processor
         if not self.queue_processor:
             self.queue_processor = DiscordQueueProcessor(self)
             self.queue_processor.start()
@@ -186,17 +174,14 @@ class PortalBot(commands.Bot):
 
             await report_missing_discord_settings(self)
 
-        # Start competition timer
         if not self.competition_timer:
             self.competition_timer = CompetitionTimer(self)
             self.competition_timer.start()
 
-        # Start unified dashboard
         if not self.unified_dashboard:
             self.unified_dashboard = UnifiedDashboard(self)
             self.unified_dashboard.start()
 
-        # Refresh ticket action buttons on all active tickets
         await self._refresh_ticket_buttons()
 
     async def _refresh_ticket_buttons(self) -> None:
@@ -205,7 +190,6 @@ class PortalBot(commands.Bot):
         from ticketing.models import Ticket
 
         try:
-            # Get all active tickets with threads
             tickets = Ticket.objects.filter(status__in=["open", "claimed"], discord_thread_id__isnull=False)
 
             tickets_list = [t async for t in tickets]
@@ -222,13 +206,11 @@ class PortalBot(commands.Bot):
                 try:
                     logger.info(f"Processing ticket {ticket.ticket_number} (thread {ticket.discord_thread_id})")
 
-                    # Skip if no thread ID
                     if not ticket.discord_thread_id:
                         logger.warning(f"Ticket {ticket.ticket_number} has no thread ID")
                         failed += 1
                         continue
 
-                    # Fetch the thread
                     thread = self.get_channel(ticket.discord_thread_id)
                     if not thread:
                         thread = await self.fetch_channel(ticket.discord_thread_id)
@@ -240,7 +222,6 @@ class PortalBot(commands.Bot):
                         continue
 
                     # Find the ticket message (the one with embed and buttons)
-                    # Search first few messages for one with an embed from the bot
                     ticket_message = None
                     async for message in thread.history(limit=10, oldest_first=True):
                         if message.author == self.user and message.embeds:
@@ -248,7 +229,6 @@ class PortalBot(commands.Bot):
                             break
 
                     if ticket_message:
-                        # Re-edit with fresh embed and view
                         from asgiref.sync import sync_to_async
 
                         embed = await sync_to_async(format_ticket_embed)(ticket)
@@ -272,7 +252,6 @@ class PortalBot(commands.Bot):
             logger.exception(f"Error refreshing ticket buttons: {e}")
 
     async def close(self) -> None:
-        """Cleanup on bot shutdown."""
         logger.info("Shutting down bot...")
         if self.queue_processor:
             self.queue_processor.stop()
@@ -284,14 +263,11 @@ class PortalBot(commands.Bot):
 
 
 def main() -> None:
-    """Main entry point."""
-    # Get bot token from environment
     token = os.environ.get("DISCORD_BOT_TOKEN")
     if not token:
         logger.error("DISCORD_BOT_TOKEN environment variable not set")
         sys.exit(1)
 
-    # Create and run bot
     bot = PortalBot()
 
     try:

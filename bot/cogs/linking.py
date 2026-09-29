@@ -73,7 +73,6 @@ async def create_link_token(discord_id: int, discord_username: str) -> str:
 
 
 def build_link_embed(auth_url: str) -> discord.Embed:
-    """Build the link instructions embed."""
     return discord.Embed(
         title="Link Your Discord Account",
         description=(
@@ -152,5 +151,4 @@ class LinkingCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Setup function to add cog to bot."""
     await bot.add_cog(LinkingCog(bot))

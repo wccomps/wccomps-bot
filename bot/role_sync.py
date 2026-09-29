@@ -16,8 +16,6 @@ GUILD_CHUNK_TIMEOUT = 30.0
 
 
 class RoleSyncStats(TypedDict, total=False):
-    """Statistics for role synchronization."""
-
     roles_added: int
     roles_removed: int
     errors: int
@@ -27,24 +25,14 @@ class RoleSyncStats(TypedDict, total=False):
 
 
 class AuthentikRoleSyncManager:
-    """Manages role synchronization from Authentik groups to Discord competition guild.
-
-    This syncs based on Authentik group membership (via UserGroups model) rather than
-    Discord-to-Discord syncing. Users must have linked their Discord account via DiscordLink.
-    """
+    """Adds competition-guild roles to Discord-linked users (DiscordLink) from their Authentik groups (UserGroups)."""
 
     def __init__(self, bot: discord.Client) -> None:
-        """Initialize Authentik role sync manager.
-
-        Args:
-            bot: Discord bot instance with access to competition guild
-        """
         self.bot = bot
         self.competition_guild_id = settings.COMPETITION_GUILD_ID
         self.group_role_mapping = settings.GROUP_ROLE_MAPPING
 
     def _get_competition_guild(self) -> discord.Guild | None:
-        """Get the competition guild object."""
         guild = self.bot.get_guild(self.competition_guild_id)
         if not guild:
             logger.error(f"Competition guild {self.competition_guild_id} not found")
@@ -55,15 +43,9 @@ class AuthentikRoleSyncManager:
         dry_run: bool = False,
         progress_callback: Callable[[int, int, str], Awaitable[None]] | None = None,
     ) -> RoleSyncStats:
-        """Synchronize roles from Authentik groups to competition Discord guild.
+        """Add roles from Authentik groups (UserGroups) to linked users in the competition guild.
 
-        This uses the UserGroups model (populated from Authentik OIDC) and DiscordLink
-        to determine which Discord users should have which roles.
-
-        Args:
-            dry_run: If True, only report what would be done without making changes
-            progress_callback: Optional async callback(current, total, role_name) for progress updates
-
+        progress_callback, if given, is awaited with (current, total, role_name) per group mapping.
         Add-only: roles a user shouldn't have are counted (extra_linked, unlinked_holders), never removed.
         """
         competition_guild = self._get_competition_guild()
@@ -110,7 +92,6 @@ class AuthentikRoleSyncManager:
             logger.info("Guild already chunked, skipping chunk request")
         logger.info(f"Competition guild has {len(competition_guild.members)} total members")
 
-        # Get all Authentik group memberships and Discord links from database
         @sync_to_async
         def get_authentik_data() -> tuple[dict[str, set[int]], set[int]]:
             """Get Authentik group name -> linked Discord IDs, plus every linked Discord ID."""
@@ -119,7 +100,6 @@ class AuthentikRoleSyncManager:
 
             group_to_discord_ids: dict[str, set[int]] = {group_name: set() for group_name in self.group_role_mapping}
 
-            # Get all active Discord links with their users
             discord_links = DiscordLink.objects.filter(is_active=True).select_related("user")
             linked_discord_ids = {link.discord_id for link in discord_links}
 
@@ -139,13 +119,11 @@ class AuthentikRoleSyncManager:
         for group_name, discord_ids in group_to_discord_ids.items():
             logger.info(f"  {group_name}: {len(discord_ids)} linked Discord users")
 
-        # Process each group->role mapping
         total_mappings = len(self.group_role_mapping)
         for idx, (group_name, role_id) in enumerate(self.group_role_mapping.items(), start=1):
             competition_role = competition_guild.get_role(role_id)
             role_name = competition_role.name if competition_role else f"Role {role_id}"
 
-            # Report progress via callback if provided
             if progress_callback:
                 await progress_callback(idx, total_mappings, role_name)
 

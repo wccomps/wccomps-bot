@@ -30,15 +30,7 @@ async def run_competition(enable: bool, actor: str) -> CompetitionRunResult:
 
 
 async def update_status_channel(bot: discord.Client) -> bool:
-    """
-    Update the competition status channel with current state.
-
-    Args:
-        bot: Discord bot client
-
-    Returns:
-        True if updated successfully, False otherwise
-    """
+    """Edit (or post) the competition status message; False if there is no status channel or it fails."""
     config = await sync_to_async(CompetitionConfig.get_config)()
 
     if not config.status_channel_id:
@@ -49,12 +41,10 @@ async def update_status_channel(bot: discord.Client) -> bool:
         logger.warning(f"Status channel {config.status_channel_id} not found or not a text channel")
         return False
 
-    # Build status embed
     embed = _build_status_embed(config)
 
     try:
         if config.status_message_id:
-            # Try to edit existing message
             try:
                 message = await channel.fetch_message(config.status_message_id)
                 await message.edit(embed=embed)
@@ -62,7 +52,6 @@ async def update_status_channel(bot: discord.Client) -> bool:
             except discord.NotFound:
                 logger.info("Status message not found, creating new one")
 
-        # Create new message
         message = await channel.send(embed=embed)
 
         @sync_to_async
@@ -79,7 +68,6 @@ async def update_status_channel(bot: discord.Client) -> bool:
 
 
 def _build_status_embed(config: CompetitionConfig) -> discord.Embed:
-    """Build the status embed for the competition."""
     if config.applications_enabled:
         status = "RUNNING"
         color = discord.Color.green()
@@ -96,7 +84,6 @@ def _build_status_embed(config: CompetitionConfig) -> discord.Embed:
         color=color,
     )
 
-    # Timing info
     if config.competition_start_time:
         embed.add_field(
             name="Scheduled Start",
@@ -111,7 +98,6 @@ def _build_status_embed(config: CompetitionConfig) -> discord.Embed:
             inline=True,
         )
 
-    # Applications
     if config.controlled_applications:
         apps_str = ", ".join(config.controlled_applications)
         embed.add_field(
@@ -120,7 +106,6 @@ def _build_status_embed(config: CompetitionConfig) -> discord.Embed:
             inline=False,
         )
 
-    # Account status
     account_status = "Enabled" if config.applications_enabled else "Disabled"
     embed.add_field(
         name="Team Accounts",
@@ -128,7 +113,6 @@ def _build_status_embed(config: CompetitionConfig) -> discord.Embed:
         inline=True,
     )
 
-    # Last updated
     embed.set_footer(text="Last updated")
     embed.timestamp = discord.utils.utcnow()
 
@@ -179,7 +163,6 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
 
         await log_to_ops_channel(bot, f"Deactivated {deactivated} team member links")
 
-        # Delete ALL team categories/channels
         deleted_count = 0
         for category in guild.categories:
             match = re.match(r"^team\s*(\d+)$", category.name, re.IGNORECASE)
@@ -195,17 +178,14 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
 
         await log_to_ops_channel(bot, f"Deleted {deleted_count} team categories")
 
-        # Remove team roles from members
         from bot.discord_manager import DiscordManager
 
         discord_manager = DiscordManager(guild, bot)
         removed_count = await discord_manager.remove_all_team_roles()
         await log_to_ops_channel(bot, f"Removed roles from {removed_count} members")
 
-        # Clear Discord IDs from teams
         await Team.objects.all().aupdate(discord_category_id=None, discord_role_id=None)
 
-        # Remove student helper roles
         active_helpers = [
             dl async for dl in DiscordLink.objects.filter(is_student_helper=True, is_active=True).select_related("user")
         ]
@@ -247,7 +227,6 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
         if helpers_removed > 0:
             await log_to_ops_channel(bot, f"Removed {helpers_removed} student helper role(s)")
 
-        # Remove helper roles from all members
         helper_role_ids: set[int] = set()
         async for role_id in DiscordLink.objects.filter(helper_role_id__isnull=False).values_list(
             "helper_role_id", flat=True
@@ -266,7 +245,6 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
                     except Exception as e:
                         logger.warning(f"Could not remove {role.name} from {member}: {e}")
 
-        # Remove WCComps Room Judge role
         room_judge_role = discord.utils.get(guild.roles, name="WCComps Room Judge")
         if room_judge_role:
             for member in room_judge_role.members:
@@ -284,12 +262,10 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
         )
         await QuotientMetadataCache.objects.all().adelete()
 
-        # Clear queued announcements
         deleted_announcements = await QueuedAnnouncement.objects.all().adelete()
         if deleted_announcements[0] > 0:
             await log_to_ops_channel(bot, f"Cleared {deleted_announcements[0]} queued announcements")
 
-        # Create audit log
         await AuditLog.objects.acreate(
             action="competition_cleanup",
             admin_user=actor,
@@ -311,7 +287,6 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
             f"- Removed {removed_count} role assignments",
         )
 
-        # Update status channel
         await update_status_channel(bot)
 
     except Exception as e:

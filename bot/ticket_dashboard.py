@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 def get_ticket_color(status: str) -> discord.Color:
-    """Get embed color based on ticket status."""
     colors: dict[str, discord.Color] = {
         "open": discord.Color.red(),
         "claimed": discord.Color.orange(),
@@ -24,7 +23,6 @@ def get_ticket_color(status: str) -> discord.Color:
 
 
 def format_ticket_embed(ticket: Ticket) -> discord.Embed:
-    """Format ticket as Discord embed."""
     cat_info = get_category_config(ticket.category_id) or {}
 
     embed = discord.Embed(
@@ -34,18 +32,15 @@ def format_ticket_embed(ticket: Ticket) -> discord.Embed:
         timestamp=ticket.created_at,
     )
 
-    # Team info
     embed.add_field(
         name="Team",
         value=f"{ticket.team.team_name} (#{ticket.team.team_number})",
         inline=True,
     )
 
-    # Status
     status_display = ticket.status.replace("_", " ").title()
     embed.add_field(name="Status", value=status_display, inline=True)
 
-    # Category-specific fields (hostname, service, IP)
     if ticket.hostname:
         embed.add_field(name="Hostname", value=ticket.hostname, inline=True)
     if ticket.service_name:
@@ -53,7 +48,6 @@ def format_ticket_embed(ticket: Ticket) -> discord.Embed:
     if ticket.ip_address:
         embed.add_field(name="IP Address", value=ticket.ip_address, inline=True)
 
-    # Assigned to (ticket.assigned_to is now a User)
     if ticket.assigned_to:
         embed.add_field(
             name="Assigned To",
@@ -61,7 +55,6 @@ def format_ticket_embed(ticket: Ticket) -> discord.Embed:
             inline=False,
         )
 
-    # Point impact
     points = cat_info.get("points", 0)
     if cat_info.get("variable_points", False):
         point_text = "Variable"
@@ -70,7 +63,6 @@ def format_ticket_embed(ticket: Ticket) -> discord.Embed:
         point_text = f"{points} points"
         embed.add_field(name="Point Impact", value=point_text, inline=True)
 
-    # Resolution info
     if ticket.resolved_at:
         embed.add_field(
             name="Resolved At",
@@ -91,7 +83,6 @@ def format_ticket_embed(ticket: Ticket) -> discord.Embed:
 
 async def post_ticket_to_dashboard(bot: discord.Client, ticket: Ticket) -> None:
     """Trigger unified dashboard update for new ticket."""
-    # Trigger unified dashboard update only (no individual messages)
     if hasattr(bot, "unified_dashboard") and bot.unified_dashboard:
         await bot.unified_dashboard.trigger_update()
         logger.info(f"Triggered dashboard update for new ticket {ticket.ticket_number}")
@@ -99,7 +90,6 @@ async def post_ticket_to_dashboard(bot: discord.Client, ticket: Ticket) -> None:
 
 async def update_ticket_dashboard(bot: discord.Client, ticket: Ticket) -> None:
     """Trigger unified dashboard update for ticket changes."""
-    # Trigger unified dashboard update only (no individual messages)
     if hasattr(bot, "unified_dashboard") and bot.unified_dashboard:
         await bot.unified_dashboard.trigger_update()
         logger.debug(f"Triggered dashboard update for ticket {ticket.ticket_number}")
@@ -112,7 +102,6 @@ class TicketActionView(discord.ui.View):
         super().__init__(timeout=None)
         self.ticket_id = ticket_id
 
-        # Add thread link button if URL provided
         if thread_url:
             self.add_item(
                 discord.ui.Button(
@@ -139,7 +128,6 @@ class TicketActionView(discord.ui.View):
                 match = re.match(r"Ticket ([^:]+):", embed.title)
                 if match:
                     ticket_number = match.group(1).strip()
-                    # Look up ticket by ticket_number
                     ticket = await Ticket.objects.filter(ticket_number=ticket_number).afirst()
                     if ticket:
                         return ticket.id
@@ -153,10 +141,8 @@ class TicketActionView(discord.ui.View):
         row=1,
     )
     async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button[TicketActionView]) -> None:
-        """Claim a ticket."""
         from bot.permissions import can_support_tickets_async
 
-        # Extract ticket_id from message embed or instance variable
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
         if not ticket_id:
             await interaction.response.send_message(
@@ -165,7 +151,6 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        # Check permissions
         if not await can_support_tickets_async(interaction):
             await interaction.response.send_message(
                 "You don't have permission to claim tickets. "
@@ -174,7 +159,6 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        # Use shared atomic claim function
         from ticketing.utils import aclaim_ticket_atomic
 
         ticket, error = await aclaim_ticket_atomic(
@@ -188,10 +172,8 @@ class TicketActionView(discord.ui.View):
             await interaction.response.send_message(error or "Failed to claim ticket.", ephemeral=True)
             return
 
-        # Update dashboard
         await update_ticket_dashboard(interaction.client, ticket)
 
-        # Add user to thread if ticket has a thread
         if ticket.discord_thread_id:
             try:
                 thread = interaction.client.get_channel(ticket.discord_thread_id)
@@ -219,7 +201,6 @@ class TicketActionView(discord.ui.View):
         """Show resolve modal with category dropdown and notes."""
         from bot.permissions import can_support_tickets_async
 
-        # Extract ticket_id from message embed or instance variable
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
         if not ticket_id:
             await interaction.response.send_message(
@@ -228,7 +209,6 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        # Check permissions
         if not await can_support_tickets_async(interaction):
             await interaction.response.send_message(
                 "You don't have permission to resolve tickets. "
@@ -264,7 +244,6 @@ class TicketActionView(discord.ui.View):
         from bot.permissions import can_support_tickets_async
         from team.models import DiscordLink
 
-        # Extract ticket_id from message embed or instance variable
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
         if not ticket_id:
             await interaction.response.send_message(
@@ -273,10 +252,8 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        # Check if user is ops or team member
         is_ops = await can_support_tickets_async(interaction)
 
-        # Check if user is linked to a team
         @sync_to_async
         def get_team_link() -> DiscordLink | None:
             return (
@@ -295,7 +272,6 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        # Get ticket
         ticket = await Ticket.objects.select_related("team").filter(id=ticket_id).afirst()
         if not ticket:
             await interaction.response.send_message("Ticket not found.", ephemeral=True)
@@ -322,13 +298,10 @@ class TicketActionView(discord.ui.View):
 
 
 class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
-    """Modal for resolving a ticket."""
-
     def __init__(self, ticket: Ticket, cat_info: TicketCategoryConfig) -> None:
         super().__init__()
         self.ticket = ticket
 
-        # Create notes input
         self.notes: discord.ui.TextInput[ResolveTicketModal] = discord.ui.TextInput(
             label="Resolution Notes",
             placeholder="Describe how the issue was resolved...",
@@ -358,12 +331,10 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
                 max_length=5,
             )
 
-        # Add items to modal
         self.add_item(self.notes)
         self.add_item(self.points)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        """Handle modal submission."""
         points_override = None
         if self.points.value.strip():
             try:
@@ -372,7 +343,6 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
                 await interaction.response.send_message("Invalid point value. Must be a number.", ephemeral=True)
                 return
 
-        # Use shared atomic resolve function
         from ticketing.utils import aresolve_ticket_atomic
 
         ticket, error = await aresolve_ticket_atomic(
@@ -388,7 +358,6 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
             await interaction.response.send_message(error or "Failed to resolve ticket.", ephemeral=True)
             return
 
-        # Update dashboard
         await update_ticket_dashboard(interaction.client, ticket)
 
         await interaction.response.send_message(

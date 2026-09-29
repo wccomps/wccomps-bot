@@ -33,13 +33,11 @@ class UnifiedDashboard:
         self.filter_status = "all"  # Options: all, open, claimed
 
     def start(self) -> None:
-        """Start the dashboard manager."""
         self.running = True
         self.task = asyncio.create_task(self._dashboard_loop())
         logger.info("Unified dashboard started")
 
     def stop(self) -> None:
-        """Stop the dashboard manager."""
         self.running = False
         if self.task:
             self.task.cancel()
@@ -47,10 +45,8 @@ class UnifiedDashboard:
 
     async def _dashboard_loop(self) -> None:
         """Main dashboard loop - checks for updates every 10 seconds."""
-        # Wait for bot to be ready
         await self.bot.wait_until_ready()
 
-        # Initialize dashboard on startup
         await self._initialize_dashboard()
 
         while self.running:
@@ -70,7 +66,6 @@ class UnifiedDashboard:
             logger.warning("DISCORD_TICKET_QUEUE_CHANNEL_ID not configured")
             return
 
-        # Try to get existing dashboard message from BotState
         @sync_to_async
         def get_dashboard_state() -> tuple[int | None, int | None]:
             try:
@@ -83,7 +78,6 @@ class UnifiedDashboard:
         msg_id, chan_id = await get_dashboard_state()
 
         if msg_id and chan_id:
-            # Try to reconnect to existing message
             try:
                 channel = self.bot.get_channel(chan_id)
                 if channel and isinstance(channel, discord.TextChannel):
@@ -92,13 +86,11 @@ class UnifiedDashboard:
                     self.dashboard_channel_id = chan_id
                     logger.info(f"Reconnected to existing dashboard message {msg_id}")
 
-                    # Force update
                     await self._update_dashboard()
                     return
             except Exception as e:
                 logger.warning(f"Could not reconnect to existing dashboard: {e}")
 
-        # Create new dashboard message
         channel = self.bot.get_channel(queue_channel_id)
         if not channel or not isinstance(channel, discord.TextChannel):
             logger.error(f"Could not find text channel {queue_channel_id}")
@@ -110,14 +102,12 @@ class UnifiedDashboard:
             color=discord.Color.blue(),
         )
 
-        # Create view with control buttons
         view = DashboardControlView(self)
         message = await channel.send(embed=embed, view=view)
 
         self.dashboard_message_id = message.id
         self.dashboard_channel_id = channel.id
 
-        # Save to database
         @sync_to_async
         def save_dashboard_state() -> None:
             BotState.objects.update_or_create(key="unified_dashboard_message_id", defaults={"value": str(message.id)})
@@ -126,11 +116,9 @@ class UnifiedDashboard:
         await save_dashboard_state()
         logger.info(f"Created new dashboard message {message.id}")
 
-        # Initial update
         await self._update_dashboard()
 
     async def _check_and_update(self) -> None:
-        """Check if dashboard needs update and update if needed."""
 
         # DB errors propagate so the loop skips its heartbeat.
         @sync_to_async
@@ -156,15 +144,14 @@ class UnifiedDashboard:
 
         time_since_claim = timezone.now() - ticket.assigned_at
         if time_since_claim > timedelta(hours=2):
-            return " ⛔"  # >2hr
+            return " ⛔"
         if time_since_claim > timedelta(hours=1):
-            return " 🚨"  # >1hr
+            return " 🚨"
         if time_since_claim > timedelta(minutes=30):
-            return " ⚠️"  # >30min
+            return " ⚠️"
         return ""
 
     def _get_time_ago(self, dt: datetime | None) -> str:
-        """Get human-readable time ago string."""
         if not dt:
             return ""
 
@@ -181,18 +168,13 @@ class UnifiedDashboard:
         return f"{days}d ago"
 
     def _categorize_tickets(self, tickets: list[Ticket]) -> dict[int | None, list[Ticket]]:
-        """Group tickets by category_id, sorted by count descending.
-
-        Returns an ordered dict mapping category_id to its list of tickets,
-        with the highest-count categories first.
-        """
+        """Group tickets by category_id, highest-count categories first."""
         tickets_by_category: dict[int | None, list[Ticket]] = {}
         for ticket in tickets:
             if ticket.category_id not in tickets_by_category:
                 tickets_by_category[ticket.category_id] = []
             tickets_by_category[ticket.category_id].append(ticket)
 
-        # Return ordered by ticket count (descending)
         sorted_keys = sorted(
             tickets_by_category.keys(),
             key=lambda cat: len(tickets_by_category[cat]),
@@ -201,14 +183,9 @@ class UnifiedDashboard:
         return {k: tickets_by_category[k] for k in sorted_keys}
 
     def _build_category_field(self, category_name: str, tickets: list[Ticket], guild_id: int) -> tuple[str, str]:
-        """Build a single embed field (name, value) for one ticket category.
-
-        Returns:
-            A (field_name, field_value) tuple ready for ``embed.add_field()``.
-        """
+        """Build the (name, value) embed field for one ticket category."""
         lines = []
         for ticket in tickets:
-            # Status indicator
             if ticket.status == "open":
                 status_emoji = "🔴"
             elif ticket.status == "claimed":
@@ -218,7 +195,6 @@ class UnifiedDashboard:
 
             stale = self._get_stale_indicator(ticket)
 
-            # Build ticket line with thread link
             if ticket.discord_thread_id:
                 thread_link = f"https://discord.com/channels/{guild_id}/{ticket.discord_thread_id}"
                 ticket_display = f"[{ticket.ticket_number}]({thread_link})"
@@ -244,7 +220,6 @@ class UnifiedDashboard:
         return f"{category_name} ({len(tickets)})", field_value
 
     async def _update_dashboard(self) -> None:
-        """Update the dashboard message with current ticket status."""
         if not self.dashboard_message_id or not self.dashboard_channel_id:
             return
 
@@ -286,7 +261,6 @@ class UnifiedDashboard:
 
             tickets = await get_tickets()
 
-            # Sort tickets
             if self.sort_by == "stale":
                 tickets.sort(key=lambda t: t.assigned_at or timezone.now())
             elif self.sort_by == "team":
@@ -294,7 +268,6 @@ class UnifiedDashboard:
             else:
                 tickets.sort(key=lambda t: t.created_at)
 
-            # Build embed
             embed = discord.Embed(
                 title="📋 Ticket Queue Dashboard",
                 description=(
@@ -366,7 +339,6 @@ class DashboardControlView(discord.ui.View):
     async def sort_created(
         self, interaction: discord.Interaction, button: discord.ui.Button[DashboardControlView]
     ) -> None:
-        """Sort by creation time."""
         self.dashboard.sort_by = "created"
         await self.dashboard._update_dashboard()
         await interaction.response.send_message("Sorted by creation time", ephemeral=True)
@@ -394,7 +366,6 @@ class DashboardControlView(discord.ui.View):
     async def sort_team(
         self, interaction: discord.Interaction, button: discord.ui.Button[DashboardControlView]
     ) -> None:
-        """Sort by team name."""
         self.dashboard.sort_by = "team"
         await self.dashboard._update_dashboard()
         await interaction.response.send_message("Sorted by team name", ephemeral=True)
@@ -408,7 +379,6 @@ class DashboardControlView(discord.ui.View):
     async def filter_all(
         self, interaction: discord.Interaction, button: discord.ui.Button[DashboardControlView]
     ) -> None:
-        """Show all active tickets."""
         self.dashboard.filter_status = "all"
         await self.dashboard._update_dashboard()
         await interaction.response.send_message("Showing all active tickets", ephemeral=True)
@@ -422,7 +392,6 @@ class DashboardControlView(discord.ui.View):
     async def filter_open(
         self, interaction: discord.Interaction, button: discord.ui.Button[DashboardControlView]
     ) -> None:
-        """Show only open tickets."""
         self.dashboard.filter_status = "open"
         await self.dashboard._update_dashboard()
         await interaction.response.send_message("Showing only open tickets", ephemeral=True)
@@ -436,7 +405,6 @@ class DashboardControlView(discord.ui.View):
     async def filter_claimed(
         self, interaction: discord.Interaction, button: discord.ui.Button[DashboardControlView]
     ) -> None:
-        """Show only claimed tickets."""
         self.dashboard.filter_status = "claimed"
         await self.dashboard._update_dashboard()
         await interaction.response.send_message("Showing only claimed tickets", ephemeral=True)

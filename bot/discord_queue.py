@@ -32,7 +32,6 @@ class DiscordQueueProcessor:
     # A task left in "processing" by a dead bot is retried if younger than this, failed if older.
     STRANDED_TASK_MAX_AGE = timedelta(hours=1)
 
-    # Handler registry: maps task_type -> handler method.
     # Adding a new task type? Also update DiscordTask in core/models.py
     # (TASK_TYPE_CHOICES, required_keys, docstring, factory classmethod).
     _task_handlers: dict[str, Callable[[DiscordQueueProcessor, DiscordTask], Awaitable[None]]] = {}
@@ -44,12 +43,10 @@ class DiscordQueueProcessor:
         self.task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
-        """Start the queue processor as an async task."""
         from bot.config import DISCORD_GUILD_ID
 
         self.running = True
 
-        # Initialize discord manager with the configured guild
         guild_id = DISCORD_GUILD_ID
         if guild_id:
             guild = self.bot.get_guild(guild_id)
@@ -58,23 +55,19 @@ class DiscordQueueProcessor:
             else:
                 logger.error(f"Could not find configured guild {guild_id}")
         elif self.bot.guilds:
-            # Fallback to first guild if DISCORD_GUILD_ID not set
             guild = self.bot.guilds[0]
             self.discord_manager = DiscordManager(guild, self.bot)
 
-        # Start processing task
         self.task = asyncio.create_task(self._process_loop())
         logger.info("Discord queue processor started")
 
     def stop(self) -> None:
-        """Stop the queue processor."""
         self.running = False
         if self.task:
             self.task.cancel()
         logger.info("Discord queue processor stopped")
 
     async def _process_loop(self) -> None:
-        """Main processing loop (runs as async task)."""
         try:
             await self._recover_stranded_tasks()
         except Exception:
@@ -108,9 +101,7 @@ class DiscordQueueProcessor:
             logger.warning(f"Recovered stranded queue tasks: {requeued} requeued, {failed} failed as too old")
 
     async def _process_pending_tasks(self) -> None:
-        """Process pending tasks from the queue."""
 
-        # Get pending tasks that are ready to process (using sync_to_async)
         @sync_to_async
         def get_pending_tasks() -> list[DiscordTask]:
             now = timezone.now()
@@ -126,7 +117,6 @@ class DiscordQueueProcessor:
             await self._process_task(task)
 
     async def _process_task(self, task: DiscordTask) -> None:
-        """Process a single task."""
 
         # Claim with a conditional UPDATE so a task is never handled twice.
         claimed = await DiscordTask.objects.filter(pk=task.pk, status="pending").aupdate(status="processing")
@@ -135,7 +125,6 @@ class DiscordQueueProcessor:
         task.status = "processing"
 
         try:
-            # Dispatch to handler by task type
             handler = self._task_handlers.get(task.task_type)
             if handler is None:
                 logger.warning(f"Unknown task type: {task.task_type}")
@@ -145,7 +134,6 @@ class DiscordQueueProcessor:
                 return
             await handler(self, task)
 
-            # Mark as completed
             @sync_to_async
             def mark_completed() -> None:
                 task.status = "completed"
@@ -156,7 +144,7 @@ class DiscordQueueProcessor:
             logger.info(f"Completed task {task.id}: {task.task_type}")
 
         except discord.errors.RateLimited as rate_limit_error:
-            # Handle rate limiting
+
             @sync_to_async
             def handle_rate_limit(error: discord.errors.RateLimited) -> float:
                 retry_after = error.retry_after
@@ -171,7 +159,7 @@ class DiscordQueueProcessor:
             logger.warning(f"Task {task.id} rate limited, retrying in {retry_after}s")
 
         except Exception as error:
-            # Handle other errors
+
             @sync_to_async
             def handle_error(exc: Exception) -> tuple[str, int]:
                 task.retry_count += 1
@@ -181,7 +169,6 @@ class DiscordQueueProcessor:
                     task.status = "failed"
                     task.save()
                     return "failed", task.max_retries
-                # Exponential backoff
                 backoff_seconds = min(2**task.retry_count, DiscordQueueProcessor.MAX_BACKOFF_SECONDS)
                 task.next_retry_at = timezone.now() + timedelta(seconds=backoff_seconds)
                 task.status = "pending"
@@ -192,7 +179,6 @@ class DiscordQueueProcessor:
 
             if result == "failed":
                 logger.exception(f"Task {task.id} failed after {value} retries: {error}")
-                # Alert to ops channel
                 try:
                     from bot.utils import log_to_ops_channel
 
@@ -206,7 +192,6 @@ class DiscordQueueProcessor:
                 logger.warning(f"Task {task.id} failed (attempt {task.retry_count}), retrying in {value}s")
 
     async def _handle_assign_role(self, task: DiscordTask) -> None:
-        """Handle assign_role task."""
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
 
@@ -219,12 +204,10 @@ class DiscordQueueProcessor:
         guild = self.discord_manager.guild
         member = guild.get_member(discord_id)
 
-        # If not in cache, try to fetch from API
         if not member:
             try:
                 member = await guild.fetch_member(discord_id)
             except discord.NotFound:
-                # Member is not in the guild
                 try:
                     user = await self.bot.fetch_user(discord_id)
                     username = f"{user.name} ({discord_id})"
@@ -240,7 +223,6 @@ class DiscordQueueProcessor:
                 logger.exception(f"Failed to fetch member {discord_id}: {e}")
                 raise
 
-        # Set up team infrastructure if needed
         @sync_to_async
         def get_team() -> Team:
             return Team.objects.get(team_number=team_number)
@@ -250,7 +232,6 @@ class DiscordQueueProcessor:
             logger.info(f"Setting up infrastructure for team {team_number}")
             await self.discord_manager.setup_team_infrastructure(team_number)
 
-        # Assign role
         success = await self.discord_manager.assign_team_role(member, team_number)
         if not success:
             raise RuntimeError(f"Failed to assign role to {member}")
@@ -258,7 +239,6 @@ class DiscordQueueProcessor:
         logger.info(f"Assigned team {team_number} role to {member}")
 
     async def _handle_assign_group_roles(self, task: DiscordTask) -> None:
-        """Handle assign_group_roles task."""
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
 
@@ -271,7 +251,6 @@ class DiscordQueueProcessor:
         guild = self.discord_manager.guild
         member = guild.get_member(discord_id)
 
-        # If not in cache, try to fetch from API
         if not member:
             try:
                 member = await guild.fetch_member(discord_id)
@@ -282,7 +261,6 @@ class DiscordQueueProcessor:
                 logger.exception(f"Failed to fetch member {discord_id}: {e}")
                 raise
 
-        # Assign group-based roles
         success = await self.discord_manager.assign_group_roles(member, authentik_groups)
         if not success:
             raise RuntimeError(f"Failed to assign group roles to {member}")
@@ -290,7 +268,6 @@ class DiscordQueueProcessor:
         logger.info(f"Assigned group roles to {member}")
 
     async def _handle_remove_role(self, task: DiscordTask) -> None:
-        """Handle remove_role task."""
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
 
@@ -303,7 +280,6 @@ class DiscordQueueProcessor:
         guild = self.discord_manager.guild
         member = guild.get_member(discord_id)
 
-        # If not in cache, try to fetch from API
         if not member:
             try:
                 member = await guild.fetch_member(discord_id)
@@ -329,7 +305,6 @@ class DiscordQueueProcessor:
         await run_competition_cleanup(self.bot, self.discord_manager.guild, task.payload["requested_by"])
 
     async def _handle_setup_team_infrastructure(self, task: DiscordTask) -> None:
-        """Handle setup_team_infrastructure task."""
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
 
@@ -344,7 +319,6 @@ class DiscordQueueProcessor:
         logger.info(f"Set up infrastructure for team {team_number}")
 
     async def _handle_log_to_channel(self, task: DiscordTask) -> None:
-        """Handle log_to_channel task."""
         message = task.payload.get("message")
         if not message:
             raise ValueError("Missing message in payload")
@@ -389,7 +363,6 @@ class DiscordQueueProcessor:
             logger.info(f"Ticket {ticket.ticket_number} has no Discord thread; comment {comment_id} not mirrored")
             return
 
-        # Get thread
         thread = self.bot.get_channel(ticket.discord_thread_id)
         if not thread:
             try:
@@ -397,20 +370,16 @@ class DiscordQueueProcessor:
             except Exception as e:
                 raise ValueError(f"Could not find thread {ticket.discord_thread_id}: {e}") from e
 
-        # Type guard for sendable channels
         if not isinstance(thread, (discord.TextChannel, discord.Thread)):
             raise TypeError(f"Channel {ticket.discord_thread_id} is not a text channel or thread")
 
-        # Format message (comment.author is now a User, not DiscordLink)
         author_display = "Unknown"
         if comment.author:
             author_display = comment.author.username or "Unknown"
         message_content = f"**{author_display}**\n{comment.comment_text}"
 
-        # Post to thread
         message = await thread.send(message_content)
 
-        # Store Discord message ID
         @sync_to_async
         def save_message_id() -> None:
             comment.discord_message_id = message.id
@@ -478,14 +447,12 @@ class DiscordQueueProcessor:
         logger.info(f"Posted ticket update ({action}) to thread {ticket.discord_thread_id}")
 
     async def _handle_add_user_to_thread(self, task: DiscordTask) -> None:
-        """Add a user to a Discord thread."""
         discord_id = task.payload.get("discord_id")
         thread_id = task.payload.get("thread_id")
 
         if not discord_id or not thread_id:
             raise ValueError("Missing discord_id or thread_id in payload")
 
-        # Get thread
         thread = self.bot.get_channel(thread_id)
         if not thread:
             try:
@@ -493,11 +460,9 @@ class DiscordQueueProcessor:
             except Exception as e:
                 raise ValueError(f"Could not find thread {thread_id}: {e}") from e
 
-        # Type guard for threads
         if not isinstance(thread, discord.Thread):
             raise TypeError(f"Channel {thread_id} is not a thread")
 
-        # Get user
         user = self.bot.get_user(discord_id)
         if not user:
             try:
@@ -505,17 +470,12 @@ class DiscordQueueProcessor:
             except Exception as e:
                 raise ValueError(f"Could not find user {discord_id}: {e}") from e
 
-        # Add user to thread
         await thread.add_user(user)
 
         logger.info(f"Added user {discord_id} to thread {thread_id}")
 
     async def _handle_sync_roles(self, task: DiscordTask) -> None:
-        """Handle role synchronization from Authentik to Discord.
-
-        Uses AuthentikRoleSyncManager by default (syncs based on Authentik groups).
-        Supports dry_run mode to preview changes without applying them.
-        """
+        """Run the Authentik role sync, keeping progress and results in the task payload."""
         import asyncio
 
         from bot.role_sync import AuthentikRoleSyncManager
@@ -524,7 +484,6 @@ class DiscordQueueProcessor:
         dry_run = task.payload.get("dry_run", False)
         sync_manager = AuthentikRoleSyncManager(self.bot)
 
-        # Callback to save progress to database
         async def save_progress(current: int, total: int, role_name: str) -> None:
             @sync_to_async
             def update_payload() -> None:
@@ -546,7 +505,6 @@ class DiscordQueueProcessor:
             logger.error("Role sync timed out after 5 minutes")
             raise RuntimeError("Role sync timed out after 5 minutes") from None
 
-        # Store results in task payload for retrieval
         @sync_to_async
         def store_results() -> None:
             task.payload["result"] = {
@@ -559,13 +517,11 @@ class DiscordQueueProcessor:
                 "changes": stats["changes"],
                 "dry_run": dry_run,
             }
-            # Clear progress now that we're done
             task.payload.pop("progress", None)
             task.save()
 
         await store_results()
 
-        # Log results to ops channel
         summary = role_sync_summary(stats, dry_run=dry_run)
         await log_to_ops_channel(self.bot, summary)
 
@@ -594,7 +550,6 @@ class DiscordQueueProcessor:
         failed_channels: list[str] = []
 
         if target_lower == "announcements":
-            # Broadcast to announcements channel with @Blueteam mention
             channel = guild.get_channel(DISCORD_ANNOUNCEMENT_CHANNEL_ID)
             if not channel or not isinstance(channel, discord.TextChannel):
                 raise RuntimeError("Announcements channel not found")
@@ -607,7 +562,6 @@ class DiscordQueueProcessor:
             logger.info(f"Broadcast to announcements by {sender}")
 
         elif target_lower == "all-teams":
-            # Broadcast to all team chat channels
             teams = [t async for t in Team.objects.filter(is_active=True).order_by("team_number")]
             for team in teams:
                 result = await self._send_to_team_channel(guild, team, message, sender)
@@ -619,7 +573,6 @@ class DiscordQueueProcessor:
                     failed_channels.append(f"Team {team.team_number:02d}")
 
         else:
-            # Parse specific team range
             try:
                 team_numbers = parse_team_range(target)
             except ValueError as e:
@@ -639,7 +592,6 @@ class DiscordQueueProcessor:
                 else:
                     failed_channels.append(f"Team {team_number:02d}")
 
-        # Store results
         @sync_to_async
         def store_results() -> None:
             task.payload["result"] = {
@@ -651,7 +603,6 @@ class DiscordQueueProcessor:
 
         await store_results()
 
-        # Log to ops
         await log_to_ops_channel(
             self.bot,
             f"Broadcast by {sender}\n• Target: {target}\n• Sent: {sent_count}\n• Queued: {queued_count}",
@@ -680,7 +631,6 @@ class DiscordQueueProcessor:
                 await chat_channel.send(f"**Announcement from {sender}:**\n\n{message}")
                 return "sent"
             else:
-                # Queue for later delivery
                 await QueuedAnnouncement.objects.acreate(
                     team=team,
                     message=message,
@@ -692,7 +642,7 @@ class DiscordQueueProcessor:
             return "failed"
 
 
-# Populate handler registry — kept at module level so it's set once after class definition.
+# Assigned after the class body so it can reference the handler methods.
 DiscordQueueProcessor._task_handlers = {
     "assign_role": DiscordQueueProcessor._handle_assign_role,
     "assign_group_roles": DiscordQueueProcessor._handle_assign_group_roles,
