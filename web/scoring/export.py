@@ -1,6 +1,8 @@
 import csv
 import json
 import zipfile
+from collections.abc import Callable
+from dataclasses import dataclass
 from io import BytesIO, StringIO
 
 from django.http import HttpResponse
@@ -94,18 +96,6 @@ def _serialize_red_scores_json() -> str:
     return json.dumps({"red_findings": data}, indent=2)
 
 
-def export_red_scores_csv() -> HttpResponse:
-    response = HttpResponse(_serialize_red_scores_csv(), content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="red_findings.csv"'
-    return response
-
-
-def export_red_scores_json() -> HttpResponse:
-    response = HttpResponse(_serialize_red_scores_json(), content_type="application/json")
-    response["Content-Disposition"] = 'attachment; filename="red_findings.json"'
-    return response
-
-
 def _serialize_incidents_csv() -> str:
     output = StringIO()
     writer = csv.writer(output)
@@ -185,18 +175,6 @@ def _serialize_incidents_json() -> str:
     return json.dumps({"incidents": data}, indent=2)
 
 
-def export_incidents_csv() -> HttpResponse:
-    response = HttpResponse(_serialize_incidents_csv(), content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="incidents.csv"'
-    return response
-
-
-def export_incidents_json() -> HttpResponse:
-    response = HttpResponse(_serialize_incidents_json(), content_type="application/json")
-    response["Content-Disposition"] = 'attachment; filename="incidents.json"'
-    return response
-
-
 def _serialize_orange_adjustments_csv() -> str:
     output = StringIO()
     writer = csv.writer(output)
@@ -249,18 +227,6 @@ def _serialize_orange_adjustments_json() -> str:
         for bonus in bonuses
     ]
     return json.dumps({"orange_checks": data}, indent=2)
-
-
-def export_orange_adjustments_csv() -> HttpResponse:
-    response = HttpResponse(_serialize_orange_adjustments_csv(), content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="orange_checks.csv"'
-    return response
-
-
-def export_orange_adjustments_json() -> HttpResponse:
-    response = HttpResponse(_serialize_orange_adjustments_json(), content_type="application/json")
-    response["Content-Disposition"] = 'attachment; filename="orange_checks.json"'
-    return response
 
 
 def _serialize_inject_grades_csv() -> str:
@@ -326,18 +292,6 @@ def _serialize_inject_grades_json() -> str:
     return json.dumps({"inject_grades": data}, indent=2)
 
 
-def export_inject_grades_csv() -> HttpResponse:
-    response = HttpResponse(_serialize_inject_grades_csv(), content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="inject_grades.csv"'
-    return response
-
-
-def export_inject_grades_json() -> HttpResponse:
-    response = HttpResponse(_serialize_inject_grades_json(), content_type="application/json")
-    response["Content-Disposition"] = 'attachment; filename="inject_grades.json"'
-    return response
-
-
 def _serialize_final_scores_csv() -> str:
     output = StringIO()
     writer = csv.writer(output)
@@ -395,18 +349,6 @@ def _serialize_final_scores_json() -> str:
         for score in scores
     ]
     return json.dumps({"final_scores": data}, indent=2)
-
-
-def export_final_scores_csv() -> HttpResponse:
-    response = HttpResponse(_serialize_final_scores_csv(), content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="final_scores.csv"'
-    return response
-
-
-def export_final_scores_json() -> HttpResponse:
-    response = HttpResponse(_serialize_final_scores_json(), content_type="application/json")
-    response["Content-Disposition"] = 'attachment; filename="final_scores.json"'
-    return response
 
 
 def _serialize_tickets_csv() -> str:
@@ -503,15 +445,35 @@ def _serialize_tickets_json() -> str:
     return json.dumps({"tickets": data}, indent=2)
 
 
-def export_tickets_csv() -> HttpResponse:
-    response = HttpResponse(_serialize_tickets_csv(), content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="tickets.csv"'
-    return response
+@dataclass(frozen=True)
+class Dataset:
+    filename: str
+    to_csv: Callable[[], str]
+    to_json: Callable[[], str]
 
 
-def export_tickets_json() -> HttpResponse:
-    response = HttpResponse(_serialize_tickets_json(), content_type="application/json")
-    response["Content-Disposition"] = 'attachment; filename="tickets.json"'
+DATASETS = {
+    "red_scores": Dataset("red_findings", _serialize_red_scores_csv, _serialize_red_scores_json),
+    "incidents": Dataset("incidents", _serialize_incidents_csv, _serialize_incidents_json),
+    "orange_adjustments": Dataset(
+        "orange_checks", _serialize_orange_adjustments_csv, _serialize_orange_adjustments_json
+    ),
+    "inject_grades": Dataset("inject_grades", _serialize_inject_grades_csv, _serialize_inject_grades_json),
+    "final_scores": Dataset("final_scores", _serialize_final_scores_csv, _serialize_final_scores_json),
+    "tickets": Dataset("tickets", _serialize_tickets_csv, _serialize_tickets_json),
+}
+
+
+def export_dataset(name: str, export_format: str) -> HttpResponse:
+    """One dataset as a JSON download when export_format is "json", CSV otherwise."""
+    dataset = DATASETS[name]
+    if export_format == "json":
+        response = HttpResponse(dataset.to_json(), content_type="application/json")
+        extension = "json"
+    else:
+        response = HttpResponse(dataset.to_csv(), content_type="text/csv")
+        extension = "csv"
+    response["Content-Disposition"] = f'attachment; filename="{dataset.filename}.{extension}"'
     return response
 
 
@@ -520,18 +482,9 @@ def export_all_zip() -> HttpResponse:
     zip_buffer = BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        zip_file.writestr("red_findings.csv", _serialize_red_scores_csv())
-        zip_file.writestr("red_findings.json", _serialize_red_scores_json())
-        zip_file.writestr("incidents.csv", _serialize_incidents_csv())
-        zip_file.writestr("incidents.json", _serialize_incidents_json())
-        zip_file.writestr("orange_checks.csv", _serialize_orange_adjustments_csv())
-        zip_file.writestr("orange_checks.json", _serialize_orange_adjustments_json())
-        zip_file.writestr("inject_grades.csv", _serialize_inject_grades_csv())
-        zip_file.writestr("inject_grades.json", _serialize_inject_grades_json())
-        zip_file.writestr("final_scores.csv", _serialize_final_scores_csv())
-        zip_file.writestr("final_scores.json", _serialize_final_scores_json())
-        zip_file.writestr("tickets.csv", _serialize_tickets_csv())
-        zip_file.writestr("tickets.json", _serialize_tickets_json())
+        for dataset in DATASETS.values():
+            zip_file.writestr(f"{dataset.filename}.csv", dataset.to_csv())
+            zip_file.writestr(f"{dataset.filename}.json", dataset.to_json())
 
     zip_buffer.seek(0)
     timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")

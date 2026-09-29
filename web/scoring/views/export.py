@@ -4,6 +4,7 @@ from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
 from django.views.decorators.http import require_POST
 
 from core.auth_utils import require_permission
+from core.utils import ndjson_progress
 from team.models import Team
 
 from ..models import FinalScore
@@ -17,63 +18,10 @@ def export_index(request: HttpRequest) -> HttpResponse:
 
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_red_scores(request: HttpRequest) -> HttpResponse:
-    from ..export import export_red_scores_csv, export_red_scores_json
+def export_dataset(request: HttpRequest, dataset: str) -> HttpResponse:
+    from .. import export
 
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_red_scores_json()
-    return export_red_scores_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_incidents(request: HttpRequest) -> HttpResponse:
-    from ..export import export_incidents_csv, export_incidents_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_incidents_json()
-    return export_incidents_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_orange_adjustments(request: HttpRequest) -> HttpResponse:
-    from ..export import export_orange_adjustments_csv, export_orange_adjustments_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_orange_adjustments_json()
-    return export_orange_adjustments_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_inject_grades(request: HttpRequest) -> HttpResponse:
-    from ..export import export_inject_grades_csv, export_inject_grades_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_inject_grades_json()
-    return export_inject_grades_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_final_scores(request: HttpRequest) -> HttpResponse:
-    from ..export import export_final_scores_csv, export_final_scores_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_final_scores_json()
-    return export_final_scores_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_tickets(request: HttpRequest) -> HttpResponse:
-    from ..export import export_tickets_csv, export_tickets_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_tickets_json()
-    return export_tickets_csv()
+    return export.export_dataset(dataset, request.GET.get("format", "csv").lower())
 
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
@@ -250,13 +198,6 @@ def _generate_team_pdf(team: Team, score: FinalScore, request: HttpRequest) -> b
     return pdf_bytes
 
 
-def _progress(step: str, current: int, total: int, ok: bool = True) -> str:
-    """Encode a single progress line as newline-delimited JSON."""
-    import json
-
-    return json.dumps({"step": step, "current": current, "total": total, "ok": ok}) + "\n"
-
-
 def _stream_email_scorecards(request: HttpRequest) -> Iterator[str]:
     """Generator that sends scorecard emails and yields NDJSON progress."""
     import json
@@ -295,11 +236,11 @@ def _stream_email_scorecards(request: HttpRequest) -> Iterator[str]:
 
         if success:
             sent += 1
-            yield _progress(f"Sent to Team {team.team_number}", i, total)
+            yield ndjson_progress(f"Sent to Team {team.team_number}", i, total)
         else:
             failed += 1
             logger.error("Failed to email scorecard to Team %d", team.team_number)
-            yield _progress(f"Failed Team {team.team_number}", i, total, ok=False)
+            yield ndjson_progress(f"Failed Team {team.team_number}", i, total, ok=False)
 
     message = f"Sent {sent}, failed {failed}" if failed else f"Emailed scorecards to {sent} teams"
     yield json.dumps({"done": True, "success": failed == 0, "message": message}) + "\n"

@@ -915,3 +915,46 @@ class TestExportIndexPermissions:
         response = client.get(reverse("scoring:export_index"))
         assert response.status_code == 200
         assert b"Export" in response.content
+
+
+EXPORT_DOWNLOADS = [
+    ("export_red_scores", "/scoring/export/red-scores/", "red_findings"),
+    ("export_incidents", "/scoring/export/incidents/", "incidents"),
+    ("export_orange_adjustments", "/scoring/export/orange-adjustments/", "orange_checks"),
+    ("export_inject_grades", "/scoring/export/inject-grades/", "inject_grades"),
+    ("export_final_scores", "/scoring/export/final-scores/", "final_scores"),
+    ("export_tickets", "/scoring/export/tickets/", "tickets"),
+]
+
+
+class TestExportDownloads:
+    """Pin each export's URL, content type and download filename."""
+
+    @pytest.mark.parametrize(("url_name", "path", "filename"), EXPORT_DOWNLOADS)
+    @pytest.mark.parametrize(
+        ("export_format", "extension", "content_type"),
+        [(None, "csv", "text/csv"), ("csv", "csv", "text/csv"), ("json", "json", "application/json")],
+    )
+    def test_download(self, admin_user, url_name, path, filename, export_format, extension, content_type):
+        assert reverse(f"scoring:{url_name}") == path
+        client = Client()
+        client.force_login(admin_user)
+
+        response = client.get(path, {"format": export_format} if export_format else {})
+
+        assert response.status_code == 200
+        assert response["Content-Type"] == content_type
+        assert response["Content-Disposition"] == f'attachment; filename="{filename}.{extension}"'
+
+    def test_zip_holds_every_export_in_both_formats(self, admin_user):
+        import io
+        import zipfile
+
+        client = Client()
+        client.force_login(admin_user)
+
+        response = client.get(reverse("scoring:export_all"))
+
+        assert response["Content-Type"] == "application/zip"
+        names = zipfile.ZipFile(io.BytesIO(response.content)).namelist()
+        assert names == [f"{filename}.{ext}" for _, _, filename in EXPORT_DOWNLOADS for ext in ("csv", "json")]
