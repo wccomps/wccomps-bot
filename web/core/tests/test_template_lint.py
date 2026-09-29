@@ -80,6 +80,7 @@ class TestCottonComponentUsage:
         "form.html",
         "image_grid.html",
         "link.html",
+        "messages.html",
         "nav.html",
         "nav_item.html",
         "page_header.html",
@@ -292,6 +293,7 @@ class TestCottonAttrsPassthrough:
     COTTON_DIR = TEMPLATES_DIR / "cotton"
     FRAGMENT_COMPONENTS = {
         "detail_row.html",
+        "messages.html",
         "pagination.html",
     }
 

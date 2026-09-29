@@ -1,5 +1,5 @@
 {% extends "admin/base.html" %}
-{% load i18n static %}
+{% load i18n static cotton %}
 {% block title %}
     {% if subtitle %}{{ subtitle }} |{% endif %}
     {{ title }} | {{ site_title|default:_("Django site admin") }}
@@ -15,6 +15,9 @@
 {% endblock breadcrumbs %}
 {% block usertools %}
 {% endblock usertools %}
+{% block messages %}
+    {% if messages %}<c-messages :messages="messages" />{% endif %}
+{% endblock messages %}
 {% block nav-global %}
     <nav class="primary-navigation" x-data="nav">
         <button type="button"
