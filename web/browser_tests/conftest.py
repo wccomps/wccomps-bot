@@ -32,12 +32,13 @@ ROLE_GROUPS: dict[str, list[str]] = {
 ALL_ROLES = [*ROLE_GROUPS.keys(), "unauthenticated"]
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def _allow_sync_orm_under_playwright() -> Iterator[None]:
     """Playwright's sync API runs an event loop on the main thread, which trips Django's async-safety check.
 
-    Scoped to this directory: set at import time it would switch the check off for every
-    test in the session, hiding sync ORM calls on the bot's event loop.
+    Switched on only when a browser launches (pw_browser requests it): as an autouse fixture any
+    test in this directory, browser or not, turned the check off for the rest of the worker's
+    session, hiding sync ORM calls on the bot's event loop.
     """
     with pytest.MonkeyPatch.context() as mp:
         mp.setenv("DJANGO_ALLOW_ASYNC_UNSAFE", "true")
@@ -45,7 +46,7 @@ def _allow_sync_orm_under_playwright() -> Iterator[None]:
 
 
 @pytest.fixture(scope="session")
-def pw_browser():
+def pw_browser(_allow_sync_orm_under_playwright: None):
     """Launch a single browser instance for the whole test session."""
     with sync_playwright() as p:
         # Try Chromium first, fall back to Firefox if it fails to launch
