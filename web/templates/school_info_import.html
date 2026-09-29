@@ -9,6 +9,7 @@
                        parent_url="{% url 'school_info' %}"
                        parent_label="Schools" />
         <c-module>
+            {% if error %}<c-alert variant="error">{{ error }}</c-alert>{% endif %}
             {% if import_results %}
                 {# Step 3: Show success message #}
                 <c-alert variant="success">
@@ -79,13 +80,11 @@
                     {% endif %}
                     <c-form>
                         {% csrf_token %}
+                        {# The step travels in a field: the button is disabled on submit, so its name isn't sent #}
+                        <input type="hidden" name="confirm" value="true">
                         <c-button_row class="mt-20 justify-end">
                             <c-link href="{% url 'school_info_import' %}">Cancel</c-link>
-                            <c-button type="submit"
-                                      name="confirm"
-                                      value="true"
-                                      variant="primary"
-                                      ::disabled="submitting">
+                            <c-button type="submit" variant="primary" ::disabled="submitting">
                                 Confirm and Import
                             </c-button>
                         </c-button_row>
@@ -122,6 +121,7 @@ Community College,contact@college.edu,,Remote team
 Tech Institute,admin@techinst.edu,,</pre>
                     <c-form enctype="multipart/form-data" class="mt-20">
                         {% csrf_token %}
+                        <input type="hidden" name="upload" value="true">
                         <c-fieldset aligned="true">
                             <c-form_field label="CSV File"
                                           required="true"
@@ -135,11 +135,7 @@ Tech Institute,admin@techinst.edu,,</pre>
                         </c-fieldset>
                         <c-button_row class="justify-end">
                             <c-link href="{% url 'school_info' %}">Cancel</c-link>
-                            <c-button type="submit"
-                                      name="upload"
-                                      value="true"
-                                      variant="primary"
-                                      ::disabled="submitting">
+                            <c-button type="submit" variant="primary" ::disabled="submitting">
                                 Upload and Preview
                             </c-button>
                         </c-button_row>
