@@ -8,7 +8,7 @@ from .permission_constants import PERMISSION_MAP
 
 # Maps Django URL names to (nav_section, subnav_section) for navigation highlighting.
 # IMPORTANT: When adding new URL patterns, add an entry here or the nav item
-# won't highlight. test_all_nav_mapping_url_names_are_resolvable catches stale entries.
+# won't highlight. test_all_nav_mapping_url_names_exist catches stale entries.
 NAV_MAPPING: dict[str, tuple[str, str]] = {
     # Tickets - unified ticket management
     "ticket_list": ("tickets", ""),
@@ -46,8 +46,6 @@ NAV_MAPPING: dict[str, tuple[str, str]] = {
     "ip_pool_delete": ("red_findings", "pools"),
     # Orange Team check approval views (scoring app)
     "bulk_approve_orange_adjustments": ("orange", "portal"),
-    "approve_orange_adjustment": ("orange", "portal"),
-    "reject_orange_adjustment": ("orange", "portal"),
     # Orange Team Challenges (orange_team app)
     "dashboard": ("orange", "dashboard"),
     "team_checkins": ("orange", "checkins"),
