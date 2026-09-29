@@ -1,5 +1,3 @@
-"""Operations/admin review views."""
-
 import logging
 from typing import cast
 
@@ -27,13 +25,11 @@ def ops_review_tickets(request: HttpRequest) -> HttpResponse:
     """Review resolved tickets for point approval."""
     from core.utils import filter_sort_paginate
 
-    # Get filter parameters
     status_filter = request.GET.get("status", "pending") or "pending"
     team_filter = request.GET.get("team", "")
     search_query = request.GET.get("search", "").strip()
     category_filter = request.GET.get("category", "")
 
-    # Build query - only show resolved tickets
     query = Ticket.objects.filter(status="resolved").select_related("team", "approved_by")
 
     if status_filter == "approved":
@@ -103,7 +99,6 @@ def ops_review_tickets(request: HttpRequest) -> HttpResponse:
         "show_ops_nav": True,
     }
 
-    # Return partial for htmx requests
     if request.headers.get("HX-Request"):
         return render(request, "cotton/review_tickets_table.html", context)
 
@@ -121,18 +116,15 @@ def ops_verify_ticket(request: HttpRequest, ticket_number: str) -> HttpResponse:
     user = cast(User, request.user)
     authentik_username = user.username
 
-    # Get ticket
     try:
         ticket = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
         return HttpResponse("Ticket not found", status=404)
 
-    # Only allow verifying resolved tickets
     if ticket.status != "resolved":
         messages.error(request, f"Cannot verify - ticket is {ticket.status}, must be resolved")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    # Get form data
     form = TicketVerifyForm(request.POST)
     if not form.is_valid():
         messages.error(request, "Invalid points value. Must be a number.")
@@ -144,14 +136,12 @@ def ops_verify_ticket(request: HttpRequest, ticket_number: str) -> HttpResponse:
     if points_adjustment is not None:
         ticket.points_charged = points_adjustment
 
-    # Mark as verified
     ticket.is_approved = True
     ticket.approved_by = user
     ticket.approved_at = timezone.now()
     ticket.approval_notes = approval_notes
     ticket.save()
 
-    # Create history entry
     TicketHistory.objects.create(
         ticket=ticket,
         action="points_verified",

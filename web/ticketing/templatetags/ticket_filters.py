@@ -1,5 +1,3 @@
-"""Template filters for ticketing."""
-
 from django import template
 
 register = template.Library()
@@ -13,11 +11,9 @@ def format_history_details(details: dict[str, object]) -> str:
 
     parts = []
 
-    # Category changes
     if "old_category_name" in details and "new_category_name" in details:
         parts.append(f"{details['old_category_name']} → {details['new_category_name']}")
 
-    # Points
     if "points_charged" in details:
         parts.append(f"{details['points_charged']} pts")
 

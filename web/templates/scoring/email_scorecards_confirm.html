@@ -18,7 +18,6 @@
             <div x-show="loading" x-cloak>
                 <c-progress_bar class="mt-10 mb-10" />
             </div>
-            <!-- Result message -->
             <div x-show="done" x-cloak x-transition class="mb-10">
                 <div class="alert" :class="alertClass" role="alert">
                     <span x-text="message"></span>

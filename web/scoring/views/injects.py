@@ -1,5 +1,3 @@
-"""Inject grading, review, and feedback views."""
-
 from typing import cast
 
 from django.contrib import messages
@@ -39,7 +37,6 @@ def inject_grading(request: HttpRequest) -> HttpResponse:
     inject_choices = [(str(i.inject_id), i.title) for i in injects]
     inject_lookup = {str(i.inject_id): i for i in injects}
 
-    # Get selected inject from query param
     selected_inject_id = request.GET.get("inject")
 
     teams = Team.objects.filter(is_active=True).order_by("team_number")
@@ -80,7 +77,6 @@ def inject_grading(request: HttpRequest) -> HttpResponse:
 
     selected_inject = inject_lookup.get(selected_inject_id) if selected_inject_id else None
 
-    # Get existing grades for selected inject and merge with teams
     team_data = []
     if selected_inject:
         existing = InjectScore.objects.filter(inject_id=selected_inject_id).select_related("team", "graded_by")
@@ -104,7 +100,6 @@ def inject_grading(request: HttpRequest) -> HttpResponse:
         "team_data": team_data,
     }
 
-    # Return partial for htmx requests
     if request.headers.get("HX-Request"):
         return render(request, "cotton/inject_grading_content.html", context)
 
@@ -119,7 +114,6 @@ def inject_grades_review(request: HttpRequest) -> HttpResponse:
 
     from django.core.paginator import Paginator
 
-    # Get filter parameters
     status_filter = request.GET.get("status", "pending") or "pending"
     inject_filter = request.GET.get("inject", "")
     team_filter = request.GET.get("team", "")
@@ -132,13 +126,11 @@ def inject_grades_review(request: HttpRequest) -> HttpResponse:
 
     base_query = InjectScore.objects.select_related("team", "graded_by")
 
-    # Apply status filter
     if status_filter == "pending":
         base_query = base_query.filter(is_approved=False)
     elif status_filter == "approved":
         base_query = base_query.filter(is_approved=True)
 
-    # Apply other filters
     if inject_filter:
         base_query = base_query.filter(inject_id=inject_filter)
 
@@ -177,11 +169,9 @@ def inject_grades_review(request: HttpRequest) -> HttpResponse:
                 grade.is_outlier = False
                 grade.std_devs_from_mean = 0
 
-    # Filter outliers if requested
     if show_outliers_only:
         all_grades_for_outlier_calc = [g for g in all_grades_for_outlier_calc if g.is_outlier]
 
-    # Validate and apply sort
     valid_sort_fields = [
         "inject_name",
         "-inject_name",
@@ -208,7 +198,6 @@ def inject_grades_review(request: HttpRequest) -> HttpResponse:
         elif sort_key == "graded_at":
             all_grades_for_outlier_calc.sort(key=lambda g: g.graded_at, reverse=reverse)
 
-    # Pagination
     paginator = Paginator(all_grades_for_outlier_calc, 50)
     try:
         page_num = int(page)
@@ -221,7 +210,6 @@ def inject_grades_review(request: HttpRequest) -> HttpResponse:
     approved_count = InjectScore.objects.filter(is_approved=True).count()
     unapproved_count = total_grades - approved_count
 
-    # Get available injects and teams for filter dropdowns
     available_injects = InjectScore.objects.values("inject_id", "inject_name").distinct().order_by("inject_name")
     available_teams = Team.objects.filter(inject_grades__isnull=False).distinct().order_by("team_number")
 
@@ -241,7 +229,6 @@ def inject_grades_review(request: HttpRequest) -> HttpResponse:
         "sort_by": sort_by,
     }
 
-    # Return partial for htmx requests
     if request.headers.get("HX-Request"):
         return render(request, "cotton/inject_grades_table.html", context)
 
@@ -274,9 +261,6 @@ def inject_grades_bulk_approve(request: HttpRequest) -> HttpResponse:
     )
 
 
-# --- Inject Feedback Review (Gold Team) ---
-
-
 @require_permission("gold_team", "white_team", error_message="Only Gold/White Team members can review inject feedback")
 def review_inject_feedback(request: HttpRequest) -> HttpResponse:
     """Gold/White team review of inject feedback before showing to teams."""
@@ -298,7 +282,6 @@ def review_inject_feedback(request: HttpRequest) -> HttpResponse:
     elif status_filter == "approved":
         scores = scores.filter(feedback_approved=True)
 
-    # Get distinct inject IDs for filter dropdown
     inject_choices = (
         InjectScore.objects.filter(is_approved=True)
         .exclude(inject_id="qualifier-total")
@@ -328,7 +311,6 @@ def review_inject_feedback(request: HttpRequest) -> HttpResponse:
 @transaction.atomic
 @require_http_methods(["POST"])
 def save_inject_feedback(request: HttpRequest) -> HttpResponse:
-    """Save edited feedback text for a single InjectScore."""
     form = SaveInjectFeedbackForm(request.POST)
     if not form.is_valid():
         messages.warning(request, "No score specified")
@@ -349,7 +331,6 @@ def save_inject_feedback(request: HttpRequest) -> HttpResponse:
 @transaction.atomic
 @require_http_methods(["POST"])
 def approve_inject_feedback(request: HttpRequest) -> HttpResponse:
-    """Approve feedback for a single InjectScore."""
     user = cast(User, request.user)
 
     form = ApproveInjectFeedbackForm(request.POST)
@@ -371,7 +352,6 @@ def approve_inject_feedback(request: HttpRequest) -> HttpResponse:
 @transaction.atomic
 @require_http_methods(["POST"])
 def bulk_approve_inject_feedback(request: HttpRequest) -> HttpResponse:
-    """Bulk approve feedback for multiple InjectScore records."""
     from core.utils import bulk_approve
 
     user = cast(User, request.user)

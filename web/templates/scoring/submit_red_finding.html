@@ -9,7 +9,6 @@
     <c-module>
         <c-form enctype="multipart/form-data" id="findingForm">
             {% csrf_token %}
-            <!-- Attack Details Section -->
             <c-fieldset heading="Attack Details">
                 <c-form_field label="{{ form.attack_type.label }}"
                               required="true"
@@ -18,7 +17,6 @@
                               error="{{ form.attack_type.errors|join:', ' }}">
                     {{ form.attack_type }}
                 </c-form_field>
-                <!-- Source IP Selection -->
                 <fieldset class="source-ip-section">
                     <legend class="font-semibold text-sm d-block mb-5">Source IP</legend>
                     <div class="d-flex gap-20 mb-10">
@@ -29,7 +27,6 @@
                             </div>
                         {% endfor %}
                     </div>
-                    <!-- Single IP input -->
                     <div id="singleIpSection">
                         <c-form_field label="{{ form.source_ip.label }}"
                                       :id="form.source_ip.id_for_label"
@@ -38,7 +35,6 @@
                             {{ form.source_ip }}
                         </c-form_field>
                     </div>
-                    <!-- IP Pool selection -->
                     <div id="poolSection" class="d-none">
                         <div class="d-flex gap-10 items-end flex-wrap">
                             <div class="flex-grow-1">
@@ -64,7 +60,6 @@
                     </div>
                 </fieldset>
             </c-fieldset>
-            <!-- Target Information Section -->
             <c-fieldset heading="Target Information">
                 <c-form_field label="{{ form.affected_boxes.label }}"
                               error="{{ form.affected_boxes.errors|join:', ' }}">
@@ -93,7 +88,6 @@
                        id="id_destination_ip_template"
                        value="">
             </c-fieldset>
-            <!-- Attack Characteristics Section -->
             <c-fieldset heading="Attack Characteristics">
                 <div class="mb-5">
                     {{ form.universally_attempted }}
@@ -110,7 +104,6 @@
                     {% endif %}
                 </div>
             </c-fieldset>
-            <!-- Attack Outcomes Section (CCDC Scoring) -->
             <c-fieldset heading="Attack Outcomes">
                 <div class="d-flex flex-wrap gap-10 mb-15">
                     <div>
@@ -189,7 +182,6 @@
                     Total: <span id="pointsValue">0</span> pts per team
                 </div>
             </c-fieldset>
-            <!-- Affected Teams Section -->
             <c-fieldset heading="Affected Teams">
                 <div class="d-flex justify-between items-center mb-10">
                     <label class="font-semibold text-sm d-block mb-0">{{ form.affected_teams.label }}</label>
@@ -229,7 +221,6 @@
                 </div>
                 {% if form.affected_teams.errors %}<div class="text-danger mt-10">{{ form.affected_teams.errors }}</div>{% endif %}
             </c-fieldset>
-            <!-- Screenshot Evidence Section -->
             <c-fieldset heading="Evidence">
                 <c-form_field label="Upload Files"
                               id="screenshots"
@@ -243,7 +234,6 @@
                 </c-form_field>
                 <div id="screenshotPreview" class="grid-4 mb-15" aria-live="polite"></div>
             </c-fieldset>
-            <!-- Additional Notes Section -->
             <c-fieldset heading="Additional Information">
                 <c-form_field label="{{ form.notes.label }}"
                               :id="form.notes.id_for_label"
@@ -270,7 +260,6 @@
             </c-button_row>
         </c-form>
     </c-module>
-    <!-- Create IP Pool Modal -->
     <div id="createPoolModal"
          class="modal"
          role="dialog"

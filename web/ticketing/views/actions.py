@@ -1,5 +1,3 @@
-"""Individual ticket action views."""
-
 import logging
 from typing import cast
 
@@ -23,7 +21,6 @@ logger = logging.getLogger(__name__)
 @require_POST
 def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
     """Cancel an open ticket (team members only)."""
-    # Get user's team from Authentik groups
     user = cast(User, request.user)
     authentik_username = user.username
     groups = get_authentik_groups(user)
@@ -39,7 +36,6 @@ def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
             },
         )
 
-    # Get ticket (must belong to user's team)
     try:
         ticket_obj = Ticket.objects.select_related("team").get(ticket_number=ticket_number, team=team)
     except Ticket.DoesNotExist:
@@ -52,7 +48,6 @@ def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
             },
         )
 
-    # Use shared atomic cancel function
     from ticketing.utils import cancel_ticket_atomic
 
     ticket, error = cancel_ticket_atomic(
@@ -86,7 +81,6 @@ def ticket_claim(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=403,
         )
 
-    # Get ticket to find ID
     try:
         ticket_obj = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
@@ -97,7 +91,6 @@ def ticket_claim(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=404,
         )
 
-    # Use shared atomic claim function
     from ticketing.utils import claim_ticket_atomic
 
     ticket, error = claim_ticket_atomic(
@@ -110,7 +103,6 @@ def ticket_claim(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, error or "Failed to claim ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    # Add volunteer to thread if they have Discord linked and ticket has a thread
     if ticket.discord_thread_id:
         discord_link = DiscordLink.objects.filter(user=user, is_active=True).first()
         if discord_link:
@@ -140,7 +132,6 @@ def ticket_unclaim(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=403,
         )
 
-    # Get ticket to find ID
     try:
         ticket_obj = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
@@ -151,7 +142,6 @@ def ticket_unclaim(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=404,
         )
 
-    # Check if user claimed the ticket or is admin
     is_admin = has_permission(user, "ticketing_admin")
     has_claimed = ticket_obj.assigned_to and ticket_obj.assigned_to.username == authentik_username
 
@@ -159,7 +149,6 @@ def ticket_unclaim(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, "You can only unclaim tickets you have claimed")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    # Use shared atomic unclaim function
     from ticketing.utils import unclaim_ticket_atomic
 
     ticket, error = unclaim_ticket_atomic(
@@ -195,7 +184,6 @@ def ticket_reassign(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=403,
         )
 
-    # Get ticket to find ID
     try:
         ticket_obj = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
@@ -206,14 +194,12 @@ def ticket_reassign(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=404,
         )
 
-    # Get the new assignee from POST data
     form = TicketReassignForm(request.POST)
     if not form.is_valid():
         messages.error(request, "New assignee username is required")
         return redirect("ticket_detail", ticket_number=ticket_number)
     new_assignee_username = form.cleaned_data["new_assignee_username"]
 
-    # Find the user to assign
     new_assignee_user = User.objects.filter(username=new_assignee_username).first()
     if not new_assignee_user:
         messages.error(request, f"User '{new_assignee_username}' not found")
@@ -238,7 +224,6 @@ def ticket_reassign(request: HttpRequest, ticket_number: str) -> HttpResponse:
     if claimed_for_them:
         DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor=authentik_username)
 
-    # Add new assignee to thread if they have Discord linked and ticket has a thread
     if ticket.discord_thread_id:
         discord_link = DiscordLink.objects.filter(user=new_assignee_user, is_active=True).first()
         if discord_link:
@@ -270,7 +255,6 @@ def ticket_resolve(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=403,
         )
 
-    # Get ticket to find ID
     try:
         ticket_obj = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
@@ -302,7 +286,6 @@ def ticket_resolve(request: HttpRequest, ticket_number: str) -> HttpResponse:
     resolution_notes = form.cleaned_data["resolution_notes"]
     points_override = form.cleaned_data.get("points_override")
 
-    # Use shared atomic resolve function
     from ticketing.utils import resolve_ticket_atomic
 
     ticket, error = resolve_ticket_atomic(
@@ -346,7 +329,6 @@ def ticket_reopen(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=403,
         )
 
-    # Get ticket
     try:
         ticket_obj = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
@@ -361,7 +343,6 @@ def ticket_reopen(request: HttpRequest, ticket_number: str) -> HttpResponse:
     form.is_valid()  # Always valid (optional field)
     reopen_reason = form.cleaned_data.get("reopen_reason", "")
 
-    # Use shared atomic reopen function
     from ticketing.utils import reopen_ticket_atomic
 
     ticket, error = reopen_ticket_atomic(
@@ -391,7 +372,6 @@ def ticket_reopen(request: HttpRequest, ticket_number: str) -> HttpResponse:
 
 @require_POST
 def ticket_change_category(request: HttpRequest, ticket_number: str) -> HttpResponse:
-    """Change ticket category."""
     user = cast(User, request.user)
     authentik_username = user.username
 
@@ -403,7 +383,6 @@ def ticket_change_category(request: HttpRequest, ticket_number: str) -> HttpResp
             status=403,
         )
 
-    # Get ticket
     try:
         ticket = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
@@ -414,7 +393,6 @@ def ticket_change_category(request: HttpRequest, ticket_number: str) -> HttpResp
             status=404,
         )
 
-    # Check if user has claimed the ticket or is admin
     is_admin = has_permission(user, "ticketing_admin")
     has_claimed = ticket.assigned_to and ticket.assigned_to.username == authentik_username
 
@@ -422,7 +400,6 @@ def ticket_change_category(request: HttpRequest, ticket_number: str) -> HttpResp
         messages.error(request, "You must claim the ticket first")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    # Get new category
     form = TicketChangeCategoryForm(request.POST)
     if not form.is_valid():
         messages.error(request, "Invalid category")

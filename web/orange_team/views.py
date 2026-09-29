@@ -30,10 +30,8 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     """Orange team dashboard showing check-in status and assignments."""
     user = cast(User, request.user)
 
-    # Check-in status
     active_checkin = OrangeCheckIn.objects.filter(user=user, is_active=True).first()
 
-    # My assignments (pending and in-progress, with criteria pre-loaded)
     my_assignments = (
         OrangeAssignment.objects.filter(user=user)
         .exclude(status__in=["approved", "rejected"])
@@ -42,7 +40,6 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         .order_by("orange_check__title", "team__team_number")
     )
 
-    # Active follow-up reminders
     followups = OrangeFollowUp.objects.filter(user=user, dismissed=False).select_related(
         "assignment__orange_check", "assignment__team"
     )
@@ -60,7 +57,6 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
 @require_permission("orange_team", "gold_team", error_message="Only Orange Team members can access this page")
 def toggle_checkin(request: HttpRequest) -> HttpResponse:
-    """Toggle check-in/out for the current user."""
     if request.method != "POST":
         return redirect("orange_team:dashboard")
     user = cast(User, request.user)
@@ -118,7 +114,6 @@ def review_queue(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only leads can manage checks")
 def check_list(request: HttpRequest) -> HttpResponse:
-    """List all orange checks for management."""
     checks = (
         OrangeCheck.objects.annotate(
             criteria_count=Count("criteria"),
@@ -132,7 +127,6 @@ def check_list(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only leads can manage checks")
 def check_create(request: HttpRequest) -> HttpResponse:
-    """Create a new orange check with criteria."""
     if request.method == "POST":
         form = OrangeCheckForm(request.POST)
         if not form.is_valid():
@@ -172,7 +166,6 @@ def check_create(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only leads can manage checks")
 def check_detail(request: HttpRequest, check_id: int) -> HttpResponse:
-    """Show check details with criteria and assignments."""
     orange_check = get_object_or_404(
         OrangeCheck.objects.prefetch_related("criteria", "assignments__user", "assignments__team"),
         pk=check_id,
@@ -191,7 +184,6 @@ def check_detail(request: HttpRequest, check_id: int) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only leads can manage checks")
 def check_edit(request: HttpRequest, check_id: int) -> HttpResponse:
-    """Edit an existing orange check and its criteria."""
     orange_check = get_object_or_404(OrangeCheck, pk=check_id)
 
     if request.method == "POST":
@@ -315,7 +307,6 @@ def assignment_save(request: HttpRequest, assignment_id: int) -> HttpResponse:
     result.met = met
     result.save()
 
-    # Update assignment status to in_progress if still pending
     if assignment.status == "pending":
         assignment.status = "in_progress"
         assignment.save()
@@ -327,7 +318,6 @@ def assignment_save(request: HttpRequest, assignment_id: int) -> HttpResponse:
 
 @require_permission("orange_team", "gold_team", error_message="Only Orange Team members can access this page")
 def assignment_submit(request: HttpRequest, assignment_id: int) -> HttpResponse:
-    """Submit a completed assignment for review."""
     if request.method != "POST":
         return redirect("orange_team:dashboard")
 
@@ -354,7 +344,6 @@ def assignment_submit(request: HttpRequest, assignment_id: int) -> HttpResponse:
 
 @require_permission("orange_team", "gold_team", error_message="Only Orange Team members can access this page")
 def followup_create(request: HttpRequest) -> HttpResponse:
-    """Create a follow-up reminder for an assignment."""
     if request.method != "POST":
         return redirect("orange_team:dashboard")
 
@@ -379,7 +368,6 @@ def followup_create(request: HttpRequest) -> HttpResponse:
 
 @require_permission("orange_team", "gold_team", error_message="Only Orange Team members can access this page")
 def followup_dismiss(request: HttpRequest, followup_id: int) -> HttpResponse:
-    """Dismiss a follow-up reminder."""
     if request.method != "POST":
         return redirect("orange_team:dashboard")
 
@@ -456,7 +444,6 @@ def assignment_reject(request: HttpRequest, assignment_id: int) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only leads can export scores")
 def export_scores(request: HttpRequest) -> HttpResponse:
-    """Export all assignments as CSV."""
     assignments = (
         OrangeAssignment.objects.filter(status__in=["submitted", "approved"])
         .select_related("orange_check", "team", "user", "reviewed_by")

@@ -1,4 +1,4 @@
-"""Scoring views package - re-exports all view functions for backwards compatibility."""
+"""Re-exports every view so callers can use ``from scoring import views``."""
 
 from .api import api_attack_types, api_scores, api_team_detail
 from .config import recalculate_scores, scoring_config, sync_metadata, sync_scores
@@ -70,7 +70,6 @@ from .red_team import (
 )
 
 __all__ = [
-    # leaderboard
     "leaderboard",
     "scorecard",
     "scorecard_pdf",
@@ -80,7 +79,6 @@ __all__ = [
     "_ServiceStat",
     "_Neighbor",
     "_ScorecardStats",
-    # red_team
     "_normalize_red_score_post",
     "red_team_findings",
     "red_team_scores",
@@ -95,12 +93,10 @@ __all__ = [
     "ip_pool_edit",
     "ip_pool_delete",
     "api_user_ip_pools",
-    # orange
     "orange_team_redirect",
     "review_orange",
     "submit_orange_check",
     "bulk_approve_orange_adjustments",
-    # incidents
     "submit_incident_report",
     "incident_list",
     "view_incident_report",
@@ -109,7 +105,6 @@ __all__ = [
     "review_incidents",
     "bulk_approve_incidents",
     "match_incident",
-    # injects
     "inject_grading",
     "inject_grades_review",
     "inject_grades_bulk_approve",
@@ -117,12 +112,10 @@ __all__ = [
     "save_inject_feedback",
     "approve_inject_feedback",
     "bulk_approve_inject_feedback",
-    # config
     "scoring_config",
     "sync_metadata",
     "sync_scores",
     "recalculate_scores",
-    # export
     "export_index",
     "export_red_scores",
     "export_incidents",
@@ -135,7 +128,6 @@ __all__ = [
     "email_scorecard",
     "email_scorecards",
     "stream_email_scorecards",
-    # api
     "api_scores",
     "api_team_detail",
     "api_attack_types",

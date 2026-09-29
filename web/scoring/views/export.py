@@ -1,5 +1,3 @@
-"""Export endpoint views."""
-
 from collections.abc import Iterator
 
 from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
@@ -13,7 +11,6 @@ from ..models import FinalScore
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 def export_index(request: HttpRequest) -> HttpResponse:
-    """Export data index page (admin only)."""
     from django.shortcuts import render
 
     return render(request, "scoring/export_index.html")
@@ -21,7 +18,6 @@ def export_index(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 def export_red_scores(request: HttpRequest) -> HttpResponse:
-    """Export red team findings (admin only)."""
     from ..export import export_red_scores_csv, export_red_scores_json
 
     export_format = request.GET.get("format", "csv").lower()
@@ -32,7 +28,6 @@ def export_red_scores(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 def export_incidents(request: HttpRequest) -> HttpResponse:
-    """Export incident reports (admin only)."""
     from ..export import export_incidents_csv, export_incidents_json
 
     export_format = request.GET.get("format", "csv").lower()
@@ -43,7 +38,6 @@ def export_incidents(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 def export_orange_adjustments(request: HttpRequest) -> HttpResponse:
-    """Export orange team checks (admin only)."""
     from ..export import export_orange_adjustments_csv, export_orange_adjustments_json
 
     export_format = request.GET.get("format", "csv").lower()
@@ -54,7 +48,6 @@ def export_orange_adjustments(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 def export_inject_grades(request: HttpRequest) -> HttpResponse:
-    """Export inject grades (admin only)."""
     from ..export import export_inject_grades_csv, export_inject_grades_json
 
     export_format = request.GET.get("format", "csv").lower()
@@ -65,7 +58,6 @@ def export_inject_grades(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 def export_final_scores(request: HttpRequest) -> HttpResponse:
-    """Export final scores (admin only)."""
     from ..export import export_final_scores_csv, export_final_scores_json
 
     export_format = request.GET.get("format", "csv").lower()
@@ -76,7 +68,6 @@ def export_final_scores(request: HttpRequest) -> HttpResponse:
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 def export_tickets(request: HttpRequest) -> HttpResponse:
-    """Export tickets (admin only)."""
     from ..export import export_tickets_csv, export_tickets_json
 
     export_format = request.GET.get("format", "csv").lower()
@@ -219,7 +210,6 @@ def _build_email_context(team: Team, score: FinalScore, total_teams: int) -> dic
 
 
 def _generate_team_pdf(team: Team, score: FinalScore, request: HttpRequest) -> bytes:
-    """Generate a scorecard PDF for a single team."""
     import weasyprint
     from django.template.loader import render_to_string
 
@@ -279,7 +269,6 @@ def _stream_email_scorecards(request: HttpRequest) -> Iterator[str]:
     scores = FinalScore.objects.filter(is_excluded=False, rank__isnull=False).select_related("team").order_by("rank")
     total_teams = scores.count()
 
-    # Build list of teams with emails
     sendable = []
     for score in scores:
         team = score.team
@@ -330,7 +319,6 @@ def email_scorecards(request: HttpRequest) -> HttpResponse:
         messages.error(request, "No scores available. Recalculate scores first.")
         return redirect("leaderboard_page")
 
-    # Build team list with email info for confirmation
     team_rows = []
     for score in scores:
         team = score.team

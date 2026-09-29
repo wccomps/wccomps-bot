@@ -1,5 +1,3 @@
-"""Django forms for orange team views."""
-
 import re
 from typing import TypedDict, cast
 

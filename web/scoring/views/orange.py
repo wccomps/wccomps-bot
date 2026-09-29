@@ -1,5 +1,3 @@
-"""Orange team check review and bulk approve views."""
-
 import contextlib
 from typing import cast
 
@@ -16,13 +14,11 @@ from ..models import OrangeTeamScore
 
 
 def orange_team_redirect(request: HttpRequest) -> HttpResponse:
-    """Redirect to new orange team dashboard."""
     return redirect("orange_team:dashboard")
 
 
 @require_permission("orange_team", error_message="Only Orange Team or Gold Team members can review checks")
 def review_orange(request: HttpRequest) -> HttpResponse:
-    """Review page for orange team checks."""
     from django.db.models import Q
     from orange_team.models import OrangeCheck
 
@@ -99,7 +95,7 @@ def review_orange(request: HttpRequest) -> HttpResponse:
 
 
 def submit_orange_check(request: HttpRequest) -> HttpResponse:
-    """Redirect to new orange team dashboard."""
+    """Redirect to the orange team dashboard."""
     return redirect("orange_team:dashboard")
 
 
@@ -107,7 +103,6 @@ def submit_orange_check(request: HttpRequest) -> HttpResponse:
 @transaction.atomic
 @require_http_methods(["POST"])
 def bulk_approve_orange_adjustments(request: HttpRequest) -> HttpResponse:
-    """Bulk approve orange team checks."""
     from core.utils import bulk_approve
 
     user = cast(User, request.user)

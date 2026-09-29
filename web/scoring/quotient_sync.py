@@ -1,5 +1,3 @@
-"""Quotient API integration for scoring system."""
-
 from decimal import Decimal
 from typing import TypedDict
 
@@ -28,25 +26,13 @@ class BoxData(TypedDict):
 
 
 def clear_quotient_metadata() -> None:
-    """Clear cached Quotient metadata from database."""
     QuotientMetadataCache.objects.all().delete()
 
 
 def sync_quotient_metadata(user: User | None = None) -> QuotientMetadataCache:
-    """
-    Sync infrastructure metadata from Quotient.
+    """Sync the box, service and IP metadata behind the scoring form dropdowns from Quotient.
 
-    This populates dropdowns for boxes, services, and IP addresses.
-    If sync fails, clears cached metadata to prevent stale data.
-
-    Args:
-        user: User performing the sync (optional)
-
-    Returns:
-        QuotientMetadataCache instance
-
-    Raises:
-        ValueError: If Quotient is unreachable (also clears cached metadata)
+    Raises ValueError if Quotient is unreachable, after clearing the cached metadata so it can't go stale.
     """
     client = QuotientClient()
     infrastructure = client.get_infrastructure()
@@ -55,7 +41,6 @@ def sync_quotient_metadata(user: User | None = None) -> QuotientMetadataCache:
         clear_quotient_metadata()
         raise ValueError("Failed to retrieve infrastructure from Quotient")
 
-    # Convert infrastructure to JSON-serializable format
     boxes_data: list[BoxData] = []
     services_data: list[ServiceData] = []
 
@@ -70,7 +55,6 @@ def sync_quotient_metadata(user: User | None = None) -> QuotientMetadataCache:
             }
             box_services.append(service_dict)
 
-            # Add to global services list if not already there
             if service_dict not in services_data:
                 services_data.append(service_dict)
 
@@ -103,25 +87,13 @@ def sync_quotient_metadata(user: User | None = None) -> QuotientMetadataCache:
 
 
 def sync_service_scores(user: User | None = None) -> dict[str, int]:
-    """
-    Sync service scores from Quotient for all teams.
-
-    Syncs both aggregate ServiceScore records and per-service ServiceDetail records.
-
-    Args:
-        user: User performing the sync (optional)
-
-    Returns:
-        Dict with sync statistics
-    """
+    """Sync every team's aggregate ServiceScore and per-service ServiceDetail records from Quotient."""
     client = QuotientClient()
 
-    # Fetch per-service export data
     export_data = client.get_service_export()
     if not export_data:
         return {"teams_created": 0, "teams_updated": 0, "total": 0, "details_synced": 0}
 
-    # Fetch uptime percentages
     uptimes_data = client.get_uptimes()
     uptimes_by_team: dict[int, dict[str, float]] = {}
     if uptimes_data:
@@ -140,7 +112,6 @@ def sync_service_scores(user: User | None = None) -> dict[str, int]:
         except Team.DoesNotExist:
             continue
 
-        # Update or create aggregate ServiceScore
         _service_score, created = ServiceScore.objects.update_or_create(
             team=team,
             defaults={
@@ -155,7 +126,6 @@ def sync_service_scores(user: User | None = None) -> dict[str, int]:
         else:
             teams_updated += 1
 
-        # Sync per-service details
         team_uptimes = uptimes_by_team.get(team_num, {})
         ServiceDetail.objects.filter(team=team).delete()
         details = [
@@ -179,17 +149,11 @@ def sync_service_scores(user: User | None = None) -> dict[str, int]:
 
 
 def get_box_choices() -> list[tuple[str, str]]:
-    """
-    Get box choices for dropdowns from cached metadata.
-
-    Returns:
-        List of (value, label) tuples for box dropdown (includes last IP octet)
-    """
+    """Box dropdown choices from cached metadata; labels lead with the last IP octet to tell boxes apart."""
     metadata = QuotientMetadataCache.objects.first()
     if metadata:
         choices = []
         for box in metadata.boxes:
-            # Include last octet of IP for easier identification
             ip = box.get("ip", "")
             last_octet = ip.split(".")[-1] if ip else ""
             label = f".{last_octet} {box['name']}" if last_octet else box["name"]
@@ -199,38 +163,23 @@ def get_box_choices() -> list[tuple[str, str]]:
 
 
 def get_service_choices(box_name: str | None = None) -> list[tuple[str, str]]:
-    """
-    Get service choices for dropdowns from cached metadata.
-
-    Args:
-        box_name: Optional box name to filter services by
-
-    Returns:
-        List of (value, label) tuples for service dropdown
-    """
+    """Service dropdown choices from cached metadata, limited to box_name's services when given."""
     metadata = QuotientMetadataCache.objects.first()
     if not metadata:
         return []
 
     if box_name:
-        # Filter services by box
         for box in metadata.boxes:
             if box["name"] == box_name:
                 return [(s["name"], s["display_name"] or s["name"]) for s in box["services"]]
         return []
     else:
-        # Return all unique services
         return [(s["name"], s["display_name"] or s["name"]) for s in metadata.services]
 
 
 def get_cached_team_count() -> int:
-    """
-    Get the team count from cached metadata.
-
-    Returns:
-        Team count from last sync, or 50 as default if not synced
-    """
+    """Team count from the last Quotient sync, or 50 if never synced."""
     metadata = QuotientMetadataCache.objects.first()
     if metadata and metadata.team_count > 0:
         return metadata.team_count
-    return 50  # Default to 50 teams if not synced
+    return 50

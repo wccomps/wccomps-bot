@@ -1,5 +1,4 @@
 {% load cotton ticket_filters %}
-<!-- Comments List -->
 <div id="comments-list">
     {% if comments %}
         <div class="comment-list">
@@ -23,10 +22,8 @@
         <p class="text-muted">No comments yet.</p>
     {% endif %}
 </div>
-<!-- History List -->
 <div id="history-list">
     {% if history %}
-        <!-- Desktop table -->
         <div class="history-table">
             <c-table aria_label="Ticket history">
                 <c-slot name="headers">
@@ -61,7 +58,6 @@
                 {% endfor %}
             </c-table>
         </div>
-        <!-- Mobile cards -->
         <div class="history-cards">
             {% for event in history %}
                 <div class="history-card">

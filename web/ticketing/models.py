@@ -1,5 +1,3 @@
-"""Ticketing system models."""
-
 from datetime import timedelta
 
 from django.db import models
@@ -7,8 +5,6 @@ from django.utils import timezone
 
 
 class TicketCategory(models.Model):
-    """Configurable ticket category."""
-
     display_name = models.CharField(max_length=100)
     points = models.IntegerField(default=0)
     required_fields = models.JSONField(default=list, blank=True)
@@ -31,13 +27,11 @@ class TicketCategory(models.Model):
 class Ticket(models.Model):
     """Support ticket from team."""
 
-    # Status constants
     STATUS_OPEN = "open"
     STATUS_CLAIMED = "claimed"
     STATUS_RESOLVED = "resolved"
     STATUS_CANCELLED = "cancelled"
 
-    # User FK fields (references the user who acted)
     assigned_to = models.ForeignKey(
         "auth.User",
         on_delete=models.SET_NULL,
@@ -70,11 +64,9 @@ class Ticket(models.Model):
         STATUS_CANCELLED: [],  # terminal state
     }
 
-    # Identity
     ticket_number = models.CharField(max_length=20, unique=True)
     team = models.ForeignKey("team.Team", on_delete=models.CASCADE, related_name="tickets")
 
-    # Content
     category = models.ForeignKey(
         "ticketing.TicketCategory",
         on_delete=models.SET_NULL,
@@ -85,26 +77,21 @@ class Ticket(models.Model):
     title = models.TextField()
     description = models.TextField(blank=True)
 
-    # Category-specific fields
     hostname = models.CharField(max_length=255, blank=True)
     ip_address = models.CharField(max_length=45, blank=True, null=True)
     service_name = models.CharField(max_length=100, blank=True)
     custom_fields = models.JSONField(default=dict, blank=True)
 
-    # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
     tags = models.JSONField(default=list, blank=True)  # e.g., ['operations-issue', 'escalated']
 
-    # Assignment
     assigned_at = models.DateTimeField(null=True, blank=True)
 
-    # Resolution
     resolved_at = models.DateTimeField(null=True, blank=True)
     resolution_notes = models.TextField(blank=True)
     duration_notes = models.TextField(blank=True)
     points_charged = models.IntegerField(default=0)
 
-    # Approval (admin review)
     is_approved = models.BooleanField(default=False)
     approved_by = models.ForeignKey(
         "auth.User",
@@ -116,12 +103,10 @@ class Ticket(models.Model):
     approved_at = models.DateTimeField(null=True, blank=True)
     approval_notes = models.TextField(blank=True)
 
-    # Discord integration
     discord_thread_id = models.BigIntegerField(unique=True, null=True, blank=True)
     discord_channel_id = models.BigIntegerField(null=True, blank=True)
     thread_archive_scheduled_at = models.DateTimeField(null=True, blank=True)
 
-    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -141,7 +126,6 @@ class Ticket(models.Model):
         ]
 
     def can_transition_to(self, new_status: str) -> bool:
-        """Check if this ticket can transition to the given status."""
         return new_status in self.VALID_TRANSITIONS.get(self.status, [])
 
     def __str__(self) -> str:
@@ -149,8 +133,6 @@ class Ticket(models.Model):
 
 
 class TicketAttachment(models.Model):
-    """File attachment for ticket."""
-
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="attachments")
     file_data = models.BinaryField()
     filename = models.CharField(max_length=255)
@@ -190,8 +172,6 @@ class TicketComment(models.Model):
 
 
 class TicketHistory(models.Model):
-    """History of ticket state changes."""
-
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="history")
     action = models.CharField(max_length=50)
     actor = models.ForeignKey(
@@ -230,14 +210,9 @@ class CommentRateLimit(models.Model):
 
     @classmethod
     def check_rate_limit(cls, ticket_id: int, discord_id: int) -> tuple[bool, str]:
-        """
-        Check if user has exceeded rate limit.
-
-        Returns: (is_allowed, reason_if_blocked)
-        """
+        """Return (is_allowed, reason_if_blocked)."""
         one_minute_ago = timezone.now() - timedelta(minutes=1)
 
-        # Check ticket-level rate limit (5 comments per minute)
         ticket_comments = cls.objects.filter(ticket_id=ticket_id, posted_at__gte=one_minute_ago).count()
 
         if ticket_comments >= 5:
@@ -246,7 +221,6 @@ class CommentRateLimit(models.Model):
                 f"Ticket rate limit exceeded ({ticket_comments}/5 comments in last minute)",
             )
 
-        # Check user-level rate limit (10 comments per minute across all tickets)
         user_comments = cls.objects.filter(discord_id=discord_id, posted_at__gte=one_minute_ago).count()
 
         if user_comments >= 10:

@@ -90,7 +90,6 @@
             {% endif %}
         </c-fieldset>
     </c-module>
-    {# Assignments #}
     <c-module>
         <h2>Assignments</h2>
         {% if orange_check.assignments.all %}
@@ -147,7 +146,6 @@
                            description="Assign checked-in users to distribute this check across teams." />
         {% endif %}
     </c-module>
-    {# Assign form #}
     {% if orange_check.status == "draft" or orange_check.status == "scheduled" %}
         <c-module>
             <h2>Assign Users</h2>

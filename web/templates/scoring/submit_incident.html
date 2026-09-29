@@ -12,7 +12,6 @@
         {% if team or is_admin %}
             <c-form enctype="multipart/form-data" id="incidentForm">
                 {% csrf_token %}
-                <!-- Target Information Section -->
                 <c-fieldset heading="Target Information">
                     {% if is_admin %}
                         <c-form_field label="{{ form.team.label }}"
@@ -52,7 +51,6 @@
                         </c-form_field>
                     </div>
                 </c-fieldset>
-                <!-- Attack Details Section -->
                 <c-fieldset heading="Attack Details">
                     <div class="grid-2">
                         <c-form_field label="{{ form.source_ip.label }}"
@@ -83,7 +81,6 @@
                         {% if form.attack_mitigated.help_text %}<div class="help-text">{{ form.attack_mitigated.help_text }}</div>{% endif %}
                     </div>
                 </c-fieldset>
-                <!-- Screenshot Evidence Section -->
                 <c-fieldset heading="Evidence">
                     <c-form_field label="Upload Files"
                                   id="screenshots"

@@ -84,7 +84,6 @@
                                value="{{ form_data.title }}"
                                placeholder="Brief summary of the issue">
                     </c-form_field>
-                    <!-- Hostname with quick-add buttons -->
                     <div class="dynamic-field" :class="showHostname" id="field-hostname">
                         <c-form_field label="Hostname" id="hostname">
                             {% if box_names %}
@@ -115,7 +114,6 @@
                             {% endif %}
                         </c-form_field>
                     </div>
-                    <!-- IP Address (auto-filled) -->
                     <div class="dynamic-field" :class="showIpAddress" id="field-ip_address">
                         <c-form_field label="IP Address"
                                       id="ip_address"
@@ -132,7 +130,6 @@
                                    placeholder="{% if box_names %}Select a hostname above{% else %}e.g. 10.0.1.5{% endif %}">
                         </c-form_field>
                     </div>
-                    <!-- Service -->
                     <div class="dynamic-field"
                          :class="showServiceName"
                          id="field-service_name">
@@ -160,7 +157,6 @@
                             {% endif %}
                         </c-form_field>
                     </div>
-                    <!-- Description -->
                     <div class="dynamic-field" :class="showDescription" id="field-description">
                         <c-form_field label="Description" id="description">
                             <textarea name="description"

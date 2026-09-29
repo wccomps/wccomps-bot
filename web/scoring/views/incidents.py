@@ -1,5 +1,3 @@
-"""Incident reports, screenshots, and gold team review views."""
-
 from typing import cast
 
 from django.contrib import messages
@@ -40,7 +38,6 @@ def submit_incident_report(request: HttpRequest) -> HttpResponse:
         if form.is_valid():
             incident = form.save(commit=False)
 
-            # For admin, get team from form; for regular users, use their team
             if is_admin:
                 incident.team = form.cleaned_data["team"]
             elif team is not None:
@@ -53,7 +50,6 @@ def submit_incident_report(request: HttpRequest) -> HttpResponse:
             incident.submitted_by = user
             incident.save()
 
-            # Handle screenshot uploads with validation
             screenshots = request.FILES.getlist("screenshots")
             max_screenshots = 20
 
@@ -133,7 +129,6 @@ def incident_list(request: HttpRequest) -> HttpResponse:
 
 
 def view_incident_report(request: HttpRequest, incident_id: int) -> HttpResponse:
-    """View incident report details."""
     incident = get_object_or_404(IncidentReport, id=incident_id)
 
     user = cast(User, request.user)
@@ -143,7 +138,6 @@ def view_incident_report(request: HttpRequest, incident_id: int) -> HttpResponse
             messages.error(request, "You do not have permission to view this incident report")
             return redirect("leaderboard_page")
 
-    # Check if user can delete this incident
     can_delete = incident.submitted_by == user and not incident.is_approved
 
     context = {
@@ -160,12 +154,10 @@ def delete_incident_report(request: HttpRequest, incident_id: int) -> HttpRespon
     incident = get_object_or_404(IncidentReport, id=incident_id)
     user = cast(User, request.user)
 
-    # Only the submitter can delete their own report
     if incident.submitted_by != user:
         messages.error(request, "You can only delete your own incident reports")
         return redirect("scoring:view_incident_report", incident_id=incident_id)
 
-    # Cannot delete if already reviewed
     if incident.is_approved:
         messages.error(request, "Cannot delete an incident report that has already been reviewed")
         return redirect("scoring:view_incident_report", incident_id=incident_id)
@@ -177,7 +169,6 @@ def delete_incident_report(request: HttpRequest, incident_id: int) -> HttpRespon
 
 
 def incident_screenshot_download(request: HttpRequest, screenshot_id: int) -> HttpResponse:
-    """Serve incident screenshot from database."""
     from django.http import Http404
 
     screenshot = get_object_or_404(IncidentScreenshot, id=screenshot_id)
@@ -202,7 +193,6 @@ def review_incidents(request: HttpRequest) -> HttpResponse:
     """Review and match incident reports (gold team)."""
     from core.utils import filter_sort_paginate
 
-    # Get filter parameters
     status_filter = request.GET.get("status", "pending") or "pending"
     team_filter = request.GET.get("team", "")
     box_filter = request.GET.get("box", "")
@@ -210,13 +200,11 @@ def review_incidents(request: HttpRequest) -> HttpResponse:
 
     base_query = IncidentReport.objects.select_related("team").prefetch_related("screenshots")
 
-    # Apply status filter
     if status_filter == "pending":
         base_query = base_query.filter(is_approved=False)
     elif status_filter == "approved":
         base_query = base_query.filter(is_approved=True)
 
-    # Apply other filters
     if team_filter:
         base_query = base_query.filter(team__id=team_filter)
 
@@ -251,7 +239,6 @@ def review_incidents(request: HttpRequest) -> HttpResponse:
     approved_count = IncidentReport.objects.filter(is_approved=True).count()
     pending_count = total_incidents - approved_count
 
-    # Get available teams for filter dropdown
     available_teams = Team.objects.filter(incident_reports__isnull=False).distinct().order_by("team_number")
 
     context = {
@@ -268,7 +255,6 @@ def review_incidents(request: HttpRequest) -> HttpResponse:
         "has_pending": pending_count > 0,
     }
 
-    # Return partial for htmx requests
     if request.headers.get("HX-Request"):
         return render(request, "cotton/review_incidents_table.html", context)
 
@@ -281,7 +267,6 @@ def review_incidents(request: HttpRequest) -> HttpResponse:
 @transaction.atomic
 @require_http_methods(["POST"])
 def bulk_approve_incidents(request: HttpRequest) -> HttpResponse:
-    """Bulk approve incident reports."""
     from core.utils import bulk_approve
 
     user = cast(User, request.user)
@@ -311,7 +296,6 @@ def match_incident(request: HttpRequest, incident_id: int) -> HttpResponse:
     """Match incident to red team finding (gold team)."""
     incident = get_object_or_404(IncidentReport, id=incident_id)
 
-    # Get suggested matches
     suggested_findings = suggest_red_score_matches(incident)
 
     if request.method == "POST":
@@ -327,7 +311,6 @@ def match_incident(request: HttpRequest, incident_id: int) -> HttpResponse:
             messages.success(request, f"Incident #{incident.id} reviewed and {incident.points_returned} points awarded")
             return redirect("scoring:review_incidents")
     else:
-        # Auto-suggest points if matching to a red finding
         if suggested_findings:
             suggested_points = calculate_suggested_recovery_points(incident, suggested_findings[0])
             form = IncidentMatchForm(

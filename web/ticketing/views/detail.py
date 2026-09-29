@@ -1,5 +1,3 @@
-"""Ticket detail views."""
-
 import logging
 from typing import cast
 
@@ -48,7 +46,6 @@ def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
     user = cast(User, request.user)
     authentik_username = user.username
 
-    # Determine user role
     is_ops = (
         has_permission(user, "ticketing_support")
         or has_permission(user, "ticketing_admin")
@@ -59,7 +56,6 @@ def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
     is_ticketing_admin = has_permission(user, "ticketing_admin")
     is_ticketing_support = has_permission(user, "ticketing_support")
 
-    # Look up ticket by ticket_number
     try:
         ticket = Ticket.objects.select_related("team").get(ticket_number=ticket_number)
     except Ticket.DoesNotExist:
@@ -80,7 +76,6 @@ def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=403,
         )
 
-    # Fetch common data
     cat_info = get_category_config(ticket.category_id) or {}
     comments = TicketComment.objects.filter(ticket=ticket).order_by("posted_at")
     attachments = TicketAttachment.objects.filter(ticket=ticket).order_by("uploaded_at")
@@ -98,7 +93,6 @@ def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
         "status_display": ticket.status.upper().replace("_", " "),
     }
 
-    # Ops-specific data
     if is_ops:
         history = TicketHistory.objects.filter(ticket=ticket).order_by("-timestamp")[:20]
         context["variable_points"] = cat_info.get("variable_points", False)
@@ -144,14 +138,12 @@ def ticket_comment(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=403,
         )
 
-    # Get comment text
     form = TicketCommentForm(request.POST)
     if not form.is_valid():
         messages.error(request, "Comment cannot be empty")
         return redirect("ticket_detail", ticket_number=ticket.ticket_number)
     comment_text = form.cleaned_data["comment"]
 
-    # Check rate limit
     from ticketing.models import CommentRateLimit
 
     is_allowed, reason = CommentRateLimit.check_rate_limit(ticket.id, user.id)

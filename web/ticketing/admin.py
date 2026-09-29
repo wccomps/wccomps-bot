@@ -1,5 +1,3 @@
-"""Admin configuration for ticketing app."""
-
 from django import forms
 from django.contrib import admin
 from django.db.models import QuerySet
@@ -64,7 +62,6 @@ class TicketCategoryForm(forms.ModelForm[TicketCategory]):
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
-        # Pre-select checkboxes from existing JSON data
         if self.instance and self.instance.pk:
             if self.instance.required_fields:
                 self.initial["required_fields"] = self.instance.required_fields
@@ -213,12 +210,10 @@ class TicketAdmin(admin.ModelAdmin[Ticket]):
 
     @admin.display(description="Assigned To")
     def get_assigned_to_display(self, obj: Ticket) -> str:
-        """Display assigned person."""
         return str(obj.assigned_to) if obj.assigned_to else ""
 
     @admin.action(description="Export selected tickets as CSV")
     def export_as_csv(self, request: HttpRequest, queryset: QuerySet[Ticket]) -> HttpResponse:
-        """Export selected tickets as CSV."""
         import csv
 
         response = HttpResponse(content_type="text/csv")
@@ -308,5 +303,4 @@ class CommentRateLimitAdmin(admin.ModelAdmin[CommentRateLimit]):
     readonly_fields = ["posted_at"]
 
     def has_add_permission(self, request: HttpRequest) -> bool:
-        """Disable adding rate limits manually."""
         return False
