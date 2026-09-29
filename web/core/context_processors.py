@@ -133,7 +133,6 @@ NAV_MAPPING: dict[str, tuple[str, str]] = {
     "review_inject_feedback": ("white_team", "inject_feedback"),
     # Ops admin - scoring config/export
     "scoring_config": ("ops_admin", "config"),
-    "recalculate_scores": ("ops_admin", "config"),
     "export_index": ("ops_admin", "export"),
     "export_red_scores": ("ops_admin", "export"),
     "export_tickets": ("ops_admin", "export"),

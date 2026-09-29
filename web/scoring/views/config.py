@@ -8,7 +8,6 @@ from django.views.decorators.http import require_http_methods
 
 from core.auth_utils import require_permission
 
-from ..calculator import recalculate_all_scores
 from ..forms import ScoringTemplateForm
 from ..models import QuotientMetadataCache, ScoringTemplate
 from ..quotient_sync import sync_quotient_metadata, sync_service_scores
@@ -69,11 +68,3 @@ def sync_scores(request: HttpRequest) -> HttpResponse:
     except Exception as e:
         messages.error(request, f"Failed to sync scores: {e}")
     return redirect("scoring:scoring_config")
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-@require_http_methods(["POST"])
-def recalculate_scores(request: HttpRequest) -> HttpResponse:
-    recalculate_all_scores()
-    messages.success(request, "Scores recalculated successfully")
-    return redirect("leaderboard_page")

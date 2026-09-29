@@ -13,11 +13,12 @@ from django.utils import timezone
 
 from core.models import UserGroups
 from scoring.models import (
-    FinalScore,
     IncidentReport,
     InjectScore,
     OrangeTeamScore,
     RedTeamScore,
+    ScoringTemplate,
+    ServiceScore,
 )
 from team.models import Team
 
@@ -215,36 +216,12 @@ def inject_grades(test_teams, admin_user):
 
 @pytest.fixture
 def final_scores(test_teams):
-    """Create final scores for testing."""
-    scores = []
-
-    score1 = FinalScore.objects.create(
-        team=test_teams[0],
-        service_points=Decimal("500.00"),
-        inject_points=Decimal("119.00"),
-        orange_points=Decimal("55.00"),
-        red_deductions=Decimal("-50.00"),
-        incident_recovery_points=Decimal("30.00"),
-        sla_penalties=Decimal("-10.00"),
-        total_score=Decimal("644.00"),
-        rank=1,
+    """Service scores that rank Team 1 over Team 2 under 1:1 modifiers; Team 3 has no activity."""
+    ScoringTemplate.objects.create(
+        service_modifier=Decimal("1"), inject_modifier=Decimal("1"), orange_modifier=Decimal("1")
     )
-    scores.append(score1)
-
-    score2 = FinalScore.objects.create(
-        team=test_teams[1],
-        service_points=Decimal("450.00"),
-        inject_points=Decimal("98.00"),
-        orange_points=Decimal("0.00"),
-        red_deductions=Decimal("-25.00"),
-        incident_recovery_points=Decimal("0.00"),
-        sla_penalties=Decimal("-5.00"),
-        total_score=Decimal("528.00"),
-        rank=2,
-    )
-    scores.append(score2)
-
-    return scores
+    ServiceScore.objects.create(team=test_teams[0], service_points=Decimal("500.00"), sla_violations=Decimal("-10"))
+    ServiceScore.objects.create(team=test_teams[1], service_points=Decimal("450.00"))
 
 
 class TestExportPermissions:
@@ -774,14 +751,12 @@ class TestFinalScoresExport:
         reader = csv.DictReader(StringIO(content))
         rows = list(reader)
 
-        assert len(rows) == 2
-
-        # Check first score
-        row1 = rows[0]
-        assert row1["Rank"] == "1"
-        assert row1["Total Score"] == "644.00"
-        assert row1["Service Points"] == "500.00"
-        assert row1["Inject Points"] == "119.00"
+        assert [row["Team"] for row in rows] == ["Team 1", "Team 2", "Team 3"]
+        assert [row["Rank"] for row in rows] == ["1", "2", ""]
+        assert rows[0]["Total Score"] == "490.00"
+        assert rows[0]["Service Points"] == "500.00"
+        assert rows[0]["SLA Penalties"] == "-10.00"
+        assert rows[0]["Inject Points"] == "0.00"
 
     def test_json_export_contains_all_required_fields(self, admin_user, final_scores):
         """JSON export should contain all required fields."""
@@ -792,7 +767,7 @@ class TestFinalScoresExport:
         data = json.loads(response.content)
         scores = data["final_scores"]
 
-        assert len(scores) == 2
+        assert len(scores) == 3
 
         required_fields = [
             "rank",
@@ -823,7 +798,7 @@ class TestFinalScoresExport:
         # Check first score
         score1 = scores[0]
         assert score1["rank"] == 1
-        assert score1["total_score"] == "644.00"
+        assert score1["total_score"] == "490.00"
         assert score1["service_points"] == "500.00"
 
 

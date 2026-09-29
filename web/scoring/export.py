@@ -8,8 +8,8 @@ from io import BytesIO, StringIO
 from django.http import HttpResponse
 from django.utils import timezone
 
+from .calculator import compute_standings
 from .models import (
-    FinalScore,
     IncidentReport,
     InjectScore,
     OrangeTeamScore,
@@ -310,7 +310,8 @@ def _serialize_final_scores_csv() -> str:
             "Calculated At",
         ]
     )
-    scores = FinalScore.objects.select_related("team").order_by("-total_score", "team__team_number")
+    scores = compute_standings()
+    calculated_at = timezone.now().isoformat()
     for score in scores:
         writer.writerow(
             [
@@ -324,14 +325,15 @@ def _serialize_final_scores_csv() -> str:
                 score.red_deductions,
                 score.incident_recovery_points,
                 score.sla_penalties,
-                score.calculated_at.isoformat(),
+                calculated_at,
             ]
         )
     return output.getvalue()
 
 
 def _serialize_final_scores_json() -> str:
-    scores = FinalScore.objects.select_related("team").order_by("-total_score", "team__team_number")
+    scores = compute_standings()
+    calculated_at = timezone.now().isoformat()
     data = [
         {
             "rank": score.rank,
@@ -344,7 +346,7 @@ def _serialize_final_scores_json() -> str:
             "red_deductions": str(score.red_deductions),
             "incident_recovery_points": str(score.incident_recovery_points),
             "sla_penalties": str(score.sla_penalties),
-            "calculated_at": score.calculated_at.isoformat(),
+            "calculated_at": calculated_at,
         }
         for score in scores
     ]

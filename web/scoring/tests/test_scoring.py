@@ -25,11 +25,10 @@ from core.models import UserGroups
 from scoring.calculator import (
     calculate_suggested_recovery_points,
     calculate_team_score,
-    recalculate_all_scores,
+    compute_standings,
     suggest_red_score_matches,
 )
 from scoring.models import (
-    FinalScore,
     IncidentReport,
     InjectScore,
     OrangeTeamScore,
@@ -187,10 +186,9 @@ class ScoringFormulaTests(TestCase):
             service_points=Decimal("300.00"),
         )
 
-        recalculate_all_scores()
-
-        team1_score = FinalScore.objects.get(team=self.team1)
-        team2_score = FinalScore.objects.get(team=self.team2)
+        standings = {standing.team: standing for standing in compute_standings()}
+        team1_score = standings[self.team1]
+        team2_score = standings[self.team2]
 
         self.assertEqual(team1_score.rank, 1)
         self.assertEqual(team2_score.rank, 2)

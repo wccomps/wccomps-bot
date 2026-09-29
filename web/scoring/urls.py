@@ -47,7 +47,6 @@ urlpatterns = [
     path("admin/config/", views.scoring_config, name="scoring_config"),
     path("admin/sync-metadata/", views.sync_metadata, name="sync_metadata"),
     path("admin/sync-scores/", views.sync_scores, name="sync_scores"),
-    path("admin/recalculate/", views.recalculate_scores, name="recalculate_scores"),
     path("api/scores/", views.api_scores, name="api_scores"),
     path("api/team/<int:team_number>/", views.api_team_detail, name="api_team_detail"),
     path("api/attack-types/", views.api_attack_types, name="api_attack_types"),

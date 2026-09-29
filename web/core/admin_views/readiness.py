@@ -266,20 +266,6 @@ def _check_no_orange_assignments() -> CheckResult:
     return ("pass", "No existing orange assignments", None)
 
 
-def _check_no_final_scores() -> CheckResult:
-    """Check that no final scores exist yet (clean slate for competition)."""
-    from scoring.models import FinalScore
-
-    count = FinalScore.objects.count()
-    if count > 0:
-        return (
-            "warn",
-            f"{count} final score{'s' if count != 1 else ''} already exist",
-            {"type": "link", "url": reverse("scoring:leaderboard"), "label": "View Leaderboard"},
-        )
-    return ("pass", "No existing final scores", None)
-
-
 def _check_quotient_api() -> CheckResult:
     """Check that Quotient scoring engine API is reachable."""
     from quotient.client import QuotientClient
@@ -344,7 +330,6 @@ ALL_CHECKS: list[tuple[str, Callable[[], CheckResult]]] = [
     ("No existing incident reports", _check_no_incidents),
     ("No existing inject grades", _check_no_inject_grades),
     ("No existing orange assignments", _check_no_orange_assignments),
-    ("No existing final scores", _check_no_final_scores),
 ]
 
 

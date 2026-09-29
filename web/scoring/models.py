@@ -395,7 +395,7 @@ class RedTeamScore(Approvable):
     def calculate_points(self) -> Decimal:
         """Points each affected team loses, per CCDC guidelines, from the outcome checkboxes.
 
-        Stored positive in points_per_team; the calculator subtracts it (get_approved_red_deductions).
+        Stored positive in points_per_team; the calculator subtracts it.
         Effect on the team, from the National Scoring Guidelines:
         - Root/Admin access: -100
         - User access: -25 (only if no root access)
@@ -804,40 +804,14 @@ class ServiceDetail(models.Model):
         return f"{self.team.team_name} - {self.service_name}: {self.points}"
 
 
-class FinalScore(models.Model):
-    """Calculated final scores for leaderboard."""
+class ScoringExclusion(models.Model):
+    """A team left off the leaderboard and out of comparative stats; its own score still computes."""
 
-    team = models.ForeignKey(
-        "team.Team",
-        on_delete=models.CASCADE,
-        related_name="final_scores",
-    )
-
-    service_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    inject_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    orange_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    red_deductions = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    incident_recovery_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    sla_penalties = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    point_adjustments = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-
-    total_score = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    rank = models.IntegerField(null=True, blank=True)
-    is_excluded = models.BooleanField(
-        default=False,
-        help_text="Exclude from comparative analysis and leaderboard",
-    )
-
-    calculated_at = models.DateTimeField(auto_now=True)
+    team = models.OneToOneField("team.Team", on_delete=models.CASCADE, related_name="scoring_exclusion")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "final_score"
-        verbose_name = "Final Score"
-        verbose_name_plural = "Final Scores"
-        unique_together = [["team"]]
-        ordering = ["-total_score", "team__team_number"]
-        indexes = []
+        db_table = "scoring_exclusion"
 
     def __str__(self) -> str:
-        rank_str = f"#{self.rank}" if self.rank else "Unranked"
-        return f"{rank_str} - {self.team.team_name}: {self.total_score}"
+        return f"{self.team.team_name} excluded"

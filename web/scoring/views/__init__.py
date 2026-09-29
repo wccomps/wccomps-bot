@@ -1,7 +1,7 @@
 """Re-exports every view so callers can use ``from scoring import views``."""
 
 from .api import api_attack_types, api_scores, api_team_detail
-from .config import recalculate_scores, scoring_config, sync_metadata, sync_scores
+from .config import scoring_config, sync_metadata, sync_scores
 from .export import (
     email_scorecard,
     email_scorecards,
@@ -110,7 +110,6 @@ __all__ = [
     "scoring_config",
     "sync_metadata",
     "sync_scores",
-    "recalculate_scores",
     "export_index",
     "export_dataset",
     "export_all",
