@@ -126,7 +126,9 @@
                             data-field="newApp"
                             class="vTextField w-150">
                         <option value="">Select app...</option>
-                        {% for app in available_apps %}<option value="{{ app }}">{{ app }}</option>{% endfor %}
+                        <template x-for="app in availableApps" :key="app">
+                            <option :value="app" x-text="app"></option>
+                        </template>
                     </select>
                     <c-button type="submit" variant="default" ::disabled="addDisabled">
                         Add
@@ -340,6 +342,7 @@ document.addEventListener('alpine:init', () => {
         maxMembers: {{ config.max_team_members }},
         apps: [{% for app in config.controlled_applications %}'{{ app }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
         newApp: '',
+        availableApps: [],
         startDatetime: '',
         startTimezone: 'America/Los_Angeles',
         endDatetime: '',
@@ -352,6 +355,16 @@ document.addEventListener('alpine:init', () => {
         readinessDone: false,
         readinessSuccess: false,
         readinessSummary: '',
+
+        async init() {
+            try {
+                const response = await fetch('{% url "admin_competition_apps" %}');
+                this.availableApps = (await response.json()).apps || [];
+            } catch (e) {
+                this.message = 'Could not load the Authentik app list: ' + e.message;
+                this.messageType = 'error';
+            }
+        },
 
         get noApps() { return this.apps.length === 0; },
         get addDisabled() { return this.loading || !this.newApp; },
