@@ -150,7 +150,7 @@ def inject_grades_review(request: HttpRequest) -> HttpResponse:
 
         base_query = base_query.filter(Q(inject_name__icontains=search_query) | Q(inject_id__icontains=search_query))
 
-    # Calculate outliers for each inject before filtering
+    # Outliers are computed among the grades that match the current filters
     # Dynamically add is_outlier and std_devs_from_mean attrs to grade objects
     all_grades_for_outlier_calc = list(base_query)
     inject_grades_map: dict[str, list[InjectScore]] = defaultdict(list)

@@ -8,7 +8,7 @@ from .permission_constants import PERMISSION_MAP
 
 # Maps Django URL names to (nav_section, subnav_section) for navigation highlighting.
 # IMPORTANT: When adding new URL patterns, add an entry here or the nav item
-# won't highlight. Run test_nav_mapping_url_names_exist to catch stale entries.
+# won't highlight. test_all_nav_mapping_url_names_are_resolvable catches stale entries.
 NAV_MAPPING: dict[str, tuple[str, str]] = {
     # Tickets - unified ticket management
     "ticket_list": ("tickets", ""),

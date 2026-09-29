@@ -65,12 +65,12 @@ type CheckResult = tuple[str, str, dict[str, str] | None]
 
 
 def _check_discord_settings() -> CheckResult:
-    """Required Discord role/channel/guild IDs must be set in .env (they default to 0)."""
+    """Required Discord role/channel/guild IDs must be set in the environment (they default to 0)."""
     from core.utils import missing_discord_settings
 
     missing = missing_discord_settings()
     if missing:
-        return ("fail", f"Missing from .env: {', '.join(missing)}", None)
+        return ("fail", f"Missing from the environment: {', '.join(missing)}", None)
     return ("pass", "All required Discord IDs are set", None)
 
 

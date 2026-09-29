@@ -60,6 +60,15 @@ class AuditLogAdmin(admin.ModelAdmin[AuditLog]):
     ordering = ["-created_at"]
     readonly_fields = ["created_at"]
 
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        return False
+
+    def has_change_permission(self, request: HttpRequest, obj: AuditLog | None = None) -> bool:
+        return False
+
+    def has_delete_permission(self, request: HttpRequest, obj: AuditLog | None = None) -> bool:
+        return False
+
 
 # ============================================================================
 # TICKETING SYSTEM MOVED TO ticketing.admin
@@ -207,4 +216,6 @@ class UserGroupsAdmin(admin.ModelAdmin[UserGroups]):
         return False  # Created by OAuth flow
 
     def has_delete_permission(self, request: HttpRequest, obj: UserGroups | None = None) -> bool:
-        return True  # Allow deletion to force re-login
+        # Deleting strips the user's permissions; their next login makes a new account and renames
+        # the old one aside (with its Discord links), so prefer letting the group refresh update it.
+        return True

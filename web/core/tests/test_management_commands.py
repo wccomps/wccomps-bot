@@ -141,5 +141,20 @@ class TestWipeCompetitionData:
         assert LinkToken.objects.count() == 1  # Harmless
         assert DiscordTask.objects.count() == 1  # Task history
 
+    def test_clears_orange_assignments_so_readiness_passes(self, populated_database, gold_team_user):
+        from orange_team.models import OrangeAssignment, OrangeCheck, OrangeCheckIn
+
+        from core.admin_views.readiness import _check_no_orange_assignments
+
+        check = OrangeCheck.objects.create(title="Phones", description="", created_by=gold_team_user)
+        OrangeAssignment.objects.create(orange_check=check, user=gold_team_user, team=populated_database)
+        OrangeCheckIn.objects.create(user=gold_team_user)
+
+        wipe_competition_data()
+
+        assert _check_no_orange_assignments()[0] == "pass"
+        assert not OrangeCheckIn.objects.exists()
+        assert OrangeCheck.objects.filter(pk=check.pk).exists()  # rubrics are reusable setup
+
     def test_handles_empty_database(self):
         assert wipe_competition_data()["Ticket"] == 0

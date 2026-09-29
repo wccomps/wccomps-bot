@@ -98,7 +98,7 @@ class AdminTicketsCog(commands.Cog):
             await interaction.response.send_message("Invalid ticket category.", ephemeral=True)
             return
 
-        # For box-reset, use description as hostname
+        # Categories that need a hostname take it from the description
         hostname = description if "hostname" in cat_info.get("required_fields", []) else ""
 
         # Create ticket atomically to prevent race conditions
@@ -355,7 +355,7 @@ class AdminTicketsCog(commands.Cog):
             await interaction.followup.send(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        # Resolved/cancelled tickets can be reassigned too (#36); only the assignee changes.
+        # Resolved/cancelled tickets can be reassigned too (#36); with no volunteer the ticket is unclaimed.
         old_assignee = ticket.assigned_to.username if ticket.assigned_to else "Unassigned"
 
         if volunteer:

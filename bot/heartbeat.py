@@ -1,4 +1,4 @@
-"""Heartbeat files written by the bot's polling loops, read by `python -m bot.health`.
+"""Heartbeat files written by the bot's queue, dashboard and timer loops, read by `python -m bot.health`.
 
 A loop whose database connection dies keeps running and logging while doing nothing, and the
 process still looks alive. Each loop records a heartbeat after a *successful* pass; the health

@@ -10,8 +10,10 @@ WCComps Portal is a competition management platform for WRCCDC. Three components
 ## Quick Commands
 
 ```bash
-# Run tests (requires test DB: docker compose -f docker-compose.test.yml up -d --wait)
-cd web && DB_HOST=localhost DB_PORT=5433 DB_USER=test_user DB_PASSWORD=test_password DB_NAME=wccomps_test uv run pytest
+# Run tests from the repo root (requires test DB: docker compose -f docker-compose.test.yml up -d --wait).
+# From web/ pytest ignores testpaths: it skips bot/tests and collects integration_tests (live Authentik).
+PYTHONPATH="$(pwd)/web:$(pwd)" DB_HOST=localhost DB_PORT=5433 DB_USER=test_user DB_PASSWORD=test_password DB_NAME=wccomps_test uv run pytest -m "not browser"
+# Browser tests (Playwright): same env, `-m browser -n0`
 
 # Lint and type checks (CI runs these plus the tests on every PR)
 uv run ruff check . && uv run djlint web/templates --lint && DJANGO_SETTINGS_MODULE=portal.settings uv run mypy
@@ -47,7 +49,8 @@ the unparenthesized form is used intentionally throughout.
 - Always set `status="pending"` when creating tasks
 
 ### UI Components
-- All templates extend `admin/base_site.html` directly
+- Pages extend `admin/base_site.html`, directly or through a section base (`admin/base.html`,
+  `scoring/base.html`, `orange_team/base.html`, ...)
 - Use django-cotton components from `templates/cotton/`
 
 ### Streaming Progress Pattern

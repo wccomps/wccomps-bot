@@ -1,7 +1,8 @@
 """
 Security tests for file upload functionality.
 
-Files are stored in PostgreSQL as BLOBs with Content-Disposition: attachment.
+Files are stored in PostgreSQL as BLOBs and served as attachments, except images and PDFs
+requested with ?inline=1 (web/ticketing/views/attachments.py).
 Filename sanitization is NOT needed because:
 - Django's BadHeaderError blocks header injection
 - No filesystem access (files stored in DB)

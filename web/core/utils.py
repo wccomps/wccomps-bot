@@ -186,7 +186,7 @@ def bulk_approve(  # type: ignore[explicit-any]
 def role_sync_summary(stats: Mapping[str, object], *, dry_run: bool) -> str:
     """One-line role sync result, shared by the bot (ops channel) and the web Sync Roles page.
 
-    Lives here, not in bot/, because the web container doesn't ship the bot package.
+    Lives in core, not bot/, so web code doesn't import the bot package.
     """
     added = "would be added" if dry_run else "added"
     return (
@@ -197,7 +197,7 @@ def role_sync_summary(stats: Mapping[str, object], *, dry_run: bool) -> str:
     )
 
 
-# Discord IDs the app can't work without: Django setting name -> .env variable name.
+# Discord IDs the app can't work without: Django setting name -> environment variable name.
 # All default to 0; a 0 used to be silently treated as "channel/role not found" (see
 # commit 37f6f6b, after which production ran for months with no role IDs set).
 # DISCORD_LINK_CHANNEL_ID / DISCORD_WELCOME_CHANNEL_ID are optional: 0 turns those panels off.
@@ -217,7 +217,7 @@ REQUIRED_DISCORD_SETTINGS: dict[str, str] = {
 
 
 def missing_discord_settings() -> list[str]:
-    """.env variable names of required Discord IDs that are unset (0)."""
+    """Environment variable names of required Discord IDs that are unset (0)."""
     from django.conf import settings
 
     return [env for name, env in REQUIRED_DISCORD_SETTINGS.items() if not getattr(settings, name, 0)]

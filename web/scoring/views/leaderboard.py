@@ -87,7 +87,7 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
     all_scores = FinalScore.objects.filter(is_excluded=False, rank__isnull=False)
     team_count = all_scores.count()
 
-    # Category ranking: (field_name, label, team_value, higher_is_better)
+    # Category ranking: (field_name, label, team_value)
     categories: list[tuple[str, str, Decimal]] = [
         ("service_points", "services", score.service_points),
         ("inject_points", "injects", score.inject_points),

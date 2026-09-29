@@ -15,7 +15,6 @@ class UserGroups(models.Model):
     Stores Authentik groups for a user. Refreshed on every login and by the bot every 5 minutes.
 
     This is the single source of truth for user permissions.
-    Replaces allauth SocialAccount for group storage.
     """
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)

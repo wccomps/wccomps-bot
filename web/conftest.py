@@ -43,7 +43,7 @@ def create_user_with_groups(db: Any) -> Callable[..., User]:
             authentik_id=f"{username}-uid",
             groups=groups,
         )
-        # Also create DiscordLink for ticketing users
+        # Every test user gets a DiscordLink (bot-side permission checks look users up through it)
         DiscordLink.objects.create(
             user=user,
             discord_id=_discord_id_counter[0],

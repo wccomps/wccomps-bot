@@ -357,32 +357,25 @@ class TestDiscordQueueOrdering:
         processor.discord_manager = AsyncMock()
         processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
 
-        now = timezone.now()
-
-        # Create tasks in order with explicit created_at timestamps
-        # Save explicitly and use bulk_update to preserve created_at
+        # created_at is auto_now_add: bulk_create stamps each row in list order.
         from core.models import DiscordTask as TaskModel
 
         task1 = TaskModel(
             task_type="log_to_channel",
             payload={"message": "First task"},
             status="pending",
-            created_at=now,
         )
         task2 = TaskModel(
             task_type="log_to_channel",
             payload={"message": "Second task"},
             status="pending",
-            created_at=now + timedelta(seconds=1),
         )
         task3 = TaskModel(
             task_type="log_to_channel",
             payload={"message": "Third task"},
             status="pending",
-            created_at=now + timedelta(seconds=2),
         )
 
-        # Save in specific order to ensure created_at is preserved
         await TaskModel.objects.abulk_create([task1, task2, task3])
 
         # Track processing order

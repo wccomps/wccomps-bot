@@ -264,7 +264,7 @@ class RedTeamScore(models.Model):
         AttackType,
         on_delete=models.PROTECT,
         related_name="findings",
-        null=True,  # Temporarily nullable for migration
+        null=True,
         blank=True,
     )
     attack_vector = models.TextField(
@@ -413,9 +413,10 @@ class RedTeamScore(models.Model):
         return format_boxes_display(self.affected_boxes)
 
     def calculate_points(self) -> Decimal:
-        """Calculate total points based on outcome checkboxes per CCDC guidelines.
+        """Points each affected team loses, per CCDC guidelines, from the outcome checkboxes.
 
-        Point values from National Scoring Guidelines:
+        Stored positive in points_per_team; the calculator subtracts it (get_approved_red_deductions).
+        Effect on the team, from the National Scoring Guidelines:
         - Root/Admin access: -100
         - User access: -25 (only if no root access)
         - Privilege escalation: -100 (additional)

@@ -98,7 +98,7 @@ def link_initiate(request: HttpRequest) -> HttpResponse:
 
 def link_callback(request: HttpRequest) -> HttpResponse:
     """Handle OAuth callback after Authentik authentication."""
-    # Clear any django-allauth success messages (we show our own)
+    # Drop messages queued before the login round trip; this page shows its own
     list(messages.get_messages(request))
 
     user = cast(User, request.user)

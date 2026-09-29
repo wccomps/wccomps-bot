@@ -13,7 +13,7 @@ from team.models import Team
 logger = logging.getLogger(__name__)
 
 
-# -- Standalone helpers (used by multiple cogs) --
+# -- Standalone helpers (used by the /teams commands) --
 
 
 async def delete_team_infrastructure(guild: discord.Guild, team: Team, reason: str) -> list[str]:
@@ -118,26 +118,22 @@ class DiscordManager:
         self, team_number: int
     ) -> tuple[discord.Role | None, discord.CategoryChannel | None]:
         """
-        Set up Discord infrastructure for a team (idempotent with self-healing).
+        Set up a team's Discord role and category, creating whichever is missing, and record their IDs.
 
-        Creates role and category if they don't exist.
-        Repairs if partially created (e.g., role exists but category deleted).
-        Updates database with latest Discord IDs.
+        Safe to run again: an existing role or category is reused as-is (its channels and
+        permissions aren't repaired).
         """
         team = await Team.objects.filter(team_number=team_number).afirst()
         if not team:
             logger.error(f"Team {team_number} not found in database")
             return None, None
 
-        # Create or get role (self-healing: recreates if deleted)
         role = await self._create_or_get_role(team_number)
         if not role:
             return None, None
 
-        # Create or get category (self-healing: recreates if deleted)
         category = await self._create_team_category(team_number, role)
 
-        # Update database with Discord IDs (self-healing: updates after recreation)
         if category:
             team.discord_role_id = role.id
             team.discord_category_id = category.id
@@ -220,7 +216,7 @@ class DiscordManager:
         """Create code-defined team category with channels (idempotent)."""
         category_name = f"team {team_number:02d}"
 
-        # Check if category already exists (self-healing: returns existing)
+        # Reuse an existing category (either name style) rather than creating a duplicate
         existing_category = discord.utils.get(self.guild.categories, name=category_name)
         if not existing_category:
             alt_category_name = f"team {team_number}"
@@ -231,7 +227,7 @@ class DiscordManager:
             return existing_category
 
         try:
-            # Copy permission overwrites
+            # Permission overwrites for the new category
             overwrites: dict[discord.Role | discord.Member | discord.Object, discord.PermissionOverwrite] = {}
 
             # Get specific roles by name

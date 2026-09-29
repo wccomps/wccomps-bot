@@ -1,4 +1,4 @@
-"""Bot liveness check: `python -m bot.health` exits 0 if every loop's heartbeat is fresh, else 1.
+"""Bot liveness check: `python -m bot.health` exits 0 if every heartbeat in BUDGET_SECONDS is fresh, else 1.
 
 Intended as a Kubernetes exec liveness probe for the bot pod (it has no HTTP listener).
 Imports nothing from Django, so it can't hang on the database.
