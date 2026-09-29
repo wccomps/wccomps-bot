@@ -148,6 +148,21 @@ class PacketDistributionServiceTestCase(TestCase):
         with self.assertRaises(ValueError, msg="No credentials generated"):
             self.service.send_packet_email(distribution)
 
+    @patch("packets.services.EmailMultiAlternatives")
+    def test_send_packet_email_requires_event_assignment(self, mock_email_class):
+        """A team with school info but no assignment to the packet's event fails without inventing one."""
+        team = Team.objects.get(team_number=1)
+        EventTeamAssignment.objects.filter(team=team).delete()
+        registrations = TeamRegistration.objects.count()
+        distribution = PacketDistribution.objects.create(packet=self.packet, team=team)
+
+        with self.assertRaisesMessage(ValueError, "not assigned to Test Event"):
+            self.service.send_packet_email(distribution)
+
+        self.assertEqual(TeamRegistration.objects.count(), registrations)
+        self.assertFalse(EventTeamAssignment.objects.filter(team=team).exists())
+        mock_email_class.return_value.send.assert_not_called()
+
     @patch("packets.services.PacketDistributionService.send_packet_email")
     def test_distribute_packet(self, mock_send_email):
         """Test distributing packet."""

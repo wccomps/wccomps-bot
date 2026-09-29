@@ -223,7 +223,7 @@ def validate_csv_data(rows: list[CSVRowData]) -> CSVValidationResult:
     existing = SchoolInfo.objects.count()
     if existing:
         warnings.append(f"Replaces the {existing} existing school record(s).")
-    event = _active_event()
+    event = active_event()
     assignments = EventTeamAssignment.objects.filter(event=event).count() if event else 0
     if assignments:
         warnings.append(f"Replaces the {assignments} team assignment(s) for {event}.")
@@ -245,7 +245,15 @@ def validate_csv_data(rows: list[CSVRowData]) -> CSVValidationResult:
     }
 
 
-def _active_event() -> Event | None:
+def assign_school_to_event(event: Event, team: Team, school_name: str) -> None:
+    """Assign the team to the event under the school's registration, creating an approved one if it has none."""
+    from registration.models import EventTeamAssignment, TeamRegistration
+
+    registration, _ = TeamRegistration.objects.get_or_create(school_name=school_name, defaults={"status": "approved"})
+    EventTeamAssignment.objects.create(event=event, team=team, registration=registration)
+
+
+def active_event() -> Event | None:
     from registration.models import Event, Season
 
     season = Season.objects.filter(is_active=True).first()
@@ -258,12 +266,12 @@ def apply_csv_import(
     updated_by: str,
 ) -> dict[str, int]:
     """Replace all school info with the rows, activate their teams, and reassign the active event's teams."""
-    from registration.models import EventTeamAssignment, TeamRegistration
+    from registration.models import EventTeamAssignment
 
     created = 0
     assigned = 0
 
-    event = _active_event()
+    event = active_event()
     SchoolInfo.objects.all().delete()
     if event:
         EventTeamAssignment.objects.filter(event=event).delete()
@@ -284,11 +292,7 @@ def apply_csv_import(
         created += 1
 
         if event:
-            registration, _ = TeamRegistration.objects.get_or_create(
-                school_name=row["school_name"],
-                defaults={"status": "approved"},
-            )
-            EventTeamAssignment.objects.create(event=event, team=team, registration=registration)
+            assign_school_to_event(event, team, row["school_name"])
             assigned += 1
 
     return {"created": created, "assigned": assigned, "activated": activated}
