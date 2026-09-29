@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from bot.competition_timer import CompetitionTimer
 from core.models import CompetitionConfig
+from core.services.competition import CompetitionRunResult
 
 
 @pytest.mark.asyncio
@@ -98,22 +99,15 @@ class TestCompetitionTimer:
             },
         )
 
-        with patch("bot.competition_timer.start_competition", new_callable=AsyncMock) as mock_start:
-            mock_start.return_value = {
-                "success": True,
-                "apps_enabled": ["app1"],
-                "apps_failed": [],
-                "accounts_enabled": 50,
-                "accounts_failed": 0,
-                "controlled_apps": ["app1"],
-            }
+        with patch("bot.competition_timer.run_competition", new_callable=AsyncMock) as mock_start:
+            mock_start.return_value = CompetitionRunResult(enable=True, controlled_apps=["app1"], apps_ok=["app1"])
             with (
                 patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock),
                 patch("bot.competition_timer.update_status_channel", new_callable=AsyncMock),
             ):
                 await timer._check_competition_times()
 
-            mock_start.assert_called_once()
+            mock_start.assert_called_once_with(True, actor="timer")
 
     async def test_check_competition_times_exception_handling(self) -> None:
         """Test _check_competition_times handles exceptions."""
@@ -131,7 +125,7 @@ class TestCompetitionTimer:
             },
         )
 
-        with patch("bot.competition_timer.start_competition", new_callable=AsyncMock) as mock_start:
+        with patch("bot.competition_timer.run_competition", new_callable=AsyncMock) as mock_start:
             mock_start.side_effect = Exception("Start error")
 
             with patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock):
@@ -157,10 +151,10 @@ async def test_repeated_auto_start_failure_is_posted_once() -> None:
         pk=1,
         defaults={"competition_start_time": timezone.now() - timedelta(minutes=1), "applications_enabled": False},
     )
-    failure = {"success": False, "error": "No controlled applications configured"}
+    failure = CompetitionRunResult(enable=True, error="No controlled applications configured")
 
     with (
-        patch("bot.competition_timer.start_competition", new=AsyncMock(return_value=failure)) as start,
+        patch("bot.competition_timer.run_competition", new=AsyncMock(return_value=failure)) as start,
         patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock) as ops,
         patch("bot.competition_timer.update_status_channel", new_callable=AsyncMock),
     ):
