@@ -82,6 +82,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middleware.SubdomainRedirectMiddleware",
     "core.middleware.AuthentikRequiredMiddleware",
+    "core.middleware.UserTimezoneMiddleware",
     "core.middleware.AccessLoggingMiddleware",
 ]
 

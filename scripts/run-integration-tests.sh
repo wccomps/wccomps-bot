@@ -102,25 +102,26 @@ wait_for_database() {
 }
 
 load_env_safely() {
-    # Load .env.test using Python's dotenv to handle special characters correctly
-    # Pass ENV_FILE as argument since it may not be exported
+    # Export the settings the server, migrations and tests need from .env.test. dotenv parses
+    # the file and shlex.quote makes any value (special characters included) safe to eval.
     local env_file="${1:-$ENV_FILE}"
     eval "$(uv run python -c "
-import sys
-from dotenv import dotenv_values
 import shlex
+from dotenv import dotenv_values
 
 config = dotenv_values('$env_file')
-# Only export safe shell variables (those without problematic special chars)
-# QUOTIENT_PASSWORD is deliberately excluded - Django settings.py loads it properly
-safe_vars = ['TEST_DB_HOST', 'TEST_DB_PORT', 'TEST_DB_NAME', 'TEST_DB_USER', 'TEST_DB_PASSWORD',
-             'TEST_AUTHENTIK_USERNAME', 'TEST_AUTHENTIK_PASSWORD', 'TEST_BASE_URL',
-             'AUTHENTIK_URL', 'AUTHENTIK_OIDC_URL', 'AUTHENTIK_CLIENT_ID', 'AUTHENTIK_SECRET',
-             'TICKETING_ENABLED', 'DB_HOST', 'DB_PORT', 'DB_NAME',
-             'DB_USER', 'DB_PASSWORD', 'TEST_TEAM_ID', 'TEST_TOTP_SECRET', 'QUOTIENT_USERNAME']
-for key in safe_vars:
-    if key in config and config[key]:
+keys = ['TEST_DB_HOST', 'TEST_DB_PORT', 'TEST_DB_NAME', 'TEST_DB_USER', 'TEST_DB_PASSWORD',
+        'TEST_AUTHENTIK_USERNAME', 'TEST_AUTHENTIK_PASSWORD', 'TEST_BASE_URL',
+        'AUTHENTIK_URL', 'AUTHENTIK_OIDC_URL', 'AUTHENTIK_CLIENT_ID', 'AUTHENTIK_SECRET',
+        'TICKETING_ENABLED', 'TEST_TEAM_ID', 'TEST_TOTP_SECRET',
+        'QUOTIENT_API_URL', 'QUOTIENT_USERNAME', 'QUOTIENT_PASSWORD']
+for key in keys:
+    if config.get(key):
         print(f'export {key}={shlex.quote(config[key])}')
+# The server and migrations use the same database as the tests (web/integration_tests/conftest.py)
+for name, default in [('HOST', 'localhost'), ('PORT', '5433'), ('NAME', 'wccomps_test'),
+                      ('USER', 'test_user'), ('PASSWORD', 'test_password')]:
+    print(f'export DB_{name}={shlex.quote(config.get(f\"TEST_DB_{name}\") or default)}')
 ")"
 }
 

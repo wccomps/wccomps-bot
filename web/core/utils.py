@@ -19,8 +19,10 @@ def client_ip(request: HttpRequest) -> str:
     """The real client address: Cloudflare's CF-Connecting-IP, else the connecting peer.
 
     Behind the Cloudflare tunnel and the gateway, REMOTE_ADDR is always the proxy. Cloudflare
-    overwrites CF-Connecting-IP on every request, so it can't be spoofed from the internet.
-    A missing or malformed header falls back to REMOTE_ADDR.
+    overwrites CF-Connecting-IP on every request, so the header is trustworthy only when every
+    request comes through Cloudflare (production: the web Service is ClusterIP, reached only via
+    the tunnel). Served directly, clients can set it. A missing or malformed header falls back
+    to REMOTE_ADDR.
     """
     header = request.META.get("HTTP_CF_CONNECTING_IP", "").strip()
     try:

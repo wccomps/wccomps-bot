@@ -86,6 +86,21 @@ class BulkOrangeApprovalTests(TestCase):
         self.assertEqual(self.adj1.approved_by, self.gold_user)
         self.assertEqual(self.adj2.approved_by, self.gold_user)
 
+    def test_bulk_approve_leaves_already_approved_alone(self) -> None:
+        """Re-approving keeps the original approver and time."""
+        from django.utils import timezone
+
+        approved_at = timezone.now() - timezone.timedelta(hours=1)
+        OrangeTeamScore.objects.filter(pk=self.adj1.pk).update(
+            is_approved=True, approved_by=self.orange_user, approved_at=approved_at
+        )
+        self.client.login(username="gold", password="test123")
+
+        self.client.post(reverse("scoring:bulk_approve_orange_adjustments"), {"adjustment_ids": [self.adj1.id]})
+
+        self.adj1.refresh_from_db()
+        self.assertEqual((self.adj1.approved_by, self.adj1.approved_at), (self.orange_user, approved_at))
+
     def test_bulk_approve_empty_selection(self) -> None:
         """Bulk approve with empty selection returns gracefully."""
         self.client.login(username="gold", password="test123")

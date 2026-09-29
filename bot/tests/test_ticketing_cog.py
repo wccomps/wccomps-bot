@@ -906,8 +906,9 @@ async def test_hostname_autocomplete_calls_quotient_off_the_event_loop() -> None
     client.get_infrastructure.side_effect = get_infrastructure
     client.get_service_choices.return_value = []
 
+    # Patch the globals the code resolves through: under xdist a module-path patch can miss them.
     with (
-        patch("bot.cogs.ticketing.get_quotient_client", return_value=client),
+        patch.dict(TicketingCog._load_infrastructure_data.__globals__, {"get_quotient_client": lambda: client}),
         patch.object(TicketingCog.archive_threads_task, "start"),
     ):
         cog = TicketingCog(MagicMock())

@@ -24,8 +24,7 @@ def discover_cogs() -> list[str]:
     discovered = []
 
     for _, name, is_pkg in pkgutil.iter_modules([str(cogs_path)]):
-        # Skip packages and disabled cogs
-        if not is_pkg and name not in ["ticketing"]:  # ticketing is disabled
+        if not is_pkg:
             discovered.append(f"bot.cogs.{name}")
 
     return sorted(discovered)

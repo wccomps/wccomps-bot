@@ -580,12 +580,34 @@ class TestOAuthCallback:
         assert response.status_code == 302
         assert response.url == next_url
 
+    def test_callback_rejects_state_from_another_browser(self, oauth_state_session):
+        """Login CSRF: a valid state (and code) replayed in a different browser logs nobody in."""
+        _client, state = oauth_state_session
+        victim = Client()
+
+        response = self._login(victim, state, {"sub": "attacker-sub", "preferred_username": "attacker", "groups": []})
+
+        assert response.status_code == 200
+        assert b"Session Expired" in response.content
+        assert "_auth_user_id" not in victim.session
+        assert not User.objects.filter(username="attacker").exists()
+
+    def test_state_is_single_use(self, oauth_state_session):
+        client, state = oauth_state_session
+        userinfo = {"sub": "once-sub", "preferred_username": "once", "groups": []}
+
+        assert self._login(client, state, userinfo).status_code == 302
+        assert b"Session Expired" in self._login(client, state, userinfo).content
+
     def test_callback_rejects_external_next_url(self):
         """Callback should reject next URLs pointing to external hosts."""
 
         from django.core import signing
 
         client = Client()
+        session = client.session
+        session["oauth_nonce"] = "test-nonce"
+        session.save()
 
         # Forge a signed state with an external next URL
         state = signing.dumps({"n": "test-nonce", "next": "https://evil.com/steal"})

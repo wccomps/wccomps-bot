@@ -313,7 +313,7 @@ class IncidentReportForm(forms.ModelForm[IncidentReport]):
         }
         widgets = {
             "attack_description": forms.Textarea(attrs={"rows": 3}),
-            "attack_detected_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "attack_detected_at": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
             "destination_ip": forms.TextInput(attrs={"readonly": "readonly"}),
         }
 

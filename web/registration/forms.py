@@ -235,7 +235,7 @@ class EventForm(forms.ModelForm[Event]):
             "date": forms.DateInput(attrs={"type": "date"}),
             "start_time": forms.TimeInput(attrs={"type": "time"}),
             "end_time": forms.TimeInput(attrs={"type": "time"}),
-            "registration_deadline": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "registration_deadline": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
         }
 
 

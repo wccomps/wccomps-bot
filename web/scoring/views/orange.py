@@ -122,7 +122,7 @@ def bulk_approve_orange_adjustments(request: HttpRequest) -> HttpResponse:
     return bulk_approve(
         request,
         field_name="adjustment_ids",
-        queryset=OrangeTeamScore.objects.all(),
+        queryset=OrangeTeamScore.objects.filter(is_approved=False),
         redirect_url="scoring:review_orange",
         item_label="check",
         on_item=approve,
