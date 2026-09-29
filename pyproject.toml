@@ -66,7 +66,7 @@ mypy_path = "web"
 # mypy 2 defaults to a SQLite cache, which fails with "disk I/O error" on virtiofs (no WAL shared memory)
 sqlite_cache = false
 files = ["bot", "web/core", "web/team", "web/ticketing", "web/quotient", "web/portal", "web/scoring", "web/orange_team", "web/packets", "web/registration"]
-exclude = "(/tests/|/test_|tests\\.py|integration_tests/|conftest\\.py)"
+exclude = "(/tests/|/test_|tests\\.py|conftest\\.py)"
 
 # Strict type checking
 warn_unused_ignores = true
@@ -142,10 +142,7 @@ python_functions = ["test_*"]
 testpaths = ["bot/tests", "web/core/tests", "web/scoring/tests", "web/team/tests", "web/packets/tests", "web/registration/tests", "web/orange_team/tests", "web/ticketing/tests", "web/browser_tests"]
 addopts = ["--tb=short", "-n", "6", "--dist", "worksteal"]
 markers = [
-    "critical: Critical tests that must pass on every deployment",
-    "integration: Integration tests with real database and APIs",
     "browser: Browser-based UI tests using Playwright",
-    "load: Load and stress tests for concurrency and performance",
 ]
 
 [tool.djlint]

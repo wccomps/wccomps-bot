@@ -9,6 +9,5 @@ __pycache__
 *.md
 .env*
 web/staticfiles
-web/integration_tests
 logs/
 .venv
