@@ -1,5 +1,6 @@
 """Utility functions for the bot."""
 
+import io
 import logging
 from typing import Final, Literal
 
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 TEAM_CHAT_CHANNEL_KEYWORD = "chat"
 THREAD_AUTO_ARCHIVE_MINUTES: Final[Literal[10080]] = 10080  # 7 days
 DISCORD_EMBED_FIELD_CHAR_LIMIT = 1024
+DISCORD_MESSAGE_CHAR_LIMIT = 2000
 
 
 async def log_to_ops_channel(bot: discord.Client, message: str, embed: discord.Embed | None = None) -> None:
@@ -31,6 +33,8 @@ async def log_to_ops_channel(bot: discord.Client, message: str, embed: discord.E
             logger.error(f"Operations channel {channel_id} not found")
             return
 
+        if len(message) > DISCORD_MESSAGE_CHAR_LIMIT:
+            message = message[: DISCORD_MESSAGE_CHAR_LIMIT - 1] + "…"
         # Type guard: only TextChannel and Thread have send()
         if isinstance(channel, (discord.TextChannel, discord.Thread)):
             if embed:
@@ -154,3 +158,23 @@ class CancelButton(discord.ui.Button["ConfirmView"]):
             self.view.confirmed = False
             self.view.stop()
         await interaction.response.defer()
+
+
+async def send_lines(
+    interaction: discord.Interaction, header: str, lines: list[str], *, title: str, filename: str
+) -> None:
+    """Send header plus as many lines as fit in one message; attach the full list if they don't all fit."""
+    text = f"{header}\n\n**{title}:**\n" if lines else header
+    shown = 0
+    for line in lines:
+        # Leave room for the "... and N more" line.
+        if len(text) + len(line) + 1 > DISCORD_MESSAGE_CHAR_LIMIT - 60:
+            break
+        text += line + "\n"
+        shown += 1
+    if shown == len(lines):
+        await interaction.followup.send(text, ephemeral=True)
+        return
+    text += f"... and {len(lines) - shown} more (full list attached)"
+    full = discord.File(io.BytesIO("\n".join(lines).encode()), filename=filename)
+    await interaction.followup.send(text, file=full, ephemeral=True)
