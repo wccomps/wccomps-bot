@@ -130,7 +130,7 @@ run_migrations() {
     (
         cd "$PROJECT_ROOT"
         load_env_safely "$ENV_FILE"
-        export DJANGO_SETTINGS_MODULE=portal.settings
+        export DJANGO_SETTINGS_MODULE=portal.test_settings
         export PYTHONPATH="$PROJECT_ROOT/web:$PROJECT_ROOT"
         uv run python web/manage.py migrate --run-syncdb 2>&1 | head -20
     )
@@ -152,7 +152,7 @@ start_server() {
     (
         cd "$PROJECT_ROOT"
         load_env_safely "$ENV_FILE"
-        export DJANGO_SETTINGS_MODULE=portal.settings
+        export DJANGO_SETTINGS_MODULE=portal.test_settings
         export PYTHONPATH="$PROJECT_ROOT/web:$PROJECT_ROOT"
         uv run python web/manage.py runserver "127.0.0.1:$SERVER_PORT" > "$SERVER_LOG_FILE" 2>&1 &
         echo $! > "$SERVER_PID_FILE"
@@ -238,7 +238,7 @@ run_tests() {
     (
         cd "$PROJECT_ROOT"
         load_env_safely "$ENV_FILE"
-        export DJANGO_SETTINGS_MODULE=portal.settings
+        export DJANGO_SETTINGS_MODULE=portal.test_settings
         export PYTHONPATH="$PROJECT_ROOT/web:$PROJECT_ROOT"
         export TEST_BASE_URL="http://127.0.0.1:$SERVER_PORT"
 

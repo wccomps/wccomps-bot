@@ -1,6 +1,5 @@
 import os
 import secrets
-import sys
 from pathlib import Path
 
 import django_stubs_ext
@@ -150,31 +149,14 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_URL = "/media/"
 MEDIA_ROOT = str(BASE_DIR / "media")
 
-# Tests use plain static storage, which needs no collectstatic manifest
-if "test" in sys.argv or "pytest" in sys.modules:
-    PASSWORD_HASHERS = [
-        "django.contrib.auth.hashers.MD5PasswordHasher",
-    ]
-    # Close DB connections after each request to prevent exhaustion
-    # under parallel xdist workers with threaded live servers
-    DATABASES["default"]["CONN_MAX_AGE"] = 0
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-        },
-    }
-else:
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-        },
-    }
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Trust X-Forwarded-Proto header from the reverse proxy (Cloudflare tunnel, then the gateway)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

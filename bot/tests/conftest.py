@@ -284,7 +284,7 @@ def setup_django() -> None:
 
     import django
 
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "portal.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "portal.test_settings")
     django.setup()
 
 
