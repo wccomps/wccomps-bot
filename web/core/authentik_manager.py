@@ -166,23 +166,6 @@ class AuthentikManager:
             logger.error(f"Unexpected error getting application '{slug}': {e}", exc_info=True)
             return None
 
-    def list_blueteam_applications(self) -> list[str]:
-        """List only application slugs that have a BlueTeam group binding."""
-        all_slugs = self.list_applications()
-        bt_slugs: list[str] = []
-        for slug in all_slugs:
-            app = self.get_application_by_slug(slug)
-            if not app:
-                continue
-            binding, _ = self.get_blueteam_binding(app["pk"])
-            if binding:
-                bt_slugs.append(slug)
-                logger.info(f"App '{slug}' has BlueTeam binding")
-            else:
-                logger.debug(f"App '{slug}' has no BlueTeam binding, skipping")
-        logger.info(f"Found {len(bt_slugs)} apps with BlueTeam bindings: {bt_slugs}")
-        return bt_slugs
-
     def get_blueteam_binding(self, app_pk: str) -> tuple[AuthentikBinding | None, str | None]:
         """Find the application's BlueTeam group binding, returning (binding, error_message)."""
         url = f"{self.base_url}/api/v3/policies/bindings/"

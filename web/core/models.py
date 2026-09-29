@@ -362,12 +362,6 @@ class CompetitionConfig(models.Model):
             return False
         return timezone.now() >= self.competition_end_time and self.applications_enabled
 
-    def ensure_controlled_applications(self) -> None:
-        """Fetch and cache controlled application slugs; delegates so API calls stay out of the model layer."""
-        from core.services.competition import ensure_controlled_applications
-
-        ensure_controlled_applications(self)
-
     @classmethod
     def get_config(cls) -> CompetitionConfig:
         """Get or create the singleton config instance (pk=1). Never create additional rows."""

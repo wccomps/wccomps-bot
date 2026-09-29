@@ -114,9 +114,6 @@ def _action_set_start_time(request: HttpRequest, config: CompetitionConfig, auth
     try:
         start_time = parse_datetime_to_utc(datetime_str, tz_name)
 
-        if not config.controlled_applications:
-            config.ensure_controlled_applications()
-
         config.competition_start_time = start_time
         config.save()
 
@@ -143,9 +140,6 @@ def _action_set_end_time(request: HttpRequest, config: CompetitionConfig, authen
 
     try:
         end_time = parse_datetime_to_utc(datetime_str, tz_name)
-
-        if not config.controlled_applications:
-            config.ensure_controlled_applications()
 
         config.competition_end_time = end_time
         config.save()
@@ -189,9 +183,6 @@ def _action_set_schedule(request: HttpRequest, config: CompetitionConfig, authen
             end_time = parse_datetime_to_utc(end_dt, end_tz)
             config.competition_end_time = end_time
             details["end_time"] = end_time.isoformat()
-
-        if not config.controlled_applications:
-            config.ensure_controlled_applications()
 
         config.save()
 

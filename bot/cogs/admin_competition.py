@@ -212,10 +212,6 @@ class AdminCompetitionCog(commands.Cog):
 
         config = await sync_to_async(CompetitionConfig.get_config)()
 
-        # Populate controlled applications from Authentik if not already set
-        if not config.controlled_applications:
-            await sync_to_async(config.ensure_controlled_applications)()
-
         config.competition_start_time = start_time
         await config.asave(update_fields=["competition_start_time"])
 
@@ -286,10 +282,6 @@ class AdminCompetitionCog(commands.Cog):
             return
 
         config = await sync_to_async(CompetitionConfig.get_config)()
-
-        # Populate controlled applications from Authentik if not already set
-        if not config.controlled_applications:
-            await sync_to_async(config.ensure_controlled_applications)()
 
         config.competition_end_time = end_time
         await config.asave(update_fields=["competition_end_time"])

@@ -10,19 +10,6 @@ from team.models import MAX_TEAMS, team_username
 logger = logging.getLogger(__name__)
 
 
-def ensure_controlled_applications(config: CompetitionConfig) -> None:
-    """Fetch and cache Authentik application slugs if not already populated."""
-    if config.controlled_applications:
-        return
-    from core.authentik_manager import AuthentikManager
-
-    manager = AuthentikManager()
-    slugs = manager.list_blueteam_applications()
-    if slugs:
-        config.controlled_applications = slugs
-        config.save(update_fields=["controlled_applications"])
-
-
 @dataclass(frozen=True)
 class CompetitionStep:
     """One unit of progress while starting or stopping the competition."""

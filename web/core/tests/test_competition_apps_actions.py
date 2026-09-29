@@ -133,3 +133,21 @@ def test_app_list_denied_without_admin_or_gold(blue_team_user):
     client.force_login(blue_team_user)
     response = client.get(reverse("admin_competition_apps"))
     assert response.status_code == 403
+
+
+def test_setting_the_schedule_leaves_an_emptied_app_list_empty(admin_client, config):
+    """Removing every app is a choice: setting times must not refill the list from Authentik."""
+    from unittest.mock import patch
+
+    _post(admin_client, "remove_app", app_slug="scoring")
+    _post(admin_client, "remove_app", app_slug="netbird")
+
+    with patch("core.authentik_manager.AuthentikManager") as manager:
+        for action in ("set_start_time", "set_end_time"):
+            _post(admin_client, action, datetime="2026-10-03T09:00", timezone="America/Los_Angeles")
+        _post(admin_client, "set_schedule", start_datetime="2026-10-03T09:00", end_datetime="2026-10-03T17:00")
+
+    manager.assert_not_called()
+    config.refresh_from_db()
+    assert config.controlled_applications == []
+    assert config.competition_end_time is not None
