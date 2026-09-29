@@ -148,6 +148,17 @@ def sync_service_scores(user: User | None = None) -> dict[str, int]:
     }
 
 
+def get_box_metadata() -> dict[str, dict[str, object]]:
+    """Each box's IP and service names from cached metadata, for the forms' IP auto-fill and service filter."""
+    metadata = QuotientMetadataCache.objects.first()
+    if not metadata:
+        return {}
+    return {
+        box["name"]: {"ip": box["ip"], "services": [svc["name"] for svc in box.get("services", [])]}
+        for box in metadata.boxes
+    }
+
+
 def get_box_choices() -> list[tuple[str, str]]:
     """Box dropdown choices from cached metadata; labels lead with the last IP octet to tell boxes apart."""
     metadata = QuotientMetadataCache.objects.first()

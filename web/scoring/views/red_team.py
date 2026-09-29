@@ -14,11 +14,10 @@ from team.models import Team
 from ..forms import RedTeamScoreForm
 from ..models import (
     AttackType,
-    QuotientMetadataCache,
     RedTeamScore,
     RedTeamScreenshot,
 )
-from ..quotient_sync import get_cached_team_count
+from ..quotient_sync import get_box_metadata, get_cached_team_count
 from ..screenshots import read_screenshot, screenshot_response
 
 
@@ -308,19 +307,9 @@ def submit_red_score(request: HttpRequest) -> HttpResponse:
     else:
         form = RedTeamScoreForm(team_count=team_count, user=user)
 
-    # Get box metadata from cache for auto-populating IP and services
-    box_metadata = {}
-    metadata = QuotientMetadataCache.objects.first()
-    if metadata:
-        for box in metadata.boxes:
-            box_metadata[box["name"]] = {
-                "ip": box["ip"],
-                "services": [svc["name"] for svc in box.get("services", [])],
-            }
-
     context = {
         "form": form,
-        "box_metadata": box_metadata,
+        "box_metadata": get_box_metadata(),
         "user_pools": user_pools,
     }
     return render(request, "scoring/submit_red_finding.html", context)

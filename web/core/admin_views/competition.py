@@ -383,9 +383,6 @@ def admin_competition(request: HttpRequest) -> HttpResponse:
     total_teams = Team.objects.count()
     linked_users = DiscordLink.objects.filter(is_active=True, team__isnull=False).count()
 
-    auth_manager = AuthentikManager()
-    available_apps = auth_manager.list_applications()
-
     quotient_metadata = QuotientMetadataCache.objects.first()
 
     context = {
@@ -393,7 +390,6 @@ def admin_competition(request: HttpRequest) -> HttpResponse:
         "active_teams": active_teams,
         "total_teams": total_teams,
         "linked_users": linked_users,
-        "available_apps": available_apps,
         "timezone_choices": TIMEZONE_CHOICES,
         "quotient_metadata": quotient_metadata,
         "show_ops_nav": True,
@@ -401,6 +397,14 @@ def admin_competition(request: HttpRequest) -> HttpResponse:
     }
 
     return render(request, "admin/competition.html", context)
+
+
+def admin_competition_apps(request: HttpRequest) -> JsonResponse:
+    """Authentik's app slugs for the add-app picker, fetched after the page renders (the call takes ~1s)."""
+    user = cast(User, request.user)
+    if not _has_admin_or_gold_access(user):
+        return JsonResponse({"error": "Access denied"}, status=403)
+    return JsonResponse({"apps": AuthentikManager().list_applications()})
 
 
 def admin_competition_action(request: HttpRequest) -> HttpResponseBase:

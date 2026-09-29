@@ -16,6 +16,7 @@ from .categories import (
 from .competition import (
     admin_competition,
     admin_competition_action,
+    admin_competition_apps,
     admin_competition_danger,
 )
 from .teams import (
@@ -34,6 +35,7 @@ __all__ = [
     "admin_category_edit",
     "admin_competition",
     "admin_competition_action",
+    "admin_competition_apps",
     "admin_competition_danger",
     "admin_sync_roles",
     "admin_sync_roles_action",
