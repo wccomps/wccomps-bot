@@ -56,9 +56,7 @@
             <c-fieldset heading="Rubric Criteria">
                 <template x-for="(criterion, index) in criteria" :key="criterion.n">
                     <div class="form-row d-flex items-end gap-10">
-                        <input type="hidden"
-                               :name="criterion.idName"
-                               :value="criterion.id">
+                        <input type="hidden" :name="criterion.idName" :value="criterion.id">
                         <div class="flex-grow-1">
                             <label :for="criterion.labelName" class="required">Label:</label>
                             <input type="text"
