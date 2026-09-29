@@ -15,9 +15,9 @@ from ticketing.models import TicketCategory
 
 
 @pytest.fixture(autouse=True)
-def refresh_groups_now() -> Iterator[AsyncMock]:
-    """Competition actions refresh groups from Authentik; keep tests off the network."""
-    with patch("bot.competition_actions.refresh_groups_now", new_callable=AsyncMock) as mock:
+def refresh_user_groups() -> Iterator[MagicMock]:
+    """Starting or stopping the competition refreshes groups from Authentik; keep tests off the network."""
+    with patch("core.services.user_groups.refresh_user_groups") as mock:
         yield mock
 
 

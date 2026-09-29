@@ -6,6 +6,7 @@ import logging
 import re
 
 import discord
+from asgiref.sync import sync_to_async
 from discord import app_commands
 from discord.ext import commands
 from django.conf import settings
@@ -78,8 +79,6 @@ class AdminCompetitionCog(commands.Cog):
             await interaction.followup.send("Resetting all 50 team passwords...", ephemeral=True)
         else:
             await interaction.response.defer(ephemeral=True)
-
-        from asgiref.sync import sync_to_async
 
         # Parse team numbers if provided
         if team_numbers:
@@ -170,10 +169,10 @@ class AdminCompetitionCog(commands.Cog):
             await interaction.response.send_message("Maximum members must be between 1 and 20.", ephemeral=True)
             return
 
-        config = await CompetitionConfig.objects.afirst() or await CompetitionConfig.objects.acreate()
+        config = await sync_to_async(CompetitionConfig.get_config)()
         old_max = config.max_team_members
         config.max_team_members = max_members
-        await config.asave()
+        await config.asave(update_fields=["max_team_members"])
 
         # Update all existing team records to match the new global max
         await Team.objects.aupdate(max_members=max_members)
@@ -242,17 +241,14 @@ class AdminCompetitionCog(commands.Cog):
             return
 
         # Get or create config
-        config = await CompetitionConfig.objects.afirst() or await CompetitionConfig.objects.acreate()
+        config = await sync_to_async(CompetitionConfig.get_config)()
 
         # Populate controlled applications from Authentik if not already set
         if not config.controlled_applications:
-            from asgiref.sync import sync_to_async
-
             await sync_to_async(config.ensure_controlled_applications)()
 
         config.competition_start_time = start_time
-        config.applications_enabled = False  # Reset to disabled
-        await config.asave()
+        await config.asave(update_fields=["competition_start_time"])
 
         # Create audit log
         await AuditLog.objects.acreate(
@@ -323,16 +319,14 @@ class AdminCompetitionCog(commands.Cog):
             return
 
         # Get or create config
-        config = await CompetitionConfig.objects.afirst() or await CompetitionConfig.objects.acreate()
+        config = await sync_to_async(CompetitionConfig.get_config)()
 
         # Populate controlled applications from Authentik if not already set
         if not config.controlled_applications:
-            from asgiref.sync import sync_to_async
-
             await sync_to_async(config.ensure_controlled_applications)()
 
         config.competition_end_time = end_time
-        await config.asave()
+        await config.asave(update_fields=["competition_end_time"])
 
         # Create audit log
         await AuditLog.objects.acreate(
@@ -369,54 +363,7 @@ class AdminCompetitionCog(commands.Cog):
     @app_commands.check(check_admin)
     async def admin_start_competition(self, interaction: discord.Interaction) -> None:
         """Start the competition by enabling applications and Authentik accounts."""
-        from bot.competition_actions import start_competition, update_status_channel
-
-        await interaction.response.defer(ephemeral=True)
-
-        result = await start_competition()
-
-        if not result["success"]:
-            await interaction.followup.send(f"Error: {result.get('error', 'Unknown error')}", ephemeral=True)
-            return
-
-        # Create audit log
-        await AuditLog.objects.acreate(
-            action="competition_started",
-            admin_user=str(interaction.user),
-            target_entity="competition_config",
-            target_id=0,
-            details={
-                "apps_enabled": len(result["apps_enabled"]),
-                "apps_failed": len(result["apps_failed"]),
-                "accounts_enabled": result["accounts_enabled"],
-                "accounts_failed": result["accounts_failed"],
-                "quotient_synced": result["quotient_synced"],
-            },
-        )
-
-        # Build result message
-        result_msg = "**Competition Started!**\n\n"
-        result_msg += f"Applications enabled: {len(result['apps_enabled'])}/{len(result['controlled_apps'])}\n"
-        if result["apps_enabled"]:
-            result_msg += f"✓ Enabled: {', '.join(result['apps_enabled'])}\n"
-        if result["apps_failed"]:
-            result_msg += "\n✗ **Failed Applications:**\n"
-            for app, error in result["apps_failed"]:
-                result_msg += f"  • {app}: {error}\n"
-
-        result_msg += f"\nAccounts enabled: {result['accounts_enabled']}"
-        if result["accounts_failed"] > 0:
-            result_msg += f" ({result['accounts_failed']} failed)"
-
-        result_msg += f"\nQuotient metadata: {'✓ synced' if result['quotient_synced'] else '✗ sync failed'}"
-
-        # Log to ops channel
-        await log_to_ops_channel(self.bot, f"Competition Started by {interaction.user.mention}\n{result_msg}")
-
-        # Update status channel
-        await update_status_channel(self.bot)
-
-        await interaction.followup.send(result_msg, ephemeral=True)
+        await self._run_competition(interaction, enable=True)
 
     @competition_group.command(
         name="stop-competition",
@@ -425,51 +372,21 @@ class AdminCompetitionCog(commands.Cog):
     @app_commands.check(check_admin)
     async def admin_stop_competition(self, interaction: discord.Interaction) -> None:
         """Stop the competition by disabling applications and Authentik accounts."""
-        from bot.competition_actions import stop_competition, update_status_channel
+        await self._run_competition(interaction, enable=False)
+
+    async def _run_competition(self, interaction: discord.Interaction, enable: bool) -> None:
+        from bot.competition_actions import run_competition, update_status_channel
 
         await interaction.response.defer(ephemeral=True)
-
-        result = await stop_competition()
-
-        if not result["success"]:
-            await interaction.followup.send(f"Error: {result.get('error', 'Unknown error')}", ephemeral=True)
+        result = await run_competition(enable, actor=f"discord:{interaction.user}")
+        if not result.success:
+            await interaction.followup.send(f"Error: {result.error}", ephemeral=True)
             return
 
-        # Create audit log
-        await AuditLog.objects.acreate(
-            action="competition_stopped",
-            admin_user=str(interaction.user),
-            target_entity="competition_config",
-            target_id=0,
-            details={
-                "apps_disabled": len(result["apps_disabled"]),
-                "apps_failed": len(result["apps_failed"]),
-                "accounts_disabled": result["accounts_disabled"],
-                "accounts_failed": result["accounts_failed"],
-            },
-        )
-
-        # Build result message
-        result_msg = "**Competition Stopped!**\n\n"
-        result_msg += f"Applications disabled: {len(result['apps_disabled'])}/{len(result['controlled_apps'])}\n"
-        if result["apps_disabled"]:
-            result_msg += f"✓ Disabled: {', '.join(result['apps_disabled'])}\n"
-        if result["apps_failed"]:
-            result_msg += "\n✗ **Failed Applications:**\n"
-            for app, error in result["apps_failed"]:
-                result_msg += f"  • {app}: {error}\n"
-
-        result_msg += f"\nAccounts disabled: {result['accounts_disabled']}"
-        if result["accounts_failed"] > 0:
-            result_msg += f" ({result['accounts_failed']} failed)"
-
-        # Log to ops channel
-        await log_to_ops_channel(self.bot, f"Competition Stopped by {interaction.user.mention}\n{result_msg}")
-
-        # Update status channel
+        verb = "Started" if enable else "Stopped"
+        await log_to_ops_channel(self.bot, f"**Competition {verb}** by {interaction.user.mention}\n{result.summary()}")
         await update_status_channel(self.bot)
-
-        await interaction.followup.send(result_msg, ephemeral=True)
+        await interaction.followup.send(f"**Competition {verb}!**\n\n{result.summary()}", ephemeral=True)
 
     @competition_group.command(
         name="cleanup-competition",
@@ -481,8 +398,8 @@ class AdminCompetitionCog(commands.Cog):
         from bot.competition_actions import update_status_channel
 
         # Check if competition is stopped
-        config = await CompetitionConfig.objects.afirst()
-        if config and config.applications_enabled:
+        config = await sync_to_async(CompetitionConfig.get_config)()
+        if config.applications_enabled:
             await interaction.response.send_message(
                 "Competition must be stopped before cleanup. Use `/competition stop-competition` first.",
                 ephemeral=True,
@@ -718,7 +635,7 @@ class AdminCompetitionCog(commands.Cog):
             await interaction.response.send_message("Please provide at least one application slug.", ephemeral=True)
             return
 
-        config = await CompetitionConfig.objects.afirst() or await CompetitionConfig.objects.acreate()
+        config = await sync_to_async(CompetitionConfig.get_config)()
         config.controlled_applications = slugs
         await config.asave()
 

@@ -5,7 +5,9 @@ import os
 bind = "0.0.0.0:8000"
 # Default 4; stay at or under 10 to keep within the database's connection limit
 workers = int(os.environ.get("GUNICORN_WORKERS", "4"))
-timeout = 90
+# Sync workers are killed after this long on one request. Streamed operations (competition
+# start/stop: ~60 Authentik calls; packet and scorecard emailing) must finish inside it.
+timeout = 300
 accesslog = "-"
 errorlog = "-"
 loglevel = "info"

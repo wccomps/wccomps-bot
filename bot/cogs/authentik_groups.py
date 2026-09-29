@@ -14,7 +14,7 @@ REFRESH_MINUTES = 5
 
 
 async def refresh_groups_now() -> None:
-    """Refresh once; never raises (callers are background loops and competition actions)."""
+    """Refresh once; never raises (the caller is a background loop)."""
     try:
         result = await sync_to_async(refresh_user_groups)()
     except GroupRefreshAbortedError as e:

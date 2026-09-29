@@ -1,0 +1,103 @@
+"""run_competition: the one implementation behind the web page, the slash commands and the timer."""
+
+from collections.abc import Iterator
+from datetime import timedelta
+from unittest.mock import MagicMock, patch
+
+import pytest
+from django.utils import timezone
+
+from core.models import AuditLog, CompetitionConfig
+from core.services.competition import run_competition, run_competition_to_completion
+from team.models import MAX_TEAMS
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def authentik() -> Iterator[MagicMock]:
+    manager = MagicMock()
+    manager.enable_application.return_value = (True, None)
+    manager.disable_application.return_value = (True, None)
+    manager.toggle_user.return_value = (True, "")
+    with (
+        patch("core.authentik_manager.AuthentikManager", return_value=manager),
+        patch("core.services.user_groups.refresh_user_groups") as refresh,
+        patch("scoring.quotient_sync.sync_quotient_metadata"),
+    ):
+        manager.refresh = refresh
+        yield manager
+
+
+@pytest.fixture
+def config() -> CompetitionConfig:
+    now = timezone.now()
+    config, _ = CompetitionConfig.objects.update_or_create(
+        pk=1,
+        defaults={
+            "controlled_applications": ["scoring", "netbird"],
+            "applications_enabled": False,
+            "competition_start_time": now,
+            "competition_end_time": now + timedelta(hours=8),
+        },
+    )
+    return config
+
+
+def test_start_enables_apps_and_accounts_refreshes_groups_and_audits(authentik, config):
+    result = run_competition_to_completion(True, "timer")
+
+    assert result.success
+    assert result.apps_ok == ["scoring", "netbird"]
+    assert result.accounts_ok == MAX_TEAMS
+    assert authentik.toggle_user.call_count == MAX_TEAMS
+    authentik.refresh.assert_called_once()
+    config.refresh_from_db()
+    assert config.applications_enabled
+    assert config.competition_start_time is None
+    assert config.competition_end_time is not None
+    assert AuditLog.objects.get(action="competition_started").admin_user == "timer"
+
+
+def test_stop_clears_only_the_end_time(authentik, config):
+    CompetitionConfig.objects.filter(pk=1).update(applications_enabled=True)
+
+    result = run_competition_to_completion(False, "discord:admin")
+
+    assert result.success and authentik.disable_application.call_count == 2
+    config.refresh_from_db()
+    assert not config.applications_enabled
+    assert config.competition_end_time is None
+    assert config.competition_start_time is not None
+
+
+def test_schedule_edited_during_a_run_survives(authentik, config):
+    """The run takes a while; it must not write back a stale copy of the whole config."""
+    new_end = timezone.now() + timedelta(days=1)
+
+    def edit_schedule_midway(username: str, is_active: bool) -> tuple[bool, str]:
+        CompetitionConfig.objects.filter(pk=1).update(competition_end_time=new_end, max_team_members=7)
+        return True, ""
+
+    authentik.toggle_user.side_effect = edit_schedule_midway
+    run_competition_to_completion(True, "timer")
+
+    config.refresh_from_db()
+    assert (config.competition_end_time, config.max_team_members) == (new_end, 7)
+
+
+def test_progress_counts_every_step(authentik, config):
+    steps = list(run_competition(True, "web:admin"))
+    total = 2 + MAX_TEAMS + 2  # apps, accounts, group refresh, Quotient sync
+    assert [s.current for s in steps] == list(range(1, total + 1))
+    assert {s.total for s in steps} == {total}
+
+
+def test_no_controlled_apps_changes_nothing(authentik, config):
+    CompetitionConfig.objects.filter(pk=1).update(controlled_applications=[])
+
+    result = run_competition_to_completion(True, "timer")
+
+    assert result.error == "No controlled applications configured"
+    authentik.toggle_user.assert_not_called()
+    assert not AuditLog.objects.exists()

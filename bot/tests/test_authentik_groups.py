@@ -1,6 +1,6 @@
 """Stored Authentik groups are refreshed by the bot, not only at web login (security review, Medium)."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -69,22 +69,3 @@ def test_list_all_raises_on_http_error():
 
     with pytest.raises(AuthentikAPIError):
         _manager(handler).list_all_groups()
-
-
-@pytest.mark.asyncio
-@pytest.mark.django_db(transaction=True)
-@pytest.mark.parametrize("action", ["start_competition", "stop_competition"])
-async def test_competition_start_and_stop_refresh_groups_immediately(action, refresh_groups_now: AsyncMock):
-    from bot import competition_actions
-    from core.models import CompetitionConfig
-
-    await CompetitionConfig.objects.aupdate_or_create(pk=1, defaults={"controlled_applications": ["netbird"]})
-
-    with (
-        patch("bot.competition_actions.AuthentikManager"),
-        patch("bot.competition_actions.toggle_all_blueteam_accounts", new_callable=AsyncMock, return_value=(50, 0)),
-        patch("scoring.quotient_sync.sync_quotient_metadata"),
-    ):
-        await getattr(competition_actions, action)()
-
-    refresh_groups_now.assert_awaited_once()
