@@ -53,9 +53,7 @@
             {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
         {% endif %}
         <c-module>
-            <!-- Status bar with primary actions -->
             <div class="status-bar">
-                <!-- Row 1: Status info -->
                 <div class="d-flex items-center gap-10 flex-wrap">
                     {# djlint:off #}
                 <c-badge variant="{% if ticket.status == 'open' %}info{% elif ticket.status == 'claimed' %}warning{% elif ticket.status == 'resolved' %}success{% else %}neutral{% endif %}">{{ status_display }}</c-badge>
@@ -91,7 +89,6 @@
                     {% if is_ops and ticket.points_charged is not None %}<span>{{ ticket.points_charged }}pt charged</span>{% endif %}
                     {% if ticket.assigned_to %}<span>Assigned: {{ ticket.assigned_to }}</span>{% endif %}
                 </div>
-                <!-- Row 2: Action buttons (ops only) -->
                 {% if is_ops %}
                     <div class="d-flex gap-10 items-center mt-10">
                         {% if ticket.status == "open" %}
@@ -120,7 +117,6 @@
                         {% endif %}
                     </div>
                 {% endif %}
-                <!-- Row 3: Key metadata (service/hostname/IP) -->
                 {% if ticket.service_name or ticket.hostname or ticket.ip_address %}
                     <div class="d-flex gap-10 flex-wrap mt-10 text-sm">
                         {% if ticket.service_name %}<span><strong>Service:</strong> {{ ticket.service_name }}</span>{% endif %}
@@ -129,7 +125,6 @@
                     </div>
                 {% endif %}
             </div>
-            <!-- Resolve form (shown for ops with claimed tickets) -->
             {% if is_ops and ticket.status == "claimed" %}
                 {% if ticket.assigned_to.username == authentik_username or is_ticketing_admin %}
                     <c-fieldset heading="Resolve Ticket">
@@ -204,7 +199,6 @@
                     {% endif %}
                 </c-fieldset>
             {% endif %}
-            <!-- Ticket Details -->
             <c-fieldset heading="Ticket Information">
                 <c-detail_grid>
                     {% if ticket.description %}<c-detail_row label="Description">{{ ticket.description }}</c-detail_row>{% endif %}
@@ -223,7 +217,6 @@
                     {% endif %}
                 </c-detail_grid>
             </c-fieldset>
-            <!-- Comments -->
             {# djlint:off #}
         <c-fieldset heading="Comments" collapsible="true" collapsed="{% if not comments %}true{% else %}false{% endif %}">
             {# djlint:on #}
@@ -276,7 +269,6 @@
                 </c-form>
             {% endif %}
         </c-fieldset>
-        <!-- Attachments -->
         {# djlint:off #}
         <c-fieldset heading="Attachments" collapsible="true" collapsed="{% if not attachments %}true{% else %}false{% endif %}">
         {# djlint:on #}
@@ -334,7 +326,6 @@
             </c-form>
         {% endif %}
     </c-fieldset>
-    <!-- Cancel ticket (team members only, open tickets) -->
     {% if not is_ops and ticket.status == "open" %}
         <c-action_box heading="Cancel Ticket" variant="warning">
             <c-form action="{% url 'ticket_cancel' ticket.ticket_number %}">
@@ -348,7 +339,6 @@
             </c-form>
         </c-action_box>
     {% endif %}
-    <!-- History (ops only) -->
     {% if is_ops %}
         <c-fieldset heading="History" collapsible="true" collapsed="true">
             <div hx-get="{% url 'ticket_detail_dynamic' ticket.ticket_number %}"
@@ -357,7 +347,6 @@
                  hx-swap="innerHTML">
                 <div id="history-list" aria-live="polite">
                     {% if history %}
-                        <!-- Desktop table -->
                         <div class="history-table">
                             <c-table aria_label="Ticket history">
                                 <c-slot name="headers">
@@ -392,7 +381,6 @@
                                 {% endfor %}
                             </c-table>
                         </div>
-                        <!-- Mobile cards -->
                         <div class="history-cards">
                             {% for event in history %}
                                 <div class="history-card">

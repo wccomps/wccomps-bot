@@ -13,9 +13,6 @@ from team.models import Team
 logger = logging.getLogger(__name__)
 
 
-# -- Standalone helpers (used by the /teams commands) --
-
-
 async def delete_team_infrastructure(guild: discord.Guild, team: Team, reason: str) -> list[str]:
     """Delete a team's Discord category, channels, and role. Clears DB IDs.
 
@@ -175,17 +172,14 @@ class DiscordManager:
             if match:
                 team_roles.append((int(match.group(1)), r))
 
-        # Sort by team number descending
         team_roles.sort(key=lambda x: x[0], reverse=True)
 
-        # Find the role to insert after (closest lower number)
         position = None
         for num, r in team_roles:
             if num < team_number:
                 position = r.position
                 break
 
-        # Create new role
         try:
             role = await self.guild.create_role(
                 name=role_name,
@@ -194,13 +188,11 @@ class DiscordManager:
                 reason="WCComps team role",
             )
 
-            # Move to correct position
             if position is not None:
                 await role.edit(position=position + 1)
                 logger.info(f"Created role {role_name} at position {position + 1}")
             elif team_roles:
                 # No lower-numbered role found, but other team roles exist
-                # Position before the lowest-numbered team role
                 lowest_role = team_roles[-1][1]
                 await role.edit(position=lowest_role.position)
                 logger.info(f"Created role {role_name} before {lowest_role.name}")
@@ -227,10 +219,8 @@ class DiscordManager:
             return existing_category
 
         try:
-            # Permission overwrites for the new category
             overwrites: dict[discord.Role | discord.Member | discord.Object, discord.PermissionOverwrite] = {}
 
-            # Get specific roles by name
             white_team = discord.utils.get(self.guild.roles, name="White Team")
             observers = discord.utils.get(self.guild.roles, name="WCComps Observers")
             orange_team = discord.utils.get(self.guild.roles, name="Orange Team")
@@ -240,12 +230,10 @@ class DiscordManager:
             operations_team = discord.utils.get(self.guild.roles, name="WCComps Operations Team")
             server_owners = discord.utils.get(self.guild.roles, name="WRCCDC Server Owners")
 
-            # Default: hide from @everyone
             overwrites[self.guild.default_role] = discord.PermissionOverwrite(
                 read_messages=False, send_messages=False, connect=False
             )
 
-            # Team role: full access
             overwrites[role] = discord.PermissionOverwrite(
                 read_messages=True,
                 send_messages=True,
@@ -255,58 +243,48 @@ class DiscordManager:
                 attach_files=True,
             )
 
-            # White Team: read and connect only
             if white_team:
                 overwrites[white_team] = discord.PermissionOverwrite(read_messages=True, connect=True)
 
-            # WCComps Observers: read only
             if observers:
                 overwrites[observers] = discord.PermissionOverwrite(
                     read_messages=True, send_messages=False, connect=False
                 )
 
-            # Orange Team: full access
             if orange_team:
                 overwrites[orange_team] = discord.PermissionOverwrite(
                     read_messages=True, send_messages=True, connect=True, speak=True
                 )
 
-            # Orange Team Guest: full access
             if orange_team_guest:
                 overwrites[orange_team_guest] = discord.PermissionOverwrite(
                     read_messages=True, send_messages=True, connect=True, speak=True
                 )
 
-            # Black Team Guest: full access
             if black_team_guest:
                 overwrites[black_team_guest] = discord.PermissionOverwrite(
                     read_messages=True, send_messages=True, connect=True, speak=True
                 )
 
-            # WCComps Room Judge: read only
             if room_judge:
                 overwrites[room_judge] = discord.PermissionOverwrite(read_messages=True)
 
-            # WCComps Operations Team: full access
             if operations_team:
                 overwrites[operations_team] = discord.PermissionOverwrite(
                     read_messages=True, send_messages=True, connect=True, speak=True
                 )
 
-            # WRCCDC Server Owners: full access
             if server_owners:
                 overwrites[server_owners] = discord.PermissionOverwrite(
                     read_messages=True, send_messages=True, connect=True, speak=True
                 )
 
-            # Create category
             category = await self.guild.create_category(
                 name=category_name,
                 overwrites=overwrites,
                 reason="WCComps team category",
             )
 
-            # Create code-defined channels
             text_channel = await category.create_text_channel(
                 f"team{team_number:02d}-chat", reason="WCComps team text channel"
             )
@@ -322,7 +300,6 @@ class DiscordManager:
                     other_team_categories.append((int(match.group(1)), cat))
 
             if other_team_categories:
-                # Sort by team number ascending to find correct insertion point
                 other_team_categories.sort(key=lambda x: x[0])
 
                 # Find position: after the closest lower-numbered team, or before the first higher-numbered team
@@ -342,7 +319,6 @@ class DiscordManager:
 
             logger.info(f"Created code-defined category for Team {team_number}")
 
-            # Post ticket panel to team channel
             if self.bot and hasattr(self.bot, "get_cog"):
                 try:
                     from bot.cogs.help_panels import HelpPanelsCog
@@ -354,7 +330,6 @@ class DiscordManager:
                 except Exception as e:
                     logger.warning(f"Could not post ticket panel to team channel: {e}")
 
-            # Deliver any queued announcements for this team
             await self._deliver_queued_announcements(team_number, text_channel)
 
             return category
@@ -400,11 +375,7 @@ class DiscordManager:
             return False
 
     async def assign_group_roles(self, member: discord.Member, authentik_groups: list[str]) -> bool:
-        """
-        Assign Discord roles based on Authentik groups.
-
-        Similar to assign_team_role but for non-team colored team roles.
-        """
+        """Assign the Discord roles mapped from the member's Authentik groups (GROUP_ROLE_MAPPING)."""
         roles_to_add = []
 
         for group_name, role_id in settings.GROUP_ROLE_MAPPING.items():
@@ -484,7 +455,6 @@ class DiscordManager:
             if role.members:
                 logger.info(f"Removed {role.name} from members")
 
-        # Remove Blueteam role from any remaining members
         if blueteam_role and blueteam_role.members:
             blueteam_count = 0
             logger.info(f"Removing Blueteam from {len(blueteam_role.members)} members")
@@ -499,7 +469,6 @@ class DiscordManager:
         return removed_count
 
     async def _deliver_queued_announcements(self, team_number: int, channel: discord.TextChannel) -> int:
-        """Deliver any queued announcements for a team and mark them as delivered."""
         from django.utils import timezone
 
         from core.models import QueuedAnnouncement
@@ -508,7 +477,6 @@ class DiscordManager:
         if not team:
             return 0
 
-        # Get undelivered announcements for this team, ordered by creation time
         announcements = [
             a
             async for a in QueuedAnnouncement.objects.filter(team=team, delivered_at__isnull=True).order_by(

@@ -1,5 +1,3 @@
-"""Views for packet distribution system."""
-
 import csv
 import io
 import json
@@ -24,8 +22,6 @@ from .services import PacketDistributionService
 
 
 class PacketWithStats(TypedDict):
-    """Packet paired with its distribution stats."""
-
     packet: Packet
     stats: dict[str, int]
 
@@ -40,7 +36,6 @@ def team_packet(request: HttpRequest) -> HttpResponse:
     is_gold = has_permission(user, "gold_team")
 
     if is_gold:
-        # Gold team sees all distributed packets
         packets = Packet.objects.filter(status__in=["distributing", "completed"], web_access_enabled=True).order_by(
             "-created_at"
         )
@@ -54,14 +49,12 @@ def team_packet(request: HttpRequest) -> HttpResponse:
 
     team = get_object_or_404(Team, team_number=team_number)
 
-    # Get all distributions for this team
     distributions = (
         PacketDistribution.objects.filter(team=team, web_access_enabled=True)
         .select_related("packet")
         .order_by("-packet__created_at")
     )
 
-    # Filter to only show packets that are ready for access
     available_distributions = [
         dist
         for dist in distributions
@@ -149,7 +142,6 @@ def _parse_team_extras_csv(csv_text: str) -> dict[str, dict[str, str]]:
     if not reader.fieldnames:
         return {}
 
-    # Find the team column
     team_col = None
     for col in reader.fieldnames:
         if "team" in col.lower():
@@ -177,7 +169,6 @@ def _parse_team_extras_csv(csv_text: str) -> dict[str, dict[str, str]]:
 @require_http_methods(["GET", "POST"])
 @require_permission("gold_team")
 def upload_packet(request: HttpRequest) -> HttpResponse:
-    """Upload a new packet."""
     events = Event.objects.all()
     form_context = {"events": events, "nav_active": "packets"}
 
@@ -196,12 +187,10 @@ def upload_packet(request: HttpRequest) -> HttpResponse:
         team_extras_csv = form.cleaned_data["team_extras"]
         uploaded_file = form.cleaned_data["packet_file"]
 
-        # Read file data
         file_data = uploaded_file.read()
         filename = (uploaded_file.name or "unnamed")[:255]
         mime_type = uploaded_file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
 
-        # Parse event
         event = None
         if event_id:
             try:
@@ -210,7 +199,6 @@ def upload_packet(request: HttpRequest) -> HttpResponse:
                 messages.error(request, "Selected event not found.")
                 return render(request, "packets/ops_upload_packet.html", form_context)
 
-        # Parse per-team extras CSV
         team_extras: dict[str, dict[str, str]] = {}
         if team_extras_csv:
             team_extras = _parse_team_extras_csv(team_extras_csv)
@@ -218,7 +206,6 @@ def upload_packet(request: HttpRequest) -> HttpResponse:
                 messages.error(request, "Could not parse per-team data. Ensure CSV has a 'team' column.")
                 return render(request, "packets/ops_upload_packet.html", form_context)
 
-        # Create packet
         Packet.objects.create(
             title=title,
             file_data=file_data,
@@ -246,7 +233,6 @@ def upload_packet(request: HttpRequest) -> HttpResponse:
 @require_GET
 @require_permission("gold_team")
 def packet_detail(request: HttpRequest, packet_id: int) -> HttpResponse:
-    """View packet details and distribution status."""
     packet = get_object_or_404(Packet, id=packet_id)
 
     distributions = packet.distributions.select_related("team", "team__school_info").order_by("team__team_number")
@@ -354,7 +340,6 @@ def packet_resend_team(request: HttpRequest, packet_id: int, team_id: int) -> Ht
     primary_email = form.cleaned_data["primary_email"]
     secondary_email = form.cleaned_data.get("secondary_email", "")
 
-    # Save email changes back to SchoolInfo
     school_info, _ = SchoolInfo.objects.get_or_create(
         team=team, defaults={"school_name": f"Team {team.team_number}", "contact_email": primary_email}
     )
@@ -362,7 +347,6 @@ def packet_resend_team(request: HttpRequest, packet_id: int, team_id: int) -> Ht
     school_info.secondary_email = secondary_email
     school_info.save(update_fields=["contact_email", "secondary_email"])
 
-    # Build recipient list
     recipients = [primary_email]
     if secondary_email:
         recipients.append(secondary_email)

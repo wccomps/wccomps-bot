@@ -1,5 +1,3 @@
-"""Scoring configuration, sync, and recalculate views."""
-
 from typing import cast
 
 from django.contrib import messages
@@ -25,7 +23,6 @@ def scoring_config(request: HttpRequest) -> HttpResponse:
     if not template:
         template = ScoringTemplate.objects.create()
 
-    # Get metadata sync status
     try:
         metadata = QuotientMetadataCache.objects.first()
     except QuotientMetadataCache.DoesNotExist:
@@ -53,7 +50,6 @@ def scoring_config(request: HttpRequest) -> HttpResponse:
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 @require_http_methods(["POST"])
 def sync_metadata(request: HttpRequest) -> HttpResponse:
-    """Sync metadata from Quotient."""
     try:
         sync_quotient_metadata(cast(User, request.user))
         messages.success(request, "Metadata synced successfully")
@@ -67,7 +63,6 @@ def sync_metadata(request: HttpRequest) -> HttpResponse:
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 @require_http_methods(["POST"])
 def sync_scores(request: HttpRequest) -> HttpResponse:
-    """Sync service scores from Quotient."""
     try:
         result = sync_service_scores(cast(User, request.user))
         messages.success(request, f"Synced {result['total']} teams")
@@ -79,7 +74,6 @@ def sync_scores(request: HttpRequest) -> HttpResponse:
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
 @require_http_methods(["POST"])
 def recalculate_scores(request: HttpRequest) -> HttpResponse:
-    """Recalculate all scores."""
     recalculate_all_scores()
     messages.success(request, "Scores recalculated successfully")
     return redirect("leaderboard_page")

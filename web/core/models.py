@@ -1,5 +1,3 @@
-"""Database models for WCComps ticket system."""
-
 from typing import TYPE_CHECKING
 
 from django.contrib.auth.models import User
@@ -38,8 +36,6 @@ class UserGroups(models.Model):
 
 
 class AuditLog(models.Model):
-    """General audit log for admin actions."""
-
     action = models.CharField(max_length=50)
     admin_user = models.CharField(max_length=255)
     target_entity = models.CharField(max_length=50)
@@ -152,11 +148,8 @@ class DiscordTask(models.Model):
             self.clean()
         super().save(*args, **kwargs)  # type: ignore[arg-type]
 
-    # -- Factory class methods --
-
     @classmethod
     def create_assign_role(cls, discord_id: int, team_number: int) -> DiscordTask:
-        """Create a task to assign a team role to a Discord user."""
         return cls.objects.create(
             task_type="assign_role",
             payload={"discord_id": discord_id, "team_number": team_number},
@@ -183,7 +176,6 @@ class DiscordTask(models.Model):
 
     @classmethod
     def create_assign_group_roles(cls, discord_id: int, authentik_groups: list[str]) -> DiscordTask:
-        """Create a task to assign group-based roles to a Discord user."""
         return cls.objects.create(
             task_type="assign_group_roles",
             payload={"discord_id": discord_id, "authentik_groups": authentik_groups},
@@ -210,7 +202,6 @@ class DiscordTask(models.Model):
 
     @classmethod
     def create_broadcast_message(cls, target: str, message: str, sender: str) -> DiscordTask:
-        """Create a task to broadcast a message to teams."""
         return cls.objects.create(
             task_type="broadcast_message",
             payload={"target": target, "message": message, "sender": sender},
@@ -277,7 +268,6 @@ class DiscordTask(models.Model):
 
     @classmethod
     def create_add_user_to_thread(cls, ticket: Ticket, discord_id: int, thread_id: int) -> DiscordTask:
-        """Create a task to add a Discord user to a ticket thread."""
         return cls.objects.create(
             task_type="add_user_to_thread",
             ticket=ticket,
@@ -326,30 +316,23 @@ class QueuedAnnouncement(models.Model):
 
 
 class CompetitionConfig(models.Model):
-    """Competition configuration and timing."""
-
-    # Team settings
     max_team_members = models.IntegerField(default=10, help_text="Maximum members per team")
 
-    # Competition timing
     competition_start_time = models.DateTimeField(
         null=True, blank=True, help_text="When applications should be enabled"
     )
     competition_end_time = models.DateTimeField(null=True, blank=True, help_text="When applications should be disabled")
     applications_enabled = models.BooleanField(default=False, help_text="Whether applications are currently enabled")
 
-    # Application slugs to control
     controlled_applications = models.JSONField(
         default=list,
         help_text="List of Authentik application slugs to enable/disable (e.g., ['scoring', 'quotient2', 'semaphore'])",
     )
 
-    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_check = models.DateTimeField(null=True, blank=True, help_text="Last time background task checked")
 
-    # Status channel
     status_channel_id = models.BigIntegerField(
         null=True, blank=True, help_text="Discord channel ID for competition status display"
     )
@@ -367,7 +350,6 @@ class CompetitionConfig(models.Model):
         return "Competition not scheduled"
 
     def should_enable_applications(self) -> bool:
-        """Check if applications should be enabled based on current time."""
         if not self.competition_start_time:
             return False
         now = timezone.now()
@@ -376,16 +358,12 @@ class CompetitionConfig(models.Model):
         return after_start and before_end and not self.applications_enabled
 
     def should_disable_applications(self) -> bool:
-        """Check if applications should be disabled based on current time."""
         if not self.competition_end_time:
             return False
         return timezone.now() >= self.competition_end_time and self.applications_enabled
 
     def ensure_controlled_applications(self) -> None:
-        """Fetch and cache controlled application slugs.
-
-        Delegates to core.services.competition to keep API calls out of the model layer.
-        """
+        """Fetch and cache controlled application slugs; delegates so API calls stay out of the model layer."""
         from core.services.competition import ensure_controlled_applications
 
         ensure_controlled_applications(self)

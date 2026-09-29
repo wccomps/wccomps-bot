@@ -19,12 +19,10 @@ from .models import UserGroups
 
 logger = logging.getLogger(__name__)
 
-# OAuth state expiry in seconds (5 minutes)
 STATE_EXPIRY_SECONDS = 300
 
 
 def _get_oauth_config() -> dict[str, str]:
-    """Get OAuth configuration from settings."""
     client_id = getattr(settings, "AUTHENTIK_CLIENT_ID", None)
     client_secret = getattr(settings, "AUTHENTIK_SECRET", None)
     server_url = getattr(
@@ -48,7 +46,6 @@ def _get_oauth_config() -> dict[str, str]:
 
 
 def oauth_login(request: HttpRequest) -> HttpResponse:
-    """Initiate OAuth login flow."""
     config = _get_oauth_config()
 
     if not config["client_id"]:
@@ -60,7 +57,6 @@ def oauth_login(request: HttpRequest) -> HttpResponse:
             status=500,
         )
 
-    # Store next URL for redirect after login
     next_url = request.GET.get("next", "/")
     if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
         next_url = "/"
@@ -73,7 +69,6 @@ def oauth_login(request: HttpRequest) -> HttpResponse:
     request.session["oauth_nonce"] = nonce
     state = signing.dumps({"n": nonce, "next": next_url})
 
-    # Build authorization URL
     redirect_uri = request.build_absolute_uri("/auth/callback/")
     params = {
         "client_id": config["client_id"],
@@ -109,10 +104,8 @@ def _free_username(username: str, keep_pk: int | None = None) -> None:
 
 
 def oauth_callback(request: HttpRequest) -> HttpResponse:
-    """Handle OAuth callback from Authentik."""
     config = _get_oauth_config()
 
-    # Check for error response
     error = request.GET.get("error")
     if error:
         error_description = request.GET.get("error_description", "Unknown error")
@@ -165,7 +158,6 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             {"error_title": "Session Expired", "error_message": "Please try logging in again."},
         )
 
-    # Get authorization code
     code = request.GET.get("code")
     if not code:
         logger.warning("OAuth code missing")
@@ -175,7 +167,6 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             {"error_title": "Login Failed", "error_message": "Please try again."},
         )
 
-    # Exchange code for tokens
     redirect_uri = request.build_absolute_uri("/auth/callback/")
     try:
         with httpx.Client(timeout=settings.HTTPX_DEFAULT_TIMEOUT) as client:
@@ -199,7 +190,6 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             {"error_title": "Authentication Failed", "error_message": "Please try again."},
         )
 
-    # Fetch userinfo
     access_token = tokens.get("access_token")
     if not access_token:
         logger.error("No access token in response")
@@ -225,7 +215,6 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
             {"error_title": "Authentication Failed", "error_message": "Please try again."},
         )
 
-    # Extract user data
     authentik_id = userinfo.get("sub")
     username = userinfo.get("preferred_username") or userinfo.get("email", "")
     groups = userinfo.get("groups", [])
@@ -261,7 +250,6 @@ def oauth_callback(request: HttpRequest) -> HttpResponse:
         user_groups.groups = groups
         user_groups.save(update_fields=["groups"])
 
-    # Log user in
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
 
     # Get next URL from the signed state (re-validate to defend in depth)
@@ -278,10 +266,8 @@ def oauth_logout(request: HttpRequest) -> HttpResponse:
     """Log out user and redirect to Authentik end session."""
     config = _get_oauth_config()
 
-    # Clear Django session
     logout(request)
 
-    # Redirect to Authentik logout
     redirect_uri = request.build_absolute_uri("/")
     params = {"post_logout_redirect_uri": redirect_uri}
     logout_url = f"{config['end_session_endpoint']}?{urlencode(params)}"

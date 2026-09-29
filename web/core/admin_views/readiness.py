@@ -1,8 +1,4 @@
-"""Pre-competition readiness check functions.
-
-Provides streaming checks and fix handlers used by the competition page
-to verify system state before starting a competition.
-"""
+"""Pre-competition readiness checks and fix handlers for the competition page."""
 
 import json
 import logging
@@ -20,11 +16,6 @@ from core.models import CompetitionConfig
 from team.models import Team
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Progress helper
-# ---------------------------------------------------------------------------
 
 
 def _progress(
@@ -52,16 +43,8 @@ def _progress(
     )
 
 
-# ---------------------------------------------------------------------------
-# Check result type: (severity, detail, action_or_none)
-# ---------------------------------------------------------------------------
-
+# A check returns its severity, a detail message, and an optional fix action.
 type CheckResult = tuple[str, str, dict[str, str] | None]
-
-
-# ---------------------------------------------------------------------------
-# Phase 1 — Authentik checks
-# ---------------------------------------------------------------------------
 
 
 def _check_discord_settings() -> CheckResult:
@@ -155,11 +138,6 @@ def _check_blueteam_bindings() -> CheckResult:
             {"type": "link", "url": "#setup", "label": "Configure Apps"},
         )
     return ("pass", f"Bindings exist for all {len(apps)} apps", None)
-
-
-# ---------------------------------------------------------------------------
-# Phase 2 — Operational readiness checks
-# ---------------------------------------------------------------------------
 
 
 def _check_no_tickets() -> CheckResult:
@@ -348,10 +326,6 @@ def _check_multiple_teams() -> CheckResult:
     return ("pass", f"{active_count} teams registered", None)
 
 
-# ---------------------------------------------------------------------------
-# Check registry
-# ---------------------------------------------------------------------------
-
 ALL_CHECKS: list[tuple[str, Callable[[], CheckResult]]] = [
     # Phase 1: Authentik
     ("Discord IDs configured", _check_discord_settings),
@@ -374,11 +348,6 @@ ALL_CHECKS: list[tuple[str, Callable[[], CheckResult]]] = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Streaming generator
-# ---------------------------------------------------------------------------
-
-
 def stream_readiness_checks() -> Iterator[str]:
     """Run all readiness checks and yield NDJSON progress lines."""
     total = len(ALL_CHECKS)
@@ -398,7 +367,6 @@ def stream_readiness_checks() -> Iterator[str]:
 
         yield _progress(name, i, total, severity, detail, action)
 
-    # Summary
     if fail_count > 0:
         msg = f"{fail_count} failed, {warn_count} warning(s)"
         success = False
@@ -410,11 +378,6 @@ def stream_readiness_checks() -> Iterator[str]:
         success = True
 
     yield json.dumps({"done": True, "success": success, "message": msg}) + "\n"
-
-
-# ---------------------------------------------------------------------------
-# Fix handlers
-# ---------------------------------------------------------------------------
 
 
 def _fix_group_membership(request: HttpRequest) -> JsonResponse:
@@ -436,7 +399,6 @@ def _fix_group_membership(request: HttpRequest) -> JsonResponse:
         if expected_group in group_names:
             continue
 
-        # Find the group and add user
         group = mgr.get_group_by_name(expected_group)
         if not group:
             failed.append(f"{username}: group {expected_group} not found")
@@ -455,7 +417,6 @@ def _fix_group_membership(request: HttpRequest) -> JsonResponse:
 
 
 def _fix_sync_quotient(request: HttpRequest) -> JsonResponse:
-    """Sync Quotient metadata."""
     from scoring.quotient_sync import sync_quotient_metadata
 
     try:
@@ -472,17 +433,12 @@ _FIX_HANDLERS: dict[str, Callable[[HttpRequest], JsonResponse]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Action handlers (called from competition.py dispatcher)
-# ---------------------------------------------------------------------------
-
-
+# Called from the competition.py action dispatcher.
 def action_readiness_check(
     request: HttpRequest,
     config: CompetitionConfig,
     authentik_username: str,
 ) -> StreamingHttpResponse:
-    """Handle readiness_check action — streams check results."""
     return StreamingHttpResponse(
         stream_readiness_checks(),
         content_type="application/x-ndjson",
@@ -494,7 +450,6 @@ def action_readiness_fix(
     config: CompetitionConfig,
     authentik_username: str,
 ) -> JsonResponse:
-    """Handle readiness_fix action — dispatches to fix handlers."""
     form = ReadinessFixForm(request.POST)
     if not form.is_valid():
         return JsonResponse({"error": "Missing fix parameter"}, status=400)

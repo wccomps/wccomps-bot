@@ -58,61 +58,51 @@ def create_user_with_groups(db: Any) -> Callable[..., User]:
 
 @pytest.fixture
 def unauthenticated_client() -> Client:
-    """Create an unauthenticated Django test client."""
     return Client()
 
 
 @pytest.fixture
 def blue_team_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create a Blue Team user."""
     return create_user_with_groups("blueteam01", ["WCComps_BlueTeam01"])
 
 
 @pytest.fixture
 def blue_team_02_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create a second Blue Team user."""
     return create_user_with_groups("blueteam02", ["WCComps_BlueTeam02"])
 
 
 @pytest.fixture
 def red_team_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create a Red Team user."""
     return create_user_with_groups("redteam", ["WCComps_RedTeam"])
 
 
 @pytest.fixture
 def gold_team_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create a Gold Team user."""
     return create_user_with_groups("goldteam", ["WCComps_GoldTeam"])
 
 
 @pytest.fixture
 def white_team_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create a White Team user."""
     return create_user_with_groups("whiteteam", ["WCComps_WhiteTeam"])
 
 
 @pytest.fixture
 def orange_team_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create an Orange Team user."""
     return create_user_with_groups("orangeteam", ["WCComps_OrangeTeam"])
 
 
 @pytest.fixture
 def ticketing_support_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create a Ticketing Support user."""
     return create_user_with_groups("support", ["WCComps_Ticketing_Support"])
 
 
 @pytest.fixture
 def ticketing_admin_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create a Ticketing Admin user."""
     return create_user_with_groups("ticketing_admin", ["WCComps_Ticketing_Admin"])
 
 
 @pytest.fixture
 def admin_user(create_user_with_groups: Callable[..., User]) -> User:
-    """Create an admin user (Discord_Admin group)."""
     return create_user_with_groups("admin", ["WCComps_Discord_Admin"])
 
 
@@ -177,17 +167,10 @@ def reset_quotient_client_cache():
 
 @pytest.fixture(autouse=True)
 def reset_has_permission_reference():
-    """
-    Reset has_permission references to the real function after each test.
-
-    This fixes test isolation issues where @patch("core.auth_utils.has_permission")
-    pollutes local module bindings if the module was first imported while the
-    patch was active.
-    """
+    """Restore the real has_permission after each test; a module first imported under @patch keeps the mock bound."""
     from core.auth_utils import has_permission as _real
 
     yield
-    # After test, restore real function on source module and all affected local bindings
     import core.auth_utils
 
     core.auth_utils.has_permission = _real

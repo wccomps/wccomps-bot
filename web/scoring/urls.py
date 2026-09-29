@@ -1,5 +1,3 @@
-"""URL configuration for scoring app."""
-
 from django.urls import path
 
 from . import views
@@ -7,47 +5,37 @@ from . import views
 app_name = "scoring"
 
 urlpatterns = [
-    # Leaderboard
     path("", views.leaderboard, name="leaderboard"),
     path("team/<int:team_number>/scorecard/", views.scorecard, name="scorecard"),
     path("team/<int:team_number>/scorecard/pdf/", views.scorecard_pdf, name="scorecard_pdf"),
-    # Red Team
     path("red-team/", views.submit_red_score, name="submit_red_score"),
     path("red-team/scores/", views.red_team_scores, name="red_team_scores"),
     path("red-team/score/<int:finding_id>/", views.view_red_score, name="view_red_score"),
-    # Red Team Review
     path("red/", views.red_team_findings, name="red_team_findings"),
     path("red-team/<int:finding_id>/delete/", views.delete_red_score, name="delete_red_score"),
     path("red-team/<int:finding_id>/leave/", views.leave_red_score, name="leave_red_score"),
     path("red-team/bulk-approve/", views.bulk_approve_red_scores, name="bulk_approve_red_scores"),
     path("red-team/screenshot/<int:screenshot_id>/", views.red_screenshot_download, name="red_screenshot"),
-    # IP Pools (Red Team)
     path("red-team/ip-pools/", views.ip_pool_list, name="ip_pool_list"),
     path("red-team/ip-pools/create/", views.ip_pool_create, name="ip_pool_create"),
     path("red-team/ip-pools/<int:pool_id>/edit/", views.ip_pool_edit, name="ip_pool_edit"),
     path("red-team/ip-pools/<int:pool_id>/delete/", views.ip_pool_delete, name="ip_pool_delete"),
     path("api/ip-pools/", views.api_user_ip_pools, name="api_user_ip_pools"),
-    # Incident Reports (Blue Team)
     path("incident/list/", views.incident_list, name="incident_list"),
     path("incident/submit/", views.submit_incident_report, name="submit_incident_report"),
     path("incident/<int:incident_id>/", views.view_incident_report, name="view_incident_report"),
     path("incident/<int:incident_id>/delete/", views.delete_incident_report, name="delete_incident_report"),
     path("incident/screenshot/<int:screenshot_id>/", views.incident_screenshot_download, name="incident_screenshot"),
-    # Orange Team
     path("orange-team/", views.orange_team_redirect, name="orange_team_redirect"),
     path("orange-team/submit/", views.submit_orange_check, name="submit_orange_check"),
     path("orange-team/bulk-approve/", views.bulk_approve_orange_adjustments, name="bulk_approve_orange_adjustments"),
-    # Inject Grading (White/Gold Team)
     path("injects/grading/", views.inject_grading, name="inject_grading"),
     path("injects/", views.inject_grades_review, name="inject_grades_review"),
     path("injects/bulk-approve/", views.inject_grades_bulk_approve, name="inject_grades_bulk_approve"),
-    # Incident Review
     path("incidents/", views.review_incidents, name="review_incidents"),
     path("incidents/bulk-approve/", views.bulk_approve_incidents, name="bulk_approve_incidents"),
     path("incidents/<int:incident_id>/match/", views.match_incident, name="match_incident"),
-    # Orange Review
     path("orange/", views.review_orange, name="review_orange"),
-    # Gold Team - Inject Feedback Review
     path("gold-team/inject-feedback/", views.review_inject_feedback, name="review_inject_feedback"),
     path("gold-team/inject-feedback/save/", views.save_inject_feedback, name="save_inject_feedback"),
     path("gold-team/inject-feedback/approve/", views.approve_inject_feedback, name="approve_inject_feedback"),
@@ -56,16 +44,13 @@ urlpatterns = [
         views.bulk_approve_inject_feedback,
         name="bulk_approve_inject_feedback",
     ),
-    # Admin/Configuration
     path("admin/config/", views.scoring_config, name="scoring_config"),
     path("admin/sync-metadata/", views.sync_metadata, name="sync_metadata"),
     path("admin/sync-scores/", views.sync_scores, name="sync_scores"),
     path("admin/recalculate/", views.recalculate_scores, name="recalculate_scores"),
-    # API endpoints
     path("api/scores/", views.api_scores, name="api_scores"),
     path("api/team/<int:team_number>/", views.api_team_detail, name="api_team_detail"),
     path("api/attack-types/", views.api_attack_types, name="api_attack_types"),
-    # Export endpoints
     path("export/", views.export_index, name="export_index"),
     path("export/all/", views.export_all, name="export_all"),
     path("export/red-scores/", views.export_red_scores, name="export_red_scores"),
@@ -75,7 +60,6 @@ urlpatterns = [
     path("export/final-scores/", views.export_final_scores, name="export_final_scores"),
     path("export/tickets/", views.export_tickets, name="export_tickets"),
     path("export/scorecards/", views.export_scorecards, name="export_scorecards"),
-    # Email scorecards
     path("email-scorecards/", views.email_scorecards, name="email_scorecards"),
     path("email-scorecards/send/", views.stream_email_scorecards, name="stream_email_scorecards"),
     path("team/<int:team_number>/scorecard/email/", views.email_scorecard, name="email_scorecard"),

@@ -1,5 +1,3 @@
-"""Ticket creation view."""
-
 import contextlib
 import logging
 from typing import cast
@@ -22,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 def create_ticket(request: HttpRequest) -> HttpResponse:
     """Create a new support ticket (web form alternative to Discord command)."""
-    # Get user's team
     user = cast(User, request.user)
     authentik_username = user.username
     groups = get_authentik_groups(user)
@@ -36,7 +33,6 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
 
     if is_admin:
         teams = Team.objects.filter(is_active=True).order_by("team_number")
-        # If admin submitted form with team selection, use that team
         if request.method == "POST":
             admin_form = CreateTicketForm(request.POST)
             if admin_form.is_valid() and admin_form.cleaned_data.get("team_id"):
@@ -53,7 +49,6 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
             },
         )
 
-    # Fetch infrastructure from Quotient API (graceful degradation if unavailable)
     from quotient.client import QuotientAPIError, get_quotient_client
 
     infrastructure = None
@@ -101,7 +96,6 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
         service_name = form.cleaned_data["service_name"]
         category_id = form.cleaned_data["category"]
 
-        # Admins must select a team
         if is_admin and not team:
             return form_page("Please select a team.")
 
@@ -111,7 +105,6 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
         category_obj = TicketCategory.objects.get(pk=category_id)
         cat_info = categories[category_id]
 
-        # Validate required fields
         errors = []
         if not title:
             errors.append("Title is required.")
@@ -132,7 +125,6 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
         if errors:
             return form_page(" ".join(errors))
 
-        # For box-reset, use hostname as description
         if cat_info.get("display_name", "").lower() == "box reset" and hostname:
             description = hostname
 
@@ -144,7 +136,6 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
                 status=400,
             )
 
-        # Create ticket using shared atomic function
         from ticketing.utils import TicketRateLimitError, create_ticket_atomic
 
         try:
@@ -182,5 +173,4 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
 
             return form_page("Failed to create ticket. Please try again or contact support if the problem persists.")
 
-    # GET request - show form
     return form_page()

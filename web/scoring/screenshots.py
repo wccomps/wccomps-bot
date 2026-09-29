@@ -1,12 +1,9 @@
 """Safe storage and serving for incident and red-team evidence files ("screenshots").
 
-These files are stored in the database and served from the portal's own origin. The uploader's
-claimed Content-Type used to be stored and echoed back inline, so an HTML/SVG "screenshot" ran as
-script in the reviewer's (Gold/White Team) session.
-
-Teams and red team legitimately upload PDFs, text, CSV, Office and archive files as evidence, so
-any type is still accepted. What changed: the type is decided from the file's bytes, only raster
-images and PDFs are ever shown inline, and everything else is served as a sandboxed download.
+They are served from the portal's own origin, so an HTML/SVG file shown inline would run as script
+in the reviewer's (Gold/White Team) session. Any type is accepted, since teams legitimately upload
+PDFs, text, CSV, Office and archive files, but the type is decided from the file's bytes, only
+raster images and PDFs are shown inline, and everything else is served as a sandboxed download.
 """
 
 from django.core.files.uploadedfile import UploadedFile
@@ -58,8 +55,7 @@ def read_screenshot(upload: UploadedFile[bytes]) -> tuple[bytes, str, str]:
 def screenshot_response(data: bytes, filename: str) -> HttpResponse:
     """Serve a stored file: real images/PDFs inline, anything else as a sandboxed download.
 
-    Decided from the bytes, not the stored MIME type, so rows saved before this fix (with the
-    client's claimed type) are safe too.
+    Decided from the bytes, not the stored MIME type, because older rows may hold the client's claimed type.
     """
     inline_type = detect_inline_type(data)
     response = HttpResponse(data, content_type=inline_type or DOWNLOAD_MIME)

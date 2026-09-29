@@ -1,5 +1,3 @@
-"""Export functionality for scoring data."""
-
 import csv
 import json
 import zipfile
@@ -16,13 +14,8 @@ from .models import (
     RedTeamScore,
 )
 
-# ---------------------------------------------------------------------------
-# Red scores
-# ---------------------------------------------------------------------------
-
 
 def _serialize_red_scores_csv() -> str:
-    """Serialize red team findings to a CSV string."""
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -73,7 +66,6 @@ def _serialize_red_scores_csv() -> str:
 
 
 def _serialize_red_scores_json() -> str:
-    """Serialize red team findings to a JSON string."""
     findings = RedTeamScore.objects.prefetch_related("affected_teams", "approved_by", "submitted_by").order_by(
         "-created_at"
     )
@@ -103,26 +95,18 @@ def _serialize_red_scores_json() -> str:
 
 
 def export_red_scores_csv() -> HttpResponse:
-    """Export red team findings to CSV format."""
     response = HttpResponse(_serialize_red_scores_csv(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="red_findings.csv"'
     return response
 
 
 def export_red_scores_json() -> HttpResponse:
-    """Export red team findings to JSON format."""
     response = HttpResponse(_serialize_red_scores_json(), content_type="application/json")
     response["Content-Disposition"] = 'attachment; filename="red_findings.json"'
     return response
 
 
-# ---------------------------------------------------------------------------
-# Incidents
-# ---------------------------------------------------------------------------
-
-
 def _serialize_incidents_csv() -> str:
-    """Serialize incident reports to a CSV string."""
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -173,7 +157,6 @@ def _serialize_incidents_csv() -> str:
 
 
 def _serialize_incidents_json() -> str:
-    """Serialize incident reports to a JSON string."""
     incidents = IncidentReport.objects.select_related(
         "team", "submitted_by", "approved_by", "matched_to_red_score"
     ).order_by("-created_at")
@@ -203,26 +186,18 @@ def _serialize_incidents_json() -> str:
 
 
 def export_incidents_csv() -> HttpResponse:
-    """Export incident reports to CSV format."""
     response = HttpResponse(_serialize_incidents_csv(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="incidents.csv"'
     return response
 
 
 def export_incidents_json() -> HttpResponse:
-    """Export incident reports to JSON format."""
     response = HttpResponse(_serialize_incidents_json(), content_type="application/json")
     response["Content-Disposition"] = 'attachment; filename="incidents.json"'
     return response
 
 
-# ---------------------------------------------------------------------------
-# Orange checks
-# ---------------------------------------------------------------------------
-
-
 def _serialize_orange_adjustments_csv() -> str:
-    """Serialize orange team checks to a CSV string."""
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -257,7 +232,6 @@ def _serialize_orange_adjustments_csv() -> str:
 
 
 def _serialize_orange_adjustments_json() -> str:
-    """Serialize orange team checks to a JSON string."""
     bonuses = OrangeTeamScore.objects.select_related("team", "submitted_by", "approved_by").order_by("-created_at")
     data = [
         {
@@ -278,26 +252,18 @@ def _serialize_orange_adjustments_json() -> str:
 
 
 def export_orange_adjustments_csv() -> HttpResponse:
-    """Export orange team checks to CSV format."""
     response = HttpResponse(_serialize_orange_adjustments_csv(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="orange_checks.csv"'
     return response
 
 
 def export_orange_adjustments_json() -> HttpResponse:
-    """Export orange team checks to JSON format."""
     response = HttpResponse(_serialize_orange_adjustments_json(), content_type="application/json")
     response["Content-Disposition"] = 'attachment; filename="orange_checks.json"'
     return response
 
 
-# ---------------------------------------------------------------------------
-# Inject grades
-# ---------------------------------------------------------------------------
-
-
 def _serialize_inject_grades_csv() -> str:
-    """Serialize inject grades to a CSV string."""
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -338,7 +304,6 @@ def _serialize_inject_grades_csv() -> str:
 
 
 def _serialize_inject_grades_json() -> str:
-    """Serialize inject grades to a JSON string."""
     grades = InjectScore.objects.select_related("team", "graded_by", "approved_by").order_by(
         "inject_name", "team__team_number"
     )
@@ -362,26 +327,18 @@ def _serialize_inject_grades_json() -> str:
 
 
 def export_inject_grades_csv() -> HttpResponse:
-    """Export inject grades to CSV format."""
     response = HttpResponse(_serialize_inject_grades_csv(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="inject_grades.csv"'
     return response
 
 
 def export_inject_grades_json() -> HttpResponse:
-    """Export inject grades to JSON format."""
     response = HttpResponse(_serialize_inject_grades_json(), content_type="application/json")
     response["Content-Disposition"] = 'attachment; filename="inject_grades.json"'
     return response
 
 
-# ---------------------------------------------------------------------------
-# Final scores
-# ---------------------------------------------------------------------------
-
-
 def _serialize_final_scores_csv() -> str:
-    """Serialize final scores to a CSV string."""
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(
@@ -420,7 +377,6 @@ def _serialize_final_scores_csv() -> str:
 
 
 def _serialize_final_scores_json() -> str:
-    """Serialize final scores to a JSON string."""
     scores = FinalScore.objects.select_related("team").order_by("-total_score", "team__team_number")
     data = [
         {
@@ -442,26 +398,18 @@ def _serialize_final_scores_json() -> str:
 
 
 def export_final_scores_csv() -> HttpResponse:
-    """Export final scores to CSV format."""
     response = HttpResponse(_serialize_final_scores_csv(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="final_scores.csv"'
     return response
 
 
 def export_final_scores_json() -> HttpResponse:
-    """Export final scores to JSON format."""
     response = HttpResponse(_serialize_final_scores_json(), content_type="application/json")
     response["Content-Disposition"] = 'attachment; filename="final_scores.json"'
     return response
 
 
-# ---------------------------------------------------------------------------
-# Tickets
-# ---------------------------------------------------------------------------
-
-
 def _serialize_tickets_csv() -> str:
-    """Serialize tickets to a CSV string."""
     from ticketing.models import Ticket
 
     output = StringIO()
@@ -522,7 +470,6 @@ def _serialize_tickets_csv() -> str:
 
 
 def _serialize_tickets_json() -> str:
-    """Serialize tickets to a JSON string."""
     from ticketing.models import Ticket
 
     tickets = Ticket.objects.select_related("team", "category", "assigned_to", "resolved_by", "approved_by").order_by(
@@ -557,22 +504,15 @@ def _serialize_tickets_json() -> str:
 
 
 def export_tickets_csv() -> HttpResponse:
-    """Export tickets to CSV format."""
     response = HttpResponse(_serialize_tickets_csv(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="tickets.csv"'
     return response
 
 
 def export_tickets_json() -> HttpResponse:
-    """Export tickets to JSON format."""
     response = HttpResponse(_serialize_tickets_json(), content_type="application/json")
     response["Content-Disposition"] = 'attachment; filename="tickets.json"'
     return response
-
-
-# ---------------------------------------------------------------------------
-# ZIP of all exports
-# ---------------------------------------------------------------------------
 
 
 def export_all_zip() -> HttpResponse:

@@ -27,8 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 class AuthentikAPIError(Exception):
-    """Custom exception for Authentik API errors with detailed information."""
-
     def __init__(
         self,
         message: str,
@@ -43,7 +41,6 @@ class AuthentikAPIError(Exception):
         super().__init__(self.formatted_message())
 
     def formatted_message(self) -> str:
-        """Format error message with all details."""
         parts = [self.message]
         if self.status_code:
             parts.append(f"Status: {self.status_code}")
@@ -55,8 +52,6 @@ class AuthentikAPIError(Exception):
 
 
 class AuthentikManager:
-    """Manager for Authentik API operations."""
-
     def __init__(
         self,
         *,
@@ -75,7 +70,6 @@ class AuthentikManager:
         )
 
     def close(self) -> None:
-        """Close the underlying HTTP client."""
         self.client.close()
 
     def __enter__(self) -> AuthentikManager:
@@ -94,14 +88,12 @@ class AuthentikManager:
         )
 
     def _handle_response_error(self, response: httpx.Response, context: str) -> AuthentikAPIError:
-        """Create detailed error from HTTP response."""
         try:
             error_data = response.json()
             error_detail = error_data.get("detail", str(error_data))
         except ValueError, httpx.DecodingError:
             error_detail = response.text
 
-        # Map common status codes to readable messages
         status_messages = {
             401: "Authentication failed - check AUTHENTIK_TOKEN",
             403: "Permission denied - token lacks required permissions",
@@ -123,7 +115,6 @@ class AuthentikManager:
         )
 
     def list_applications(self) -> list[str]:
-        """List all application slugs from Authentik."""
         url = f"{self.base_url}/api/v3/core/applications/"
         slugs: list[str] = []
         try:
@@ -148,11 +139,10 @@ class AuthentikManager:
             return slugs
 
     def get_application_by_slug(self, slug: str) -> AuthentikApplication | None:
-        """Get application details by exact slug.
+        """Get application details by exact slug, via the retrieve endpoint.
 
-        Uses the retrieve endpoint. The list endpoint ignores ?slug= and, for non-superusers,
-        returns only apps in a per-user cached "allowed" list, which can omit apps the service
-        account can access (on 2026-09-27 it returned only 'scoring' of the 7 controlled apps).
+        The list endpoint ignores ?slug= and, for non-superusers, returns only a per-user cached
+        "allowed" list, which can omit apps the service account can access.
         """
         url = f"{self.base_url}/api/v3/core/applications/{quote(slug, safe='')}/"
         try:
@@ -194,14 +184,7 @@ class AuthentikManager:
         return bt_slugs
 
     def get_blueteam_binding(self, app_pk: str) -> tuple[AuthentikBinding | None, str | None]:
-        """Get the BlueTeam group binding by querying application bindings.
-
-        Args:
-            app_pk: Application primary key to query bindings for
-
-        Returns:
-            tuple[Optional[dict], Optional[str]]: (binding_object, error_message)
-        """
+        """Find the application's BlueTeam group binding, returning (binding, error_message)."""
         url = f"{self.base_url}/api/v3/policies/bindings/"
         try:
             logger.debug(f"Querying bindings for application {app_pk}")
@@ -213,12 +196,10 @@ class AuthentikManager:
 
             logger.debug(f"Found {len(bindings)} binding(s) for application {app_pk}")
 
-            # Find the BlueTeam group binding
             for binding in bindings:
                 group_obj = binding.get("group_obj", {})
                 binding_pk = binding.get("pk")
 
-                # Check if this is a BlueTeam group binding
                 if group_obj:
                     group_name = group_obj.get("name", "")
                     logger.debug(f"Found group binding: {group_name} (pk={binding_pk})")
@@ -248,12 +229,7 @@ class AuthentikManager:
             return None, error_msg
 
     def update_binding_enabled(self, binding: AuthentikBinding, enabled: bool) -> bool:
-        """Update the enabled state of a binding.
-
-        Args:
-            binding: The binding object to update
-            enabled: True to enable the binding (allow group access), False to disable (deny group access)
-        """
+        """Set a binding's enabled state; an enabled binding allows the group access."""
         try:
             binding_pk = binding["pk"]
 
@@ -273,15 +249,7 @@ class AuthentikManager:
             return False
 
     def _toggle_application(self, app_slug: str, *, enable: bool) -> tuple[bool, str | None]:
-        """Enable or disable application for blue teams via the BlueTeam group binding.
-
-        Args:
-            app_slug: Authentik application slug
-            enable: True to enable (allow access), False to disable (deny access)
-
-        Returns:
-            tuple[bool, Optional[str]]: (success, error_message)
-        """
+        """Enable or disable an application for blue teams via its BlueTeam group binding."""
         action = "enable" if enable else "disable"
         try:
             logger.info(f"Attempting to {action} application '{app_slug}'")
@@ -327,11 +295,7 @@ class AuthentikManager:
         return self._toggle_application(app_slug, enable=False)
 
     def enable_applications(self, app_slugs: list[str]) -> dict[str, tuple[bool, str | None]]:
-        """Enable multiple applications for blue teams.
-
-        Returns:
-            dict mapping app_slug to (success, error_message)
-        """
+        """Enable multiple applications for blue teams."""
         logger.info(f"Enabling {len(app_slugs)} applications: {app_slugs}")
         results: dict[str, tuple[bool, str | None]] = {}
         for slug in app_slugs:
@@ -342,15 +306,10 @@ class AuthentikManager:
         return results
 
     def disable_applications(self, app_slugs: list[str]) -> dict[str, tuple[bool, str | None]]:
-        """Disable multiple applications for blue teams.
-
-        Returns:
-            dict mapping app_slug to (success, error_message)
-        """
+        """Disable multiple applications for blue teams."""
         logger.info(f"Disabling {len(app_slugs)} applications: {app_slugs}")
         results: dict[str, tuple[bool, str | None]] = {}
 
-        # Disable each application
         for slug in app_slugs:
             results[slug] = self.disable_application(slug)
 
@@ -361,14 +320,10 @@ class AuthentikManager:
     def update_user_discord_id(self, username: str, discord_id: int, uid: str) -> bool:
         """Store Discord ID in Authentik user attributes, preserving existing attributes.
 
-        Args:
-            username: Authentik username to look up
-            discord_id: Discord user ID (snowflake)
-            uid: The user's Authentik uid (OIDC sub). Nothing is written unless the user found
-                by username has it: a stale username may since belong to someone else.
+        Nothing is written unless the user found by username has this uid (OIDC sub): a stale
+        username may since belong to someone else.
         """
         try:
-            # Look up user by username to get the integer PK
             response = self.client.get(
                 f"{self.base_url}/api/v3/core/users/?username={quote(username, safe='')}",
             )
@@ -385,12 +340,10 @@ class AuthentikManager:
                 return False
             user_pk = user["pk"]
 
-            # Update attributes (preserve existing, add discord_id)
             existing_attrs = user.get("attributes", {})
             attributes: dict[str, object] = dict(existing_attrs) if isinstance(existing_attrs, dict) else {}
             attributes["discord_id"] = str(discord_id)
 
-            # Update user with merged attributes
             response = self.client.patch(
                 f"{self.base_url}/api/v3/core/users/{user_pk}/",
                 json={"attributes": attributes},
@@ -411,16 +364,8 @@ class AuthentikManager:
             return False
 
     def revoke_user_sessions(self, username: str) -> tuple[bool, str | None, int]:
-        """Revoke all active sessions for a user by username.
-
-        Args:
-            username: Authentik username (e.g., "team01")
-
-        Returns:
-            tuple[bool, Optional[str], int]: (success, error_message, sessions_revoked)
-        """
+        """Revoke all active sessions for a user, returning (success, error_message, sessions_revoked)."""
         try:
-            # First, get the user
             response = self.client.get(
                 f"{self.base_url}/api/v3/core/users/",
                 params={"username": username},
@@ -434,7 +379,6 @@ class AuthentikManager:
             user_pk = users[0]["pk"]
             logger.info(f"Found user {username} with pk={user_pk}")
 
-            # Get all sessions for this user
             response = self.client.get(
                 f"{self.base_url}/api/v3/core/authenticated_sessions/",
                 params={"user": user_pk},
@@ -444,7 +388,6 @@ class AuthentikManager:
 
             logger.info(f"Found {len(sessions)} session(s) for user {username}")
 
-            # Revoke each session
             revoked_count = 0
             for session in sessions:
                 session_uuid = session.get("uuid")
@@ -477,15 +420,7 @@ class AuthentikManager:
             return False, error_msg, 0
 
     def toggle_user(self, username: str, is_active: bool) -> tuple[bool, str]:
-        """Enable or disable a team account in Authentik with safety checks.
-
-        Args:
-            username: Authentik username (e.g., "team01")
-            is_active: True to enable, False to disable
-
-        Returns:
-            (success: bool, error_message: str)
-        """
+        """Enable or disable a team account in Authentik, refusing accounts that aren't team accounts."""
         from core.authentik_utils import validate_team_account
 
         try:
@@ -500,7 +435,6 @@ class AuthentikManager:
 
             user: AuthentikUser = users[0]
 
-            # Safety check: Verify this is actually a team account
             is_valid, error = validate_team_account(user, username)
             if not is_valid:
                 return (False, error)
@@ -519,13 +453,6 @@ class AuthentikManager:
         """Reset a blue team account's password in Authentik.
 
         Leaves is_active alone: team accounts are enabled only while the competition runs.
-
-        Args:
-            team_number: Team number (1-50)
-            password: New password to set
-
-        Returns:
-            Tuple of (success: bool, error_message: str)
         """
         from core.authentik_utils import validate_team_account
         from team.models import MAX_TEAMS
@@ -536,7 +463,6 @@ class AuthentikManager:
         username = f"team{team_number:02d}"
 
         try:
-            # Get user by username
             response = self.client.get(
                 f"{self.base_url}/api/v3/core/users/?username={quote(username, safe='')}",
             )
@@ -549,12 +475,10 @@ class AuthentikManager:
             user: AuthentikUser = users[0]
             user_pk: int = user["pk"]
 
-            # Safety check: Verify this is actually a team account
             is_valid, error = validate_team_account(user, username)
             if not is_valid:
                 return (False, error)
 
-            # Set password
             response = self.client.post(
                 f"{self.base_url}/api/v3/core/users/{user_pk}/set_password/",
                 json={"password": password},
@@ -591,14 +515,7 @@ class AuthentikManager:
         return self._list_all("/api/v3/core/groups/", {"include_users": "false"})
 
     def get_user_with_groups(self, username: str) -> dict[str, object] | None:
-        """Get an Authentik user with their group memberships.
-
-        Args:
-            username: Authentik username (e.g., "team01")
-
-        Returns:
-            User dict with groups_obj list, or None if not found or the lookup failed (logged).
-        """
+        """Get an Authentik user with their groups_obj, or None if not found or the lookup failed (logged)."""
         try:
             response = self.client.get(
                 f"{self.base_url}/api/v3/core/users/",
@@ -615,14 +532,7 @@ class AuthentikManager:
             return None
 
     def get_group_by_name(self, name: str) -> dict[str, object] | None:
-        """Look up an Authentik group by exact name.
-
-        Args:
-            name: Group name (e.g., "WCComps_BlueTeam01")
-
-        Returns:
-            Group dict with pk (UUID), or None if not found.
-        """
+        """Look up an Authentik group by exact name, or None if not found."""
         try:
             response = self.client.get(
                 f"{self.base_url}/api/v3/core/groups/",
@@ -640,15 +550,7 @@ class AuthentikManager:
             return None
 
     def add_user_to_group(self, user_pk: int, group_pk: str) -> tuple[bool, str]:
-        """Add a user to an Authentik group.
-
-        Args:
-            user_pk: User primary key (integer)
-            group_pk: Group primary key (UUID string)
-
-        Returns:
-            (success, error_message)
-        """
+        """Add a user to an Authentik group."""
         try:
             response = self.client.post(
                 f"{self.base_url}/api/v3/core/groups/{group_pk}/add_user/",

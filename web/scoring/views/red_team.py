@@ -1,5 +1,3 @@
-"""Red team submission, management, IP pools, and screenshot views."""
-
 from typing import cast
 
 from django.contrib import messages
@@ -59,7 +57,6 @@ def red_team_findings(request: HttpRequest) -> HttpResponse:
     """Gold team review page for red team findings."""
     from core.utils import filter_sort_paginate
 
-    # Get filter parameters
     status_filter = request.GET.get("status", "pending") or "pending"
     team_filter = request.GET.get("team", "")
     attack_type_filter = request.GET.get("attack_type", "")
@@ -68,13 +65,11 @@ def red_team_findings(request: HttpRequest) -> HttpResponse:
 
     base_query = RedTeamScore.objects.prefetch_related("affected_teams", "screenshots").select_related("submitted_by")
 
-    # Apply status filter
     if status_filter == "pending":
         base_query = base_query.filter(is_approved=False)
     elif status_filter == "approved":
         base_query = base_query.filter(is_approved=True)
 
-    # Apply other filters
     if team_filter:
         base_query = base_query.filter(affected_teams__id=team_filter)
 
@@ -110,7 +105,6 @@ def red_team_findings(request: HttpRequest) -> HttpResponse:
     pending_count = RedTeamScore.objects.filter(is_approved=False).count()
     approved_count = total_findings - pending_count
 
-    # Get available teams, attack types, and submitters for filter dropdowns
     available_teams = Team.objects.filter(red_team_scores__isnull=False).distinct().order_by("team_number")
     available_attack_types = AttackType.objects.filter(findings__isnull=False).distinct().order_by("name")
     available_submitters = User.objects.filter(red_scores_submitted__isnull=False).distinct().order_by("username")
@@ -118,7 +112,6 @@ def red_team_findings(request: HttpRequest) -> HttpResponse:
     user = cast(User, request.user)
     is_gold_team = has_permission(user, "gold_team")
 
-    # For bulk approve button visibility
     pending_findings = pending_count > 0
 
     context = {
@@ -141,7 +134,6 @@ def red_team_findings(request: HttpRequest) -> HttpResponse:
         "current_user": user,
     }
 
-    # Return partial for htmx requests
     if request.headers.get("HX-Request"):
         return render(request, "cotton/red_findings_table.html", context)
 
@@ -156,7 +148,6 @@ def red_team_scores(request: HttpRequest) -> HttpResponse:
     """Red team view of all findings (read-only, can delete/leave own)."""
     from core.utils import filter_sort_paginate
 
-    # Get filter parameters
     status_filter = request.GET.get("status", "all") or "all"
     team_filter = request.GET.get("team", "")
     attack_type_filter = request.GET.get("attack_type", "")
@@ -164,22 +155,18 @@ def red_team_scores(request: HttpRequest) -> HttpResponse:
 
     base_query = RedTeamScore.objects.prefetch_related("affected_teams", "screenshots").select_related("submitted_by")
 
-    # Apply status filter
     if status_filter == "pending":
         base_query = base_query.filter(is_approved=False)
     elif status_filter == "approved":
         base_query = base_query.filter(is_approved=True)
     # "all" shows everything
 
-    # Apply team filter
     if team_filter:
         base_query = base_query.filter(affected_teams__id=team_filter)
 
-    # Apply attack type filter
     if attack_type_filter:
         base_query = base_query.filter(attack_type_id=int(attack_type_filter))
 
-    # Apply submitter filter
     if submitter_filter:
         base_query = base_query.filter(submitted_by_id=int(submitter_filter))
 
@@ -198,7 +185,6 @@ def red_team_scores(request: HttpRequest) -> HttpResponse:
     page_obj = result["page_obj"]
     sort_by = result["current_sort"]
 
-    # Get available teams, attack types, and submitters for filter dropdowns
     available_teams = Team.objects.filter(red_team_scores__isnull=False).distinct().order_by("team_number")
     available_attack_types = AttackType.objects.filter(findings__isnull=False).distinct().order_by("name")
     available_submitters = User.objects.filter(red_scores_submitted__isnull=False).distinct().order_by("username")
@@ -217,7 +203,6 @@ def red_team_scores(request: HttpRequest) -> HttpResponse:
         "is_gold_team": False,  # Red team view - no approval actions
     }
 
-    # Return partial for htmx requests
     if request.headers.get("HX-Request"):
         return render(request, "cotton/red_findings_table.html", context)
 
@@ -253,13 +238,11 @@ def bulk_approve_red_scores(request: HttpRequest) -> HttpResponse:
 @require_permission("red_team", error_message="Only Red Team members can submit findings")
 @transaction.atomic
 def submit_red_score(request: HttpRequest) -> HttpResponse:
-    """Submit a red team finding."""
     from ..models import RedTeamIPPool
 
     user = cast(User, request.user)
     team_count = get_cached_team_count()
 
-    # Get user's IP pools for the form
     user_pools = RedTeamIPPool.objects.filter(created_by=user)
 
     if request.method == "POST":
@@ -296,7 +279,6 @@ def submit_red_score(request: HttpRequest) -> HttpResponse:
             finding.affected_teams.set(cd["affected_teams"])
             finding.contributors.add(user)
 
-            # Handle screenshot uploads
             screenshots = request.FILES.getlist("screenshots")
             max_screenshots = 20
 
@@ -373,12 +355,10 @@ def delete_red_score(request: HttpRequest, finding_id: int) -> HttpResponse:
     finding = get_object_or_404(RedTeamScore, id=finding_id)
     user = cast(User, request.user)
 
-    # Only the submitter can delete their own finding
     if finding.submitted_by != user:
         messages.error(request, "You can only delete your own findings")
         return redirect("scoring:red_team_scores")
 
-    # Cannot delete if already approved
     if finding.is_approved:
         messages.error(request, "Cannot delete a finding that has already been approved")
         return redirect("scoring:red_team_scores")
@@ -397,12 +377,10 @@ def leave_red_score(request: HttpRequest, finding_id: int) -> HttpResponse:
     finding = get_object_or_404(RedTeamScore, id=finding_id)
     user = cast(User, request.user)
 
-    # Cannot leave if already approved
     if finding.is_approved:
         messages.error(request, "Cannot leave a finding that has already been approved")
         return redirect("scoring:red_team_scores")
 
-    # Check if user is a contributor (but not the original submitter)
     if finding.submitted_by == user:
         messages.error(request, "You are the original submitter. Use delete instead.")
         return redirect("scoring:red_team_scores")
@@ -411,10 +389,8 @@ def leave_red_score(request: HttpRequest, finding_id: int) -> HttpResponse:
         messages.error(request, "You are not a contributor to this finding")
         return redirect("scoring:red_team_scores")
 
-    # Remove user from contributors
     finding.contributors.remove(user)
 
-    # Append note about removal
     if finding.notes:
         finding.notes += f"\n\n[System]: {user.username} removed themselves from this finding."
     else:
@@ -427,7 +403,6 @@ def leave_red_score(request: HttpRequest, finding_id: int) -> HttpResponse:
 
 @require_permission("red_team", "gold_team", error_message="Only Red Team or Gold Team can view this")
 def red_screenshot_download(request: HttpRequest, screenshot_id: int) -> HttpResponse:
-    """Serve red team screenshot from database."""
     from django.http import Http404
 
     screenshot = get_object_or_404(RedTeamScreenshot, id=screenshot_id)
@@ -438,10 +413,8 @@ def red_screenshot_download(request: HttpRequest, screenshot_id: int) -> HttpRes
     return screenshot_response(bytes(screenshot.file_data), screenshot.filename)
 
 
-# IP Pool Management Views
 @require_permission("red_team", error_message="Only Red Team members can manage IP pools")
 def ip_pool_list(request: HttpRequest) -> HttpResponse:
-    """List user's IP pools."""
     from ..models import RedTeamIPPool
 
     user = cast(User, request.user)
@@ -456,7 +429,6 @@ def ip_pool_list(request: HttpRequest) -> HttpResponse:
 @require_permission("red_team", error_message="Only Red Team members can manage IP pools")
 @transaction.atomic
 def ip_pool_create(request: HttpRequest) -> HttpResponse:
-    """Create a new IP pool."""
     from ..forms import RedTeamIPPoolForm
 
     user = cast(User, request.user)
@@ -497,7 +469,6 @@ def ip_pool_create(request: HttpRequest) -> HttpResponse:
 @require_permission("red_team", error_message="Only Red Team members can manage IP pools")
 @transaction.atomic
 def ip_pool_edit(request: HttpRequest, pool_id: int) -> HttpResponse:
-    """Edit an IP pool."""
     from ..forms import RedTeamIPPoolForm
     from ..models import RedTeamIPPool
 
@@ -525,13 +496,11 @@ def ip_pool_edit(request: HttpRequest, pool_id: int) -> HttpResponse:
 @transaction.atomic
 @require_http_methods(["POST"])
 def ip_pool_delete(request: HttpRequest, pool_id: int) -> HttpResponse:
-    """Delete an IP pool."""
     from ..models import RedTeamIPPool
 
     user = cast(User, request.user)
     pool = get_object_or_404(RedTeamIPPool, id=pool_id, created_by=user)
 
-    # Check if pool is in use by any findings
     if pool.findings.exists():
         messages.error(request, f"Cannot delete pool '{pool.name}' - it is used by {pool.findings.count()} finding(s)")
         return redirect("scoring:ip_pool_list")

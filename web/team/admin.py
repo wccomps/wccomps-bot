@@ -1,5 +1,3 @@
-"""Admin configuration for team app."""
-
 from django.contrib import admin
 from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse
@@ -31,7 +29,6 @@ class TeamAdmin(admin.ModelAdmin[Team]):
 
     @admin.display(description="Members")
     def member_count(self, obj: Team) -> int:
-        """Display member count."""
         return obj.get_member_count()
 
 
@@ -51,7 +48,6 @@ class DiscordLinkAdmin(admin.ModelAdmin[DiscordLink]):
 
     @admin.display(description="Authentik Username")
     def get_username(self, obj: DiscordLink) -> str:
-        """Display the linked user's username."""
         return obj.user.username if obj.user else ""
 
 
@@ -79,7 +75,6 @@ class LinkAttemptAdmin(admin.ModelAdmin[LinkAttempt]):
     ordering = ["-created_at"]
 
     def has_add_permission(self, request: HttpRequest) -> bool:
-        """Disable adding link attempts manually."""
         return False
 
 
@@ -92,7 +87,6 @@ class LinkRateLimitAdmin(admin.ModelAdmin[LinkRateLimit]):
     ordering = ["-attempted_at"]
 
     def has_add_permission(self, request: HttpRequest) -> bool:
-        """Disable adding rate limits manually."""
         return False
 
 
@@ -112,7 +106,6 @@ class SchoolInfoAdmin(admin.ModelAdmin[SchoolInfo]):
 
     @admin.action(description="Export as CSV")
     def export_as_csv(self, request: HttpRequest, queryset: QuerySet[SchoolInfo]) -> HttpResponse:
-        """Export school information as CSV."""
         import csv
 
         response = HttpResponse(content_type="text/csv")
@@ -146,7 +139,6 @@ class SchoolInfoAdmin(admin.ModelAdmin[SchoolInfo]):
 
     @admin.action(description="Import from CSV")
     def import_from_csv(self, request: HttpRequest, queryset: QuerySet[SchoolInfo]) -> HttpResponse:
-        """Redirect to CSV import page."""
         from django.shortcuts import redirect
 
         return redirect("/ops/school-info/import/")

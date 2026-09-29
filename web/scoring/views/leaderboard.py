@@ -1,5 +1,3 @@
-"""Leaderboard and scorecard views."""
-
 from decimal import Decimal
 from typing import TypedDict
 
@@ -76,14 +74,7 @@ def leaderboard(request: HttpRequest) -> HttpResponse:
 
 
 def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
-    """Compute comparative statistics for a team's scorecard.
-
-    Returns a dict with:
-        team_count: number of teams
-        category_ranks: per-category rank, avg, min, max, value
-        service_stats: per-service points, rank, avg, max
-        insights: list of human-readable insight strings
-    """
+    """Compute comparative statistics for a team's scorecard."""
     all_scores = FinalScore.objects.filter(is_excluded=False, rank__isnull=False)
     team_count = all_scores.count()
 
@@ -138,7 +129,6 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
     # Use the same population as category ranking: only ranked, non-excluded teams
     ranked_team_ids = set(all_scores.values_list("team_id", flat=True))
 
-    # Per-inject stats
     inject_stats: list[_InjectStat] = []
     team_injects = (
         InjectScore.objects.filter(team=team, is_approved=True)
@@ -165,7 +155,6 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
             )
         )
 
-    # Per-service stats
     service_stats: list[_ServiceStat] = []
     team_services = ServiceDetail.objects.filter(team=team).order_by("service_name")
 
@@ -186,7 +175,6 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
             )
         )
 
-    # Generate insights
     insights: list[str] = []
 
     # Best and worst category (by rank, lower is better; tiebreak by distance above avg)
@@ -194,7 +182,7 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
         main_cats = {"services", "injects", "orange"}
         positive_cats = {k: v for k, v in category_ranks.items() if k in main_cats and v["max"] != 0}
         if positive_cats:
-            # Sort key: rank ascending, then distance-above-average descending (best first)
+
             def _cat_sort_key(k: str) -> tuple[int, Decimal]:
                 v = positive_cats[k]
                 return (v["rank"], -(v["value"] - v["avg"]))
@@ -204,14 +192,12 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
             best_rank = positive_cats[best_cat]["rank"]
             insights.append(f"Strongest category: {best_cat.title()} (rank #{best_rank} of {team_count})")
 
-    # SLA insight
     if score.sla_penalties and score.sla_penalties < 0:
         sla_agg = all_scores.aggregate(avg=Avg("sla_penalties"))
         sla_avg = sla_agg["avg"] or Decimal("0")
         if score.sla_penalties < sla_avg:
             insights.append(f"SLA penalties ({score.sla_penalties}) are worse than average ({sla_avg:.0f})")
 
-    # Best/worst service insight
     if service_stats:
         best_svc = min(service_stats, key=lambda s: (s["rank"], -s["delta"]))
         worst_svc = max(service_stats, key=lambda s: (s["rank"], -s["delta"]))
@@ -312,7 +298,6 @@ def scorecard(request: HttpRequest, team_number: int) -> HttpResponse:
     error_message="Only authorized staff can export scorecards",
 )
 def scorecard_pdf(request: HttpRequest, team_number: int) -> HttpResponse:
-    """Generate PDF scorecard for a single team."""
     context = _build_scorecard_context(team_number)
     html_string = render_to_string("scoring/scorecard_print.html", context, request=request)
     pdf_bytes = weasyprint.HTML(string=html_string).write_pdf()

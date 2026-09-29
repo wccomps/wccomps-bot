@@ -1,8 +1,4 @@
-"""Bot configuration — single source of truth for bot-side environment variables.
-
-All bot-side environment variables should be read here, not scattered
-across modules. Import from this module instead of calling os.environ directly.
-"""
+"""Bot-side environment variables; add new ones here rather than reading os.environ in other modules."""
 
 import os
 

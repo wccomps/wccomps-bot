@@ -1,5 +1,3 @@
-"""JSON API endpoint views."""
-
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 
@@ -15,7 +13,6 @@ def _allowed(request: HttpRequest, *permissions: str) -> bool:
 
 
 def api_scores(request: HttpRequest) -> JsonResponse:
-    """API endpoint for scores."""
     if not _allowed(request, "gold_team", "white_team", "ticketing_admin"):
         return JsonResponse({"error": "Access denied"}, status=403)
     scores = get_leaderboard()
@@ -38,7 +35,6 @@ def api_scores(request: HttpRequest) -> JsonResponse:
 
 
 def api_team_detail(request: HttpRequest, team_number: int) -> JsonResponse:
-    """API endpoint for team detail."""
     if not _allowed(request, "gold_team", "white_team", "ticketing_admin"):
         return JsonResponse({"error": "Access denied"}, status=403)
     team = get_object_or_404(Team, team_number=team_number)
@@ -56,12 +52,10 @@ def api_attack_types(request: HttpRequest) -> JsonResponse:
     """API endpoint for attack type suggestions."""
     if not _allowed(request, "red_team", "gold_team"):
         return JsonResponse({"error": "Access denied"}, status=403)
-    # Get distinct attack vectors from previous findings
     attack_vectors = (
         RedTeamScore.objects.values_list("attack_vector", flat=True).distinct().order_by("attack_vector")[:50]
     )
 
-    # Extract unique attack types, truncated to 50 chars
     suggestions = []
     seen: set[str] = set()
     for vector in attack_vectors:

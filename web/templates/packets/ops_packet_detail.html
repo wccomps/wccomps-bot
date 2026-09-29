@@ -9,7 +9,6 @@
                        subtitle="{{ packet.title }}"
                        parent_url="{% url 'packets_list' %}"
                        parent_label="Packets" />
-        <!-- Status bar -->
         <div class="status-bar">
             <div class="d-flex justify-between items-center flex-wrap gap-10">
                 <div class="d-flex items-center gap-10 flex-wrap">
@@ -57,7 +56,6 @@
             </div>
         </div>
         <c-progress_bar class="mt-10 mb-10" />
-        <!-- Toast -->
         <template x-if="message">
             <div x-transition class="mb-10">
                 <c-alert :variant="messageType">
@@ -65,7 +63,6 @@
                 </c-alert>
             </div>
         </template>
-        <!-- Distribution table -->
         <c-fieldset heading="Distribution Status">
             {% if distributions %}
                 <c-table aria_label="Distribution status by team">
@@ -145,7 +142,6 @@
                                description="Distribution records will appear here once the packet is distributed" />
             {% endif %}
         </c-fieldset>
-        <!-- Test Email -->
         <c-fieldset heading="Test Email">
             <div class="d-flex gap-10 items-end flex-wrap">
                 <c-form_field label="Team" id="test-team">
@@ -165,7 +161,6 @@
                 </c-button>
             </div>
         </c-fieldset>
-        <!-- Packet Details -->
         <c-fieldset heading="Packet Details">
             <c-detail_grid>
                 <c-detail_row label="Uploaded By">

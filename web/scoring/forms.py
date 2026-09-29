@@ -1,5 +1,3 @@
-"""Forms for scoring system."""
-
 import ipaddress
 from typing import cast
 
@@ -27,8 +25,6 @@ class TeamNumberChoiceField(forms.ModelMultipleChoiceField["Team"]):
 
 
 class RedTeamIPPoolForm(forms.ModelForm[RedTeamIPPool]):
-    """Form for managing IP pools."""
-
     class Meta:
         model = RedTeamIPPool
         fields = ["name", "ip_addresses"]
@@ -77,7 +73,6 @@ class RedTeamIPPoolForm(forms.ModelForm[RedTeamIPPool]):
         if not raw:
             raise forms.ValidationError("At least one IP address is required")
 
-        # Parse IPs (split by newline and comma)
         valid_ips = []
         invalid_ips = []
         for line in raw.replace(",", "\n").split("\n"):
@@ -85,7 +80,6 @@ class RedTeamIPPoolForm(forms.ModelForm[RedTeamIPPool]):
             if not ip:
                 continue
             try:
-                # Validate IP address format
                 ipaddress.ip_address(ip)
                 valid_ips.append(ip)
             except ValueError:
@@ -97,14 +91,12 @@ class RedTeamIPPoolForm(forms.ModelForm[RedTeamIPPool]):
         if not valid_ips:
             raise forms.ValidationError("At least one valid IP address is required")
 
-        # Return normalized format (one per line)
         return "\n".join(valid_ips)
 
 
 class RedTeamScoreForm(forms.ModelForm[RedTeamScore]):
     """Form for red team to submit vulnerability findings."""
 
-    # Radio button to choose between single IP or pool
     source_ip_type = forms.ChoiceField(
         choices=[
             ("single", "Single IP"),
@@ -132,7 +124,6 @@ class RedTeamScoreForm(forms.ModelForm[RedTeamScore]):
             "destination_ip_template",
             "universally_attempted",
             "persistence_established",
-            # Outcome checkboxes for scoring
             "root_access",
             "user_access",
             "privilege_escalation",
@@ -142,7 +133,6 @@ class RedTeamScoreForm(forms.ModelForm[RedTeamScore]):
             "pii_recovered",
             "encrypted_db_recovered",
             "db_decrypted",
-            # Teams and notes
             "affected_teams",
             "notes",
         ]
@@ -187,7 +177,6 @@ class RedTeamScoreForm(forms.ModelForm[RedTeamScore]):
         self.user = user
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
-        # Configure attack_type field - only show active types
         attack_type_field = cast("forms.ModelChoiceField[AttackType]", self.fields["attack_type"])
         attack_type_field.queryset = AttackType.objects.filter(is_active=True)
         attack_type_field.empty_label = "Select attack type..."
@@ -197,7 +186,6 @@ class RedTeamScoreForm(forms.ModelForm[RedTeamScore]):
         self.fields["source_ip"].required = False
         self.fields["source_ip_pool"].required = False
 
-        # Populate IP pool dropdown with user's pools only
         pool_field = cast("forms.ModelChoiceField[RedTeamIPPool]", self.fields["source_ip_pool"])
         if user:
             pool_field.queryset = RedTeamIPPool.objects.filter(created_by=user)
@@ -205,11 +193,9 @@ class RedTeamScoreForm(forms.ModelForm[RedTeamScore]):
             pool_field.queryset = RedTeamIPPool.objects.none()
         pool_field.empty_label = "Select a pool..."
 
-        # Populate box choices from Quotient metadata
         self.box_choices = get_box_choices()
         cast(forms.MultipleChoiceField, self.fields["affected_boxes"]).choices = self.box_choices
 
-        # Set initial value for affected_boxes if editing
         if self.instance and self.instance.pk and self.instance.affected_boxes:
             boxes = self.instance.affected_boxes
             self.initial["affected_boxes"] = boxes if isinstance(boxes, list) else [boxes]
@@ -223,7 +209,6 @@ class RedTeamScoreForm(forms.ModelForm[RedTeamScore]):
             label="Affected Service",
         )
 
-        # Only show active teams, limited by Quotient team count if available
         # Replace default field with TeamNumberChoiceField to hide team names
         queryset = Team.objects.filter(is_active=True).order_by("team_number")
         if team_count is not None:
@@ -245,22 +230,18 @@ class RedTeamScoreForm(forms.ModelForm[RedTeamScore]):
         if source_ip_type == "single":
             if not source_ip:
                 self.add_error("source_ip", "Source IP is required when using single IP mode")
-            # Clear pool if single IP selected
             cleaned_data["source_ip_pool"] = None
         elif source_ip_type == "pool":
             if not source_ip_pool:
                 self.add_error("source_ip_pool", "Please select an IP pool")
-            # Clear single IP if pool selected
             cleaned_data["source_ip"] = None
 
         return cleaned_data
 
     def save(self, commit: bool = True) -> RedTeamScore:
-        """Save the form, including the affected_boxes field and auto-calculated points."""
         instance = super().save(commit=False)
         # SelectMultiple already returns a list
         instance.affected_boxes = self.cleaned_data.get("affected_boxes", [])
-        # Auto-calculate points from outcome checkboxes
         instance.points_per_team = instance.calculate_points()
         if commit:
             instance.save()
@@ -319,7 +300,6 @@ class IncidentReportForm(forms.ModelForm[IncidentReport]):
     def __init__(self, team: Team | None = None, is_admin: bool = False, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
-        # Show team selector for admins only
         if is_admin:
             team_field = cast("forms.ModelChoiceField[Team]", self.fields["team"])
             team_field.queryset = Team.objects.filter(is_active=True).order_by("team_number")
@@ -327,7 +307,6 @@ class IncidentReportForm(forms.ModelForm[IncidentReport]):
             team_field.widget.attrs["id"] = "id_team"
             if team:
                 team_field.initial = team
-            # Reorder fields to put team first
             self.order_fields(
                 [
                     "team",
@@ -341,10 +320,8 @@ class IncidentReportForm(forms.ModelForm[IncidentReport]):
                 ]
             )
         else:
-            # Hide team field for regular users
             del self.fields["team"]
 
-        # Populate box choices from Quotient metadata
         self.box_choices = get_box_choices()
         cast(forms.MultipleChoiceField, self.fields["affected_boxes"]).choices = self.box_choices
 
@@ -357,13 +334,11 @@ class IncidentReportForm(forms.ModelForm[IncidentReport]):
             label="Affected Service",
         )
 
-        # Set initial value for affected_boxes if editing
         if self.instance and self.instance.pk and self.instance.affected_boxes:
             boxes = self.instance.affected_boxes
             self.initial["affected_boxes"] = boxes if isinstance(boxes, list) else [boxes]
 
     def save(self, commit: bool = True) -> IncidentReport:
-        """Save the form, including the affected_boxes field."""
         instance = super().save(commit=False)
         # SelectMultiple already returns a list
         instance.affected_boxes = self.cleaned_data.get("affected_boxes", [])
@@ -392,7 +367,6 @@ class IncidentMatchForm(forms.ModelForm[IncidentReport]):
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
 
         if suggested_findings:
-            # Limit choices to suggested findings
             matched_field = cast("forms.ModelChoiceField[RedTeamScore]", self.fields["matched_to_red_score"])
             # Validation filters the queryset, which a sliced one does not allow.
             matched_field.queryset = RedTeamScore.objects.filter(pk__in=[f.pk for f in suggested_findings])
@@ -422,9 +396,6 @@ class ScoringTemplateForm(forms.ModelForm[ScoringTemplate]):
             "inject_max": forms.NumberInput(attrs=max_attrs),
             "orange_max": forms.NumberInput(attrs=max_attrs),
         }
-
-
-# --- Inject grading forms ---
 
 
 class InjectGradingForm(forms.Form):

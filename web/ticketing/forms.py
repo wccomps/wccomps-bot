@@ -1,5 +1,3 @@
-"""Django forms for ticketing views."""
-
 from django import forms
 
 

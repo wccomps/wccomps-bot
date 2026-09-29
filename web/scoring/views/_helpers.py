@@ -1,5 +1,3 @@
-"""Shared helpers for scoring views."""
-
 from django.contrib.auth.models import User
 
 from team.models import Team

@@ -1,5 +1,3 @@
-"""Ticket listing and notification views."""
-
 import contextlib
 import logging
 from datetime import timedelta
@@ -27,7 +25,6 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
     user = cast(User, request.user)
     authentik_username = user.username
 
-    # Determine user role
     is_ops = (
         has_permission(user, "ticketing_support")
         or has_permission(user, "ticketing_admin")
@@ -36,13 +33,11 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
     groups = get_authentik_groups(user)
     team, _team_number, is_team = get_team_from_groups(groups)
 
-    # Access check
     if not is_ops and not is_team:
         return HttpResponseForbidden("You do not have permission to view tickets.")
 
     from core.utils import filter_sort_paginate
 
-    # Get filter parameters (always)
     # Several statuses allowed (#37): checkboxes send ?status=a&status=b, and sort/page links carry
     # them as one comma-separated value. Unknown values are ignored; none selected means all.
     requested = {part for value in request.GET.getlist("status") for part in value.split(",")}
@@ -51,7 +46,6 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
     category_filter = request.GET.get("category", "all") or "all"
     search_query = request.GET.get("search", "").strip()
 
-    # Ops-only filter parameters
     team_filter = request.GET.get("team", "") if is_ops else ""
     assignee_filter = request.GET.get("assignee", "") if is_ops else ""
 
@@ -63,7 +57,6 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
     except ValueError:
         page_size = 50
 
-    # Build base query
     if is_ops:
         query = (
             Ticket.objects.select_related("team")
@@ -85,7 +78,6 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
             )
         )
 
-    # Apply shared filters
     if selected_statuses:
         query = query.filter(status__in=selected_statuses)
 
@@ -102,7 +94,6 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
             | Q(service_name__icontains=search_query)
         )
 
-    # Apply ops-only filters
     if is_ops and team_filter:
         with contextlib.suppress(ValueError):
             query = query.filter(team__team_number=int(team_filter))
@@ -156,7 +147,6 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
         )
     page_obj.object_list = enriched  # type: ignore[assignment]  # templates iterate enriched dicts, keep pagination
 
-    # Get unique assignees for filter dropdown (ops only)
     assignees = User.objects.filter(assigned_tickets__isnull=False).distinct().order_by("username") if is_ops else []
 
     is_ticketing_admin = has_permission(user, "ticketing_admin")
@@ -180,7 +170,6 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
         "categories": get_all_categories(),
     }
 
-    # Return partial for HTMX requests
     if request.headers.get("HX-Request"):
         return render(request, "cotton/ticket_list_table.html", context)
 

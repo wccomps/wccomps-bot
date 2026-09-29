@@ -1,5 +1,3 @@
-"""Utility functions for WCComps core functionality."""
-
 import ipaddress
 from collections.abc import Callable, Mapping
 from datetime import datetime
@@ -18,11 +16,8 @@ from team.models import MAX_TEAMS, Team
 def client_ip(request: HttpRequest) -> str:
     """The real client address: Cloudflare's CF-Connecting-IP, else the connecting peer.
 
-    Behind the Cloudflare tunnel and the gateway, REMOTE_ADDR is always the proxy. Cloudflare
-    overwrites CF-Connecting-IP on every request, so the header is trustworthy only when every
-    request comes through Cloudflare (production: the web Service is ClusterIP, reached only via
-    the tunnel). Served directly, clients can set it. A missing or malformed header falls back
-    to REMOTE_ADDR.
+    Behind the tunnel REMOTE_ADDR is always the proxy. The header is trustworthy only because every
+    production request comes through Cloudflare, which overwrites it; served directly, clients can set it.
     """
     header = request.META.get("HTTP_CF_CONNECTING_IP", "").strip()
     try:
@@ -32,36 +27,20 @@ def client_ip(request: HttpRequest) -> str:
 
 
 def parse_datetime_to_utc(datetime_str: str, tz_name: str = "America/Los_Angeles") -> datetime:
-    """Parse ISO 8601 datetime string and convert to UTC.
-
-    Args:
-        datetime_str: Datetime in format YYYY-MM-DDTHH:MM (ISO 8601 without seconds)
-        tz_name: IANA timezone name (default: America/Los_Angeles)
-
-    Returns:
-        datetime object in UTC
-
-    Raises:
-        ValueError: If datetime_str is not in expected format
-    """
+    """Parse a YYYY-MM-DDTHH:MM string in timezone tz_name and convert to UTC; raises ValueError."""
     dt = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M")
     local_time = datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, tzinfo=ZoneInfo(tz_name))
     return local_time.astimezone(ZoneInfo("UTC"))
 
 
 def ndjson_progress(step: str, current: int, total: int, ok: bool = True) -> str:
-    """Encode a single progress line as newline-delimited JSON.
-
-    Used by streaming views to report operation progress to the frontend.
-    """
+    """Encode a single progress line as newline-delimited JSON for streaming views."""
     import json
 
     return json.dumps({"step": step, "current": current, "total": total, "ok": ok}) + "\n"
 
 
 class TeamGroupInfo(NamedTuple):
-    """Result of get_team_from_groups()."""
-
     team: Team | None
     team_number: int | None
     is_team_account: bool
@@ -70,15 +49,7 @@ class TeamGroupInfo(NamedTuple):
 def get_team_from_groups(
     groups: list[str],
 ) -> TeamGroupInfo:
-    """
-    Extract team information from Authentik groups.
-
-    Args:
-        groups: List of Authentik group names
-
-    Returns:
-        TeamGroupInfo(team, team_number, is_team_account)
-    """
+    """Extract team information from Authentik groups."""
 
     from core.permission_constants import extract_team_number
 
@@ -95,8 +66,6 @@ def get_team_from_groups(
 
 
 class FilterSortPage[M: Model](TypedDict):
-    """Result of filter_sort_paginate()."""
-
     page_obj: Page[M]
     current_sort: str
 
@@ -197,9 +166,7 @@ def role_sync_summary(stats: Mapping[str, object], *, dry_run: bool) -> str:
     )
 
 
-# Discord IDs the app can't work without: Django setting name -> environment variable name.
-# All default to 0; a 0 used to be silently treated as "channel/role not found" (see
-# commit 37f6f6b, after which production ran for months with no role IDs set).
+# Discord IDs the app can't work without (setting name -> env var); each defaults to 0, which silently breaks features.
 # DISCORD_LINK_CHANNEL_ID / DISCORD_WELCOME_CHANNEL_ID are optional: 0 turns those panels off.
 REQUIRED_DISCORD_SETTINGS: dict[str, str] = {
     "COMPETITION_GUILD_ID": "DISCORD_GUILD_ID",

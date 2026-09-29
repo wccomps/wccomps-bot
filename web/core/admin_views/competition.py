@@ -1,5 +1,3 @@
-"""Admin views for competition management."""
-
 import csv
 import io
 import json
@@ -38,12 +36,10 @@ TIMEZONE_CHOICES = [
 
 
 def _has_admin_or_gold_access(user: User) -> bool:
-    """Check if user has admin or gold_team permission."""
     return has_permission(user, "admin") or has_permission(user, "gold_team")
 
 
 def _action_set_max_members(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle set_max_members action."""
     from team.models import Team
 
     form = SetMaxMembersForm(request.POST)
@@ -71,11 +67,7 @@ def _action_set_max_members(request: HttpRequest, config: CompetitionConfig, aut
 def _edit_controlled_app(
     request: HttpRequest, config: CompetitionConfig, authentik_username: str, *, add: bool
 ) -> JsonResponse:
-    """Add or remove one controlled app against the CURRENT stored list.
-
-    The page used to send its whole list, so an edit from a stale page (e.g. one that reloaded
-    while another save was in flight) silently dropped apps added in between.
-    """
+    """Add or remove one controlled app against the CURRENT stored list, so a stale page can't drop others."""
     form = AppSlugForm(request.POST)
     if not form.is_valid():
         return JsonResponse({"error": "Please provide an app slug"}, status=400)
@@ -104,17 +96,14 @@ def _edit_controlled_app(
 
 
 def _action_add_app(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle add_app action."""
     return _edit_controlled_app(request, config, authentik_username, add=True)
 
 
 def _action_remove_app(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle remove_app action."""
     return _edit_controlled_app(request, config, authentik_username, add=False)
 
 
 def _action_set_start_time(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle set_start_time action."""
     form = SetTimeForm(request.POST)
     if not form.is_valid():
         return JsonResponse({"error": "Please provide a datetime"}, status=400)
@@ -145,7 +134,6 @@ def _action_set_start_time(request: HttpRequest, config: CompetitionConfig, auth
 
 
 def _action_set_end_time(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle set_end_time action."""
     form = SetTimeForm(request.POST)
     if not form.is_valid():
         return JsonResponse({"error": "Please provide a datetime"}, status=400)
@@ -245,14 +233,12 @@ def _stream_competition_run(enable: bool, authentik_username: str) -> Iterator[s
 def _action_start_competition(
     request: HttpRequest, config: CompetitionConfig, authentik_username: str
 ) -> StreamingHttpResponse:
-    """Handle start_competition action with streaming progress."""
     return StreamingHttpResponse(_stream_competition_run(True, authentik_username), content_type="application/x-ndjson")
 
 
 def _action_stop_competition(
     request: HttpRequest, config: CompetitionConfig, authentik_username: str
 ) -> StreamingHttpResponse:
-    """Handle stop_competition action with streaming progress."""
     return StreamingHttpResponse(
         _stream_competition_run(False, authentik_username), content_type="application/x-ndjson"
     )
@@ -270,7 +256,6 @@ def _action_cleanup_competition(
 
 
 def _action_wipe_competition(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle wipe_competition action - nuclear option to delete all competition data."""
     from core.competition_utils import wipe_competition_data
 
     if config.applications_enabled:
@@ -278,12 +263,10 @@ def _action_wipe_competition(request: HttpRequest, config: CompetitionConfig, au
 
     counts = wipe_competition_data()
 
-    # Clear competition config times
     config.competition_start_time = None
     config.competition_end_time = None
     config.save()
 
-    # Summarize what was deleted
     deleted_items = {k: v for k, v in counts.items() if v > 0}
     total_deleted = sum(counts.values())
 
@@ -308,7 +291,6 @@ def _action_wipe_competition(request: HttpRequest, config: CompetitionConfig, au
 
 
 def _action_reset_passwords(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle reset_passwords action."""
     form = ResetPasswordsForm(request.POST)
     if not form.is_valid():
         error_msg = "; ".join(str(e) for errors in form.errors.values() for e in errors)
@@ -358,7 +340,6 @@ def _action_reset_passwords(request: HttpRequest, config: CompetitionConfig, aut
 
 
 def _action_sync_quotient(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    """Handle sync_quotient action."""
     try:
         sync_quotient_metadata()
         AuditLog.objects.create(
@@ -394,21 +375,17 @@ _COMPETITION_ACTION_HANDLERS = {
 
 @require_permission("admin", "gold_team")
 def admin_competition(request: HttpRequest) -> HttpResponse:
-    """Competition management dashboard."""
     from team.models import DiscordLink, Team
 
     config = CompetitionConfig.get_config()
 
-    # Get team counts
     active_teams = Team.objects.filter(is_active=True).count()
     total_teams = Team.objects.count()
     linked_users = DiscordLink.objects.filter(is_active=True, team__isnull=False).count()
 
-    # Get available apps from Authentik
     auth_manager = AuthentikManager()
     available_apps = auth_manager.list_applications()
 
-    # Get Quotient metadata
     quotient_metadata = QuotientMetadataCache.objects.first()
 
     context = {
@@ -427,7 +404,6 @@ def admin_competition(request: HttpRequest) -> HttpResponse:
 
 
 def admin_competition_action(request: HttpRequest) -> HttpResponseBase:
-    """Handle competition management actions via dispatch."""
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
 

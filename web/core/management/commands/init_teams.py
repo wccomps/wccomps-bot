@@ -1,5 +1,3 @@
-"""Initialize teams in the database."""
-
 from django.core.management.base import BaseCommand
 
 from core.models import CompetitionConfig
@@ -13,7 +11,6 @@ class Command(BaseCommand):
         created_count = 0
         updated_count = 0
 
-        # Get global max_members setting
         config = CompetitionConfig.get_config()
         max_members = config.max_team_members
 

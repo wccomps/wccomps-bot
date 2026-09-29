@@ -54,7 +54,6 @@ class ScoringCog(commands.Cog):
         # Import models here to avoid circular imports
         from scoring.models import IncidentReport
 
-        # Validate inputs
         if not source_ip.strip():
             await interaction.response.send_message(
                 "Source IP address is required. Please include the IP address from your evidence.",
@@ -72,7 +71,6 @@ class ScoringCog(commands.Cog):
             )
             return
 
-        # Create incident report
         try:
             incident = await IncidentReport.objects.acreate(
                 team=team,
@@ -81,11 +79,10 @@ class ScoringCog(commands.Cog):
                 source_ip=source_ip,
                 destination_ip="",  # Will be filled in from web interface
                 attack_description=f"{attack_vector}\n\n{description}",
-                attack_detected_at=timezone.now(),  # Default to now
+                attack_detected_at=timezone.now(),
                 submitted_by=submitted_by_user,
             )
 
-            # Create success embed
             embed = discord.Embed(
                 title="Incident Report Submitted",
                 description="Your incident report has been submitted for gold team review.",
@@ -100,7 +97,6 @@ class ScoringCog(commands.Cog):
             embed.add_field(name="Attack Vector", value=attack_vector, inline=False)
             embed.add_field(name="Description", value=description[:DISCORD_EMBED_FIELD_CHAR_LIMIT], inline=False)
 
-            # Add next steps
             embed.add_field(
                 name="Upload Evidence",
                 value=f"Visit the web interface to upload screenshots showing IP addresses and timestamps:\n"
@@ -124,5 +120,4 @@ class ScoringCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Setup function to add cog to bot."""
     await bot.add_cog(ScoringCog(bot))

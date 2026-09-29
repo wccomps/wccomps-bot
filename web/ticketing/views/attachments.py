@@ -1,5 +1,3 @@
-"""File attachment handling views."""
-
 import logging
 from typing import cast
 
@@ -30,9 +28,7 @@ INLINE_SAFE_MIME_TYPES = {
 def _save_attachment(
     ticket: Ticket, uploaded_file: UploadedFile[bytes] | None, uploaded_by: str
 ) -> HttpResponse | None:
-    """
-    Validate and save an attachment. Returns HttpResponse on error, None on success.
-    """
+    """Validate and save an attachment. Returns HttpResponse on error, None on success."""
     if not uploaded_file:
         return HttpResponse("No file provided", status=400)
 
@@ -58,7 +54,6 @@ def _save_attachment(
 
 
 def ticket_attachment_upload(request: HttpRequest, ticket_number: str) -> HttpResponse:
-    """Upload an attachment to a ticket."""
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
 
@@ -76,7 +71,6 @@ def ticket_attachment_upload(request: HttpRequest, ticket_number: str) -> HttpRe
     except Ticket.DoesNotExist:
         return HttpResponse("Ticket not found", status=404)
 
-    # Access check: ops can access any ticket, team can only access their own
     if not is_ops and (not is_team or not team or ticket.team != team):
         return HttpResponse("Access denied", status=403)
 
@@ -93,7 +87,6 @@ def ticket_attachment_download(
     attachment_id: int,
     ticket_number: str,
 ) -> HttpResponse:
-    """Download an attachment from a ticket."""
     user = cast(User, request.user)
     groups = get_authentik_groups(user)
     team, _, is_team = get_team_from_groups(groups)
@@ -109,12 +102,10 @@ def ticket_attachment_download(
     except TicketAttachment.DoesNotExist:
         return HttpResponse("Attachment not found", status=404)
 
-    # Access check: ops can access any ticket, team can only access their own
     if not is_ops and (not is_team or not team or attachment.ticket.team != team):
         return HttpResponse("Access denied", status=403)
 
-    # Only allow inline viewing for safe MIME types (images, PDFs)
-    # Force download for everything else to prevent XSS via HTML/SVG
+    # Only images and PDFs render inline; anything else downloads, to prevent XSS via HTML/SVG
     inline_requested = request.GET.get("inline") == "1"
     is_safe_for_inline = attachment.mime_type in INLINE_SAFE_MIME_TYPES
     as_attachment = not (inline_requested and is_safe_for_inline)

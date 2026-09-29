@@ -1,5 +1,3 @@
-"""Models for team packet distribution system."""
-
 from django.db import models
 from django.db.models import F, Value
 from django.db.models.functions import Coalesce
@@ -32,21 +30,18 @@ class Packet(models.Model):
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft", db_index=True)
 
-    # Distribution tracking
     actual_distribution_time = models.DateTimeField(
         null=True,
         blank=True,
         help_text="When distribution actually started",
     )
 
-    # Distribution methods
     send_via_email = models.BooleanField(default=True, help_text="Send packet via email to team contacts")
     web_access_enabled = models.BooleanField(default=True, help_text="Allow teams to download from web interface")
 
     # Per-team data included in emails (keyed by team number as string)
     team_extras = models.JSONField(default=dict, blank=True, help_text="Per-team data for emails, keyed by team number")
 
-    # Metadata
     uploaded_by = models.CharField(max_length=255, help_text="Username who uploaded")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -61,7 +56,6 @@ class Packet(models.Model):
         return f"{self.title} ({self.status})"
 
     def get_distribution_stats(self) -> dict[str, int]:
-        """Get distribution statistics."""
         distributions = self.distributions.all()
         return {
             "total": distributions.count(),
@@ -73,24 +67,19 @@ class Packet(models.Model):
         }
 
     def is_ready_for_distribution(self) -> bool:
-        """Check if packet is ready to be distributed."""
         return self.status == "draft"
 
     def mark_as_distributing(self) -> None:
-        """Mark packet as currently being distributed."""
         self.status = "distributing"
         self.actual_distribution_time = timezone.now()
         self.save(update_fields=["status", "actual_distribution_time", "updated_at"])
 
     def mark_as_completed(self) -> None:
-        """Mark packet distribution as completed."""
         self.status = "completed"
         self.save(update_fields=["status", "updated_at"])
 
 
 class PacketDistribution(models.Model):
-    """Track packet distribution status for each team."""
-
     STATUS_CHOICES = [
         ("pending", "Pending"),
         ("sent", "Sent"),
@@ -102,20 +91,17 @@ class PacketDistribution(models.Model):
     packet = models.ForeignKey(Packet, on_delete=models.CASCADE, related_name="distributions")
     team = models.ForeignKey("team.Team", on_delete=models.CASCADE)
 
-    # Email delivery tracking
     email_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
     email_sent_to = models.EmailField(blank=True, help_text="Email address where packet was sent")
     email_sent_at = models.DateTimeField(null=True, blank=True)
     email_error_message = models.TextField(blank=True)
 
-    # Web access tracking
     web_access_enabled = models.BooleanField(default=True)
     downloaded_at = models.DateTimeField(null=True, blank=True, help_text="First time packet was downloaded")
     download_count = models.IntegerField(default=0, help_text="Number of times downloaded")
     last_downloaded_at = models.DateTimeField(null=True, blank=True)
     downloaded_by = models.CharField(max_length=255, blank=True, help_text="Username who last downloaded")
 
-    # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -133,7 +119,6 @@ class PacketDistribution(models.Model):
         return f"{self.packet.title} → Team {self.team.team_number} ({self.email_status})"
 
     def mark_as_sent(self, email: str) -> None:
-        """Mark as sent via email."""
         self.email_status = "sent"
         self.email_sent_to = email
         self.email_sent_at = timezone.now()
@@ -147,7 +132,6 @@ class PacketDistribution(models.Model):
         )
 
     def mark_as_failed(self, error_message: str) -> None:
-        """Mark email delivery as failed."""
         self.email_status = "failed"
         self.email_error_message = error_message
         self.save(update_fields=["email_status", "email_error_message", "updated_at"])

@@ -1,5 +1,3 @@
-"""Forms for team management."""
-
 import csv
 import io
 import random
@@ -22,7 +20,6 @@ def _infer_header_mapping(fieldnames: list[str]) -> dict[str, str] | None:
     canonical = {"school_name", "contact_email", "secondary_email", "notes"}
     normalized = {f: f.strip().lower().replace(" ", "_") for f in fieldnames}
 
-    # If headers already match canonical names, no inference needed
     if set(normalized.values()) <= canonical:
         return None
 
@@ -77,8 +74,6 @@ class CSVValidationResult(TypedDict):
 
 
 class CSVUploadForm(forms.Form):
-    """Form for uploading CSV file with team school information."""
-
     csv_file = forms.FileField(
         label="CSV File",
         help_text=(
@@ -90,14 +85,11 @@ class CSVUploadForm(forms.Form):
     )
 
     def clean_csv_file(self) -> UploadedFile[bytes]:
-        """Validate CSV file format and contents."""
         csv_file = cast(UploadedFile[bytes], self.cleaned_data["csv_file"])
 
-        # Check file extension
         if not csv_file.name or not csv_file.name.endswith(".csv"):
             raise ValidationError("File must be a CSV file (.csv)")
 
-        # Check file size (10MB max)
         if csv_file.size and csv_file.size > 10 * 1024 * 1024:
             raise ValidationError("File size must be less than 10MB")
 
@@ -105,26 +97,17 @@ class CSVUploadForm(forms.Form):
 
 
 def parse_csv_file(csv_file: UploadedFile[bytes]) -> CSVParseResult:
-    """
-    Parse CSV file and validate contents.
-
-    Returns:
-        dict with 'rows' (list of valid data dicts), 'errors' (list of error messages),
-        and 'warnings' (list of warning messages)
-    """
+    """Parse CSV file and validate contents."""
     rows: list[CSVRowData] = []
     errors: list[str] = []
     warnings: list[str] = []
 
     try:
-        # Read file content
         content = csv_file.read().decode("utf-8")
-        csv_file.seek(0)  # Reset file pointer
+        csv_file.seek(0)
 
-        # Parse CSV
         reader = csv.DictReader(io.StringIO(content))
 
-        # Validate headers
         required_headers = {"school_name", "contact_email"}
         optional_headers = {"secondary_email", "notes"}
         all_headers = required_headers | optional_headers
@@ -133,7 +116,6 @@ def parse_csv_file(csv_file: UploadedFile[bytes]) -> CSVParseResult:
             errors.append("CSV file is empty or has no headers")
             return {"rows": rows, "errors": errors, "warnings": warnings}
 
-        # Try to infer header mapping if headers don't match canonical names
         header_mapping = _infer_header_mapping(list(reader.fieldnames))
         if header_mapping:
             mapped_names = set(header_mapping.values())
@@ -145,33 +127,27 @@ def parse_csv_file(csv_file: UploadedFile[bytes]) -> CSVParseResult:
 
         headers = mapped_names
 
-        # Check for required headers
         missing_headers = required_headers - headers
         if missing_headers:
             errors.append(f"Missing required columns: {', '.join(sorted(missing_headers))}")
             return {"rows": rows, "errors": errors, "warnings": warnings}
 
-        # Check for unknown headers
         unknown_headers = headers - all_headers
         if unknown_headers:
             warnings.append(f"Unknown columns will be ignored: {', '.join(sorted(unknown_headers))}")
 
-        # Process each row
         for row_num, raw_row in enumerate(reader, start=2):  # Start at 2 (header is row 1)
-            # Apply header mapping if needed
             row = {header_mapping.get(k, k): v for k, v in raw_row.items()} if header_mapping else raw_row
 
             row_errors: list[str] = []
             row_data: CSVRowData = {}
 
-            # Validate school_name
             school_name = row.get("school_name", "").strip()
             if not school_name:
                 row_errors.append(f"Row {row_num}: school_name is required")
             else:
                 row_data["school_name"] = school_name
 
-            # Validate contact_email
             contact_email = row.get("contact_email", "").strip()
             if not contact_email:
                 row_errors.append(f"Row {row_num}: contact_email is required")
@@ -182,7 +158,6 @@ def parse_csv_file(csv_file: UploadedFile[bytes]) -> CSVParseResult:
                 except ValidationError:
                     row_errors.append(f"Row {row_num}: contact_email is not a valid email address")
 
-            # Validate secondary_email (optional)
             secondary_email = row.get("secondary_email", "").strip()
             if secondary_email:
                 try:
@@ -193,17 +168,14 @@ def parse_csv_file(csv_file: UploadedFile[bytes]) -> CSVParseResult:
             else:
                 row_data["secondary_email"] = ""
 
-            # Get notes (optional)
             notes = row.get("notes", "").strip()
             row_data["notes"] = notes
 
-            # Add row if no errors
             if row_errors:
                 errors.extend(row_errors)
             else:
                 rows.append(row_data)
 
-        # Check if we have any valid rows
         if not rows and not errors:
             errors.append("CSV file contains no data rows")
 
@@ -216,17 +188,11 @@ def parse_csv_file(csv_file: UploadedFile[bytes]) -> CSVParseResult:
 
 
 def validate_csv_data(rows: list[CSVRowData]) -> CSVValidationResult:
-    """
-    Validate CSV data against database and assign random team numbers.
-
-    Returns:
-        dict with 'teams_to_create', 'errors', 'warnings'
-    """
+    """Validate CSV data against database and assign random team numbers."""
     teams_to_create: list[CSVRowData] = []
     errors: list[str] = []
     warnings: list[str] = []
 
-    # Get the first N available teams by team_number (lowest numbers first)
     num_rows = len(rows)
     existing_school_info_team_ids = set(SchoolInfo.objects.values_list("team_id", flat=True))
     available_teams = list(
@@ -246,7 +212,6 @@ def validate_csv_data(rows: list[CSVRowData]) -> CSVValidationResult:
             "warnings": warnings,
         }
 
-    # Shuffle and assign teams randomly
     random.shuffle(available_teams)
 
     for i, row in enumerate(rows):
@@ -266,25 +231,12 @@ def apply_csv_import(
     teams_to_create: list[CSVRowData],
     updated_by: str,
 ) -> dict[str, int]:
-    """
-    Apply CSV import to database.
-
-    Creates SchoolInfo for each team and auto-assigns to the active event
-    (TeamRegistration + EventTeamAssignment).
-
-    Args:
-        teams_to_create: List of team data to create SchoolInfo for
-        updated_by: Username of person performing the import
-
-    Returns:
-        dict with 'created' and 'assigned' counts
-    """
+    """Create SchoolInfo for each team and assign it to the active event, returning created/assigned counts."""
     from registration.models import Event, EventTeamAssignment, Season, TeamRegistration
 
     created = 0
     assigned = 0
 
-    # Look up active season + event once
     season = Season.objects.filter(is_active=True).first()
     event = Event.objects.filter(is_active=True, season=season).first() if season else None
 
@@ -300,7 +252,6 @@ def apply_csv_import(
         )
         created += 1
 
-        # Auto-assign to active event
         if event:
             registration, _ = TeamRegistration.objects.get_or_create(
                 school_name=row["school_name"],

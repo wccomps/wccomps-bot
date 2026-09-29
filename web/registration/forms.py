@@ -1,5 +1,3 @@
-"""Forms for team registration."""
-
 from django import forms
 
 from .models import Event, RegistrationContact, Season, TeamRegistration
@@ -8,17 +6,14 @@ from .models import Event, RegistrationContact, Season, TeamRegistration
 class RegistrationForm(forms.ModelForm[TeamRegistration]):
     """Combined form for registration with captain, coach, events, and rules."""
 
-    # Team Captain fields
     captain_name = forms.CharField(max_length=255, label="Full Name")
     captain_email = forms.EmailField(label="Email Address")
     captain_phone = forms.CharField(max_length=50, label="Phone Number")
 
-    # Coach/Faculty Advisor fields
     coach_name = forms.CharField(max_length=255, label="Full Name")
     coach_email = forms.EmailField(label="Email Address")
     coach_phone = forms.CharField(max_length=50, label="Phone Number", required=False)
 
-    # Event selection
     events = forms.ModelMultipleChoiceField(
         queryset=Event.objects.none(),
         widget=forms.CheckboxSelectMultiple,
@@ -26,7 +21,6 @@ class RegistrationForm(forms.ModelForm[TeamRegistration]):
         label="Select Events",
     )
 
-    # Rules agreement
     agree_to_rules = forms.BooleanField(
         required=True,
         label="I agree to the competition rules",
@@ -42,7 +36,6 @@ class RegistrationForm(forms.ModelForm[TeamRegistration]):
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
-        # Populate events from active season with open registration
         events_field = self.fields["events"]
         if isinstance(events_field, forms.ModelMultipleChoiceField):
             events_field.queryset = Event.objects.filter(
@@ -73,7 +66,6 @@ class RegistrationForm(forms.ModelForm[TeamRegistration]):
 
         registration = super().save(commit=commit)
         if commit:
-            # Create captain contact
             RegistrationContact.objects.update_or_create(
                 registration=registration,
                 role="captain",
@@ -83,7 +75,6 @@ class RegistrationForm(forms.ModelForm[TeamRegistration]):
                     "phone": self.cleaned_data["captain_phone"],
                 },
             )
-            # Create coach contact
             RegistrationContact.objects.update_or_create(
                 registration=registration,
                 role="coach",
@@ -93,7 +84,6 @@ class RegistrationForm(forms.ModelForm[TeamRegistration]):
                     "phone": self.cleaned_data.get("coach_phone", ""),
                 },
             )
-            # Create event enrollments
             for event in self.cleaned_data["events"]:
                 RegistrationEventEnrollment.objects.get_or_create(
                     registration=registration,
@@ -103,8 +93,6 @@ class RegistrationForm(forms.ModelForm[TeamRegistration]):
 
 
 class SeasonForm(forms.ModelForm[Season]):
-    """Form for creating/editing seasons."""
-
     class Meta:
         model = Season
         fields = ["name", "year", "is_active"]
@@ -119,8 +107,6 @@ class SeasonForm(forms.ModelForm[Season]):
 
 
 class EventForm(forms.ModelForm[Event]):
-    """Form for creating/editing events."""
-
     class Meta:
         model = Event
         fields = [

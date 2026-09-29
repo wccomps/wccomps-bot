@@ -1,5 +1,3 @@
-"""URL configuration for team-facing packet views."""
-
 from django.urls import path
 
 from . import views

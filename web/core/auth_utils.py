@@ -1,6 +1,4 @@
-"""
-Simplified Authentik-only authorization utilities.
-"""
+"""Authorization via Authentik groups."""
 
 from collections.abc import Callable
 from typing import Concatenate, ParamSpec
@@ -18,10 +16,7 @@ type ViewFunc[**P] = Callable[Concatenate[HttpRequest, P], HttpResponseBase]
 
 
 def get_authentik_groups(user: User | AnonymousUser) -> list[str]:
-    """
-    Get user's Authentik groups from UserGroups model.
-    This is the single source of truth for permissions.
-    """
+    """Get user's Authentik groups from UserGroups, the single source of truth for permissions."""
     if isinstance(user, AnonymousUser):
         return []
 
@@ -32,7 +27,6 @@ def get_authentik_groups(user: User | AnonymousUser) -> list[str]:
 
 
 def get_authentik_id(user: User) -> str | None:
-    """Get user's Authentik user ID from UserGroups model."""
     try:
         return user.usergroups.authentik_id
     except UserGroups.DoesNotExist:
@@ -40,28 +34,16 @@ def get_authentik_id(user: User) -> str | None:
 
 
 def get_permissions_context(user: User) -> dict[str, bool]:
-    """Get permissions dict for template context.
-
-    Auto-generates is_* flags from PERMISSION_MAP keys.
-    """
+    """Get permissions dict for template context."""
     return {f"is_{perm}": has_permission(user, perm) for perm in PERMISSION_MAP}
 
 
 def has_permission(user: User | AnonymousUser, permission_name: str) -> bool:
-    """
-    Check if user has a specific permission based on Authentik groups.
-
-    Uses Authentik groups as source of truth.
-    """
     groups = get_authentik_groups(user)
     return check_groups_for_permission(groups, permission_name)
 
 
 def get_user_team_number(user: User) -> int | None:
-    """
-    Get user's team number from their Authentik group.
-    Returns None if user is not on a team.
-    """
     groups = get_authentik_groups(user)
     for group in groups:
         team_number = extract_team_number(group)
@@ -71,11 +53,7 @@ def get_user_team_number(user: User) -> int | None:
 
 
 def get_role_based_landing_url(groups: list[str]) -> str:
-    """Determine the landing page URL based on a user's Authentik groups.
-
-    Checks roles in priority order: admin/ops first, then team-specific landing pages.
-    Returns a URL path string. Falls back to "/" if no role matches.
-    """
+    """Determine the landing page URL based on a user's Authentik groups, checking roles in priority order."""
     from django.urls import reverse
 
     if (
@@ -101,20 +79,7 @@ def require_permission(
     error_message: str = "You don't have permission to access this page.",
     redirect_url: str = "/",
 ) -> Callable[[ViewFunc[P]], ViewFunc[P]]:
-    """
-    Decorator to require one or more permissions for a view.
-
-    Grants access if user has ANY of the listed permissions.
-
-    Usage:
-        @require_permission('ticketing_admin')
-        def my_view(request):
-            ...
-
-        @require_permission('red_team', 'gold_team')
-        def multi_role_view(request):
-            ...
-    """
+    """Decorator granting access to a view if the user has ANY of the listed permissions."""
     from functools import wraps
 
     from django.contrib import messages

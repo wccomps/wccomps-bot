@@ -1,5 +1,3 @@
-"""Admin views for broadcasting and role sync."""
-
 from typing import cast
 
 from django.contrib.auth.models import User
@@ -17,7 +15,6 @@ from .competition import _has_admin_or_gold_access
 
 @require_permission("admin", "gold_team")
 def admin_broadcast(request: HttpRequest) -> HttpResponse:
-    """Broadcast message page."""
     teams = Team.objects.filter(is_active=True).order_by("team_number")
 
     context = {
@@ -30,7 +27,6 @@ def admin_broadcast(request: HttpRequest) -> HttpResponse:
 
 
 def admin_broadcast_action(request: HttpRequest) -> HttpResponse:
-    """Handle broadcast action."""
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
 
@@ -47,7 +43,6 @@ def admin_broadcast_action(request: HttpRequest) -> HttpResponse:
     target = form.cleaned_data["target"]
     message = form.cleaned_data["message"]
 
-    # Create Discord task for bot to handle broadcast
     DiscordTask.create_broadcast_message(target=target, message=message, sender=authentik_username)
 
     AuditLog.objects.create(
@@ -66,7 +61,6 @@ def admin_broadcast_action(request: HttpRequest) -> HttpResponse:
 
 @require_permission("admin", "gold_team")
 def admin_sync_roles(request: HttpRequest) -> HttpResponse:
-    """Sync roles page."""
     context = {
         "show_ops_nav": True,
         "nav_active": "ops_admin",
@@ -76,7 +70,6 @@ def admin_sync_roles(request: HttpRequest) -> HttpResponse:
 
 
 def admin_sync_roles_action(request: HttpRequest) -> HttpResponse:
-    """Handle role sync action."""
     if request.method != "POST":
         return HttpResponse("Method not allowed", status=405)
 
@@ -89,7 +82,6 @@ def admin_sync_roles_action(request: HttpRequest) -> HttpResponse:
     form = SyncRolesForm(request.POST)
     dry_run = form.cleaned_data["dry_run"] if form.is_valid() else True
 
-    # Create a task for the bot to perform the sync
     task = DiscordTask.create_sync_roles(requested_by=authentik_username, dry_run=dry_run)
 
     AuditLog.objects.create(
@@ -110,7 +102,6 @@ def admin_sync_roles_action(request: HttpRequest) -> HttpResponse:
 
 
 def admin_task_status(request: HttpRequest, task_id: int) -> HttpResponse:
-    """Check status of an async task."""
     user = cast(User, request.user)
 
     if not _has_admin_or_gold_access(user):

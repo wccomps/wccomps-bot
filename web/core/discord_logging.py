@@ -10,16 +10,11 @@ from django.conf import settings
 
 
 class DiscordWebhookHandler(logging.Handler):
-    """
-    Logging handler that sends error messages to a Discord webhook.
-
-    Configure via DISCORD_ERROR_WEBHOOK_URL environment variable.
-    """
+    """Logging handler that sends error messages to the DISCORD_ERROR_WEBHOOK_URL Discord webhook."""
 
     def __init__(self) -> None:
         super().__init__()
         webhook_url = os.environ.get("DISCORD_ERROR_WEBHOOK_URL", "")
-        # Only allow https URLs
         self.webhook_url = webhook_url if webhook_url.startswith("https://") else ""
         self.hostname = os.environ.get("HOSTNAME", "unknown")
 
@@ -28,15 +23,12 @@ class DiscordWebhookHandler(logging.Handler):
             return
 
         try:
-            # Build the message
             timestamp = datetime.now(UTC).isoformat()
 
-            # Get exception info if available
             exc_info = ""
             if record.exc_info:
                 exc_info = "".join(traceback.format_exception(*record.exc_info))
 
-            # Build embed
             embed: dict[str, object] = {
                 "title": f"{record.levelname}: {record.getMessage()[:200]}",
                 "color": 0xFF0000 if record.levelname == "ERROR" else 0xFFA500,

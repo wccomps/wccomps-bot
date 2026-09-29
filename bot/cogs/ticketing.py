@@ -26,14 +26,12 @@ class TicketingCog(commands.Cog):
         self.archive_threads_task.start()
 
     async def cog_unload(self) -> None:
-        """Clean up when cog is unloaded."""
         self.archive_threads_task.cancel()
 
     @tasks.loop(minutes=1)
     async def archive_threads_task(self) -> None:
         """Archive the threads of resolved and cancelled tickets once their scheduled time passes."""
         try:
-            # Find tickets with threads scheduled for archiving
             now = timezone.now()
             tickets_to_archive = [
                 ticket
@@ -66,7 +64,6 @@ class TicketingCog(commands.Cog):
 
     @archive_threads_task.before_loop
     async def before_archive_threads_task(self) -> None:
-        """Wait for bot to be ready before starting task."""
         await self.bot.wait_until_ready()
 
     async def _get_infrastructure_data(self) -> tuple[list[str], dict[str, str], list[dict[str, str]]]:
@@ -92,7 +89,6 @@ class TicketingCog(commands.Cog):
     async def hostname_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for hostname field."""
         box_names, box_ip_map, _ = await self._get_infrastructure_data()
         matches = [name for name in box_names if current.lower() in name.lower()]
         return [app_commands.Choice(name=f"{name} ({box_ip_map.get(name, '')})", value=name) for name in matches[:25]]
@@ -100,7 +96,6 @@ class TicketingCog(commands.Cog):
     async def service_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for service field."""
         _, _, service_choices = await self._get_infrastructure_data()
         matches = [s for s in service_choices if current.lower() in s["label"].lower()]
         return [app_commands.Choice(name=s["label"], value=s["value"]) for s in matches[:25]]
@@ -108,7 +103,6 @@ class TicketingCog(commands.Cog):
     async def category_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for ticket category."""
         from core.tickets_config import get_all_categories
 
         categories = await sync_to_async(get_all_categories)(user_creatable_only=True)
@@ -151,7 +145,6 @@ class TicketingCog(commands.Cog):
         if not link or not link.team:
             return
 
-        # Get category info
         from core.tickets_config import get_category_config
 
         category_id = int(category)
@@ -160,7 +153,6 @@ class TicketingCog(commands.Cog):
             await interaction.response.send_message("Invalid ticket category.", ephemeral=True)
             return
 
-        # Validate required fields based on category config
         required_fields = cat_info.get("required_fields", [])
         missing_fields = []
 
@@ -182,13 +174,11 @@ class TicketingCog(commands.Cog):
             )
             return
 
-        # Auto-populate IP address from hostname if not provided
         resolved_ip = ip_address
         if hostname and not ip_address:
             _, box_ip_map, _ = await self._get_infrastructure_data()
             resolved_ip = box_ip_map.get(hostname)
 
-        # Auto-populate hostname/IP from service if not provided
         if service and not hostname:
             _, _, service_choices = await self._get_infrastructure_data()
             for svc in service_choices:
@@ -216,7 +206,6 @@ class TicketingCog(commands.Cog):
             await interaction.response.send_message(str(e), ephemeral=True)
             return
 
-        # Send confirmation
         embed = discord.Embed(
             title="✅ Ticket Created",
             description=f"Your {cat_info['display_name']} ticket has been created.",
@@ -228,7 +217,6 @@ class TicketingCog(commands.Cog):
         embed.add_field(name="Point Cost", value=f"{cat_info.get('points', 0)} points", inline=True)
         embed.add_field(name="Description", value=description, inline=False)
 
-        # Add file attachment guidance
         embed.add_field(
             name="📎 Need to attach files?",
             value="Post screenshots, logs, or other files directly in the ticket thread.\n"
@@ -246,20 +234,16 @@ class TicketingCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         """Handle messages in ticket threads (attachments and rate limiting)."""
-        # Ignore bot messages
         if message.author.bot:
             return
 
-        # Check if message is in a ticket thread
         if not isinstance(message.channel, discord.Thread):
             return
 
-        # Get ticket by thread ID
         ticket = await Ticket.objects.filter(discord_thread_id=message.channel.id).afirst()
         if not ticket:
             return
 
-        # Check rate limit for comments
         is_allowed, reason = await sync_to_async(CommentRateLimit.check_rate_limit)(ticket.id, message.author.id)
 
         if not is_allowed:
@@ -275,7 +259,6 @@ class TicketingCog(commands.Cog):
                 logger.warning("Cannot delete message due to permissions")
                 return
 
-        # Record comment attempt for rate limiting
         await CommentRateLimit.objects.acreate(ticket=ticket, discord_id=message.author.id)
 
         # Save message as comment in database (for web interface visibility)
@@ -292,10 +275,8 @@ class TicketingCog(commands.Cog):
                 )
                 logger.info(f"Saved Discord message as comment for ticket #{ticket.id}")
 
-        # Process attachments
         if message.attachments:
             for attachment in message.attachments:
-                # Limit file size to 10MB
                 if attachment.size > 10 * 1024 * 1024:
                     await message.channel.send(
                         f"{message.author.mention} File `{attachment.filename}` is too large (max 10MB). "
@@ -305,10 +286,8 @@ class TicketingCog(commands.Cog):
                     continue
 
                 try:
-                    # Download file data
                     file_data = await attachment.read()
 
-                    # Store in database
                     await TicketAttachment.objects.acreate(
                         ticket=ticket,
                         file_data=file_data,
@@ -319,7 +298,6 @@ class TicketingCog(commands.Cog):
 
                     logger.info(f"Stored attachment {attachment.filename} for ticket #{ticket.id}")
 
-                    # React to confirm upload
                     await message.add_reaction("📎")
 
                 except Exception as e:
@@ -333,24 +311,19 @@ class TicketingCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message_edit(self, _before: discord.Message, after: discord.Message) -> None:
         """Sync message edits to TicketComment."""
-        # Ignore bot messages
         if after.author.bot:
             return
 
-        # Check if message is in a ticket thread
         if not isinstance(after.channel, discord.Thread):
             return
 
-        # Get ticket by thread ID
         ticket = await Ticket.objects.filter(discord_thread_id=after.channel.id).afirst()
         if not ticket:
             return
 
-        # Find comment by message ID
         comment = await TicketComment.objects.filter(ticket=ticket, discord_message_id=after.id).afirst()
 
         if comment:
-            # Update comment text
             comment.comment_text = after.content
             await comment.asave()
 
@@ -359,24 +332,19 @@ class TicketingCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
         """Mark TicketComment as deleted when Discord message is deleted."""
-        # Ignore bot messages
         if message.author.bot:
             return
 
-        # Check if message is in a ticket thread
         if not isinstance(message.channel, discord.Thread):
             return
 
-        # Get ticket by thread ID
         ticket = await Ticket.objects.filter(discord_thread_id=message.channel.id).afirst()
         if not ticket:
             return
 
-        # Find comment by message ID
         comment = await TicketComment.objects.filter(ticket=ticket, discord_message_id=message.id).afirst()
 
         if comment:
-            # Mark as deleted (soft delete)
             comment.comment_text = "[Message deleted]"
             await comment.asave()
 
@@ -384,5 +352,4 @@ class TicketingCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Setup function to add cog to bot."""
     await bot.add_cog(TicketingCog(bot))

@@ -1,8 +1,4 @@
-"""Ticket categories — DB-backed helpers.
-
-All functions return the same TicketCategoryConfig TypedDict shape
-that the old hardcoded dict used, so consumer changes are mechanical.
-"""
+"""Ticket categories read from the DB as TicketCategoryConfig dicts."""
 
 from typing import TypedDict
 
@@ -22,7 +18,6 @@ class TicketCategoryConfig(TypedDict, total=False):
 
 
 def _model_to_config(cat: TicketCategory) -> TicketCategoryConfig:
-    """Convert a TicketCategory model instance to a config dict."""
     config: TicketCategoryConfig = {
         "display_name": cat.display_name,
         "points": cat.points,
@@ -41,7 +36,6 @@ def _model_to_config(cat: TicketCategory) -> TicketCategoryConfig:
 
 
 def get_category_config(category_id: int | None) -> TicketCategoryConfig | None:
-    """Get config dict for a single category by PK."""
     if category_id is None:
         return None
     try:
@@ -54,7 +48,6 @@ def get_category_config(category_id: int | None) -> TicketCategoryConfig | None:
 def get_all_categories(
     user_creatable_only: bool = False,
 ) -> dict[int, TicketCategoryConfig]:
-    """Get all categories as a dict keyed by PK."""
     qs = TicketCategory.objects.all()
     if user_creatable_only:
         qs = qs.filter(user_creatable=True)

@@ -1,5 +1,3 @@
-"""Scoring system models for CCDC competitions."""
-
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -9,10 +7,7 @@ from django.db import models
 
 
 def format_boxes_display(boxes: list[str] | str | None) -> str:
-    """Format an affected_boxes field value for display.
-
-    Used by both RedTeamScore and IncidentReport models.
-    """
+    """Format an affected_boxes field value for display."""
     if not boxes:
         return ""
     if isinstance(boxes, str):
@@ -21,7 +16,6 @@ def format_boxes_display(boxes: list[str] | str | None) -> str:
 
 
 def validate_file_size(file: UploadedFile[bytes]) -> UploadedFile[bytes]:
-    """Validate that uploaded file is not larger than 50MB."""
     max_size_mb = 50
     if file.size and file.size > max_size_mb * 1024 * 1024:
         from django.core.exceptions import ValidationError
@@ -120,7 +114,6 @@ class ScoringTemplate(models.Model):
             if total != Decimal("100"):
                 raise ValidationError(f"Weights must sum to 100 (currently {total})")
 
-    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
@@ -143,7 +136,6 @@ class ScoringTemplate(models.Model):
 class QuotientMetadataCache(models.Model):
     """Cached metadata from Quotient for populating dropdowns."""
 
-    # JSON fields for infrastructure data
     boxes = models.JSONField(
         default=list,
         help_text="List of boxes from Quotient metadata",
@@ -155,7 +147,6 @@ class QuotientMetadataCache(models.Model):
     event_name = models.CharField(max_length=200, blank=True)
     team_count = models.IntegerField(default=0)
 
-    # Sync tracking
     last_synced = models.DateTimeField(auto_now=True)
     synced_by = models.ForeignKey(
         User,
@@ -198,14 +189,11 @@ class RedTeamIPPool(models.Model):
 
     @property
     def ip_count(self) -> int:
-        """Return count of valid IPs in the pool."""
         return len(self.get_ip_list())
 
     def get_ip_list(self) -> list[str]:
-        """Parse and return list of IP addresses."""
         if not self.ip_addresses:
             return []
-        # Split by newlines and commas, strip whitespace, filter empty
         ips = []
         for line in self.ip_addresses.replace(",", "\n").split("\n"):
             ip = line.strip()
@@ -214,7 +202,6 @@ class RedTeamIPPool(models.Model):
         return ips
 
     def contains_ip(self, ip: str) -> bool:
-        """Check if the given IP exists in this pool."""
         return ip.strip() in self.get_ip_list()
 
 
@@ -259,7 +246,6 @@ class RedTeamScore(models.Model):
         help_text="All red teamers who submitted matching findings",
     )
 
-    # Attack details
     attack_type = models.ForeignKey(
         AttackType,
         on_delete=models.PROTECT,
@@ -298,7 +284,6 @@ class RedTeamScore(models.Model):
     )
     affected_service = models.CharField(max_length=100, blank=True)
 
-    # Flags
     universally_attempted = models.BooleanField(
         default=False,
         help_text="Attack was attempted against all teams",
@@ -349,7 +334,6 @@ class RedTeamScore(models.Model):
         help_text="Database was decrypted (-25 pts additional)",
     )
 
-    # Affected teams and scoring
     affected_teams = models.ManyToManyField(
         "team.Team",
         related_name="red_team_scores",
@@ -361,7 +345,6 @@ class RedTeamScore(models.Model):
         help_text="Points deducted per affected team (auto-calculated from outcomes)",
     )
 
-    # Approval tracking
     is_approved = models.BooleanField(
         default=False,
         help_text="Whether this finding has been approved by Gold Team",
@@ -380,10 +363,8 @@ class RedTeamScore(models.Model):
         help_text="Gold Team member who approved this finding",
     )
 
-    # Evidence
     notes = models.TextField(blank=True)
 
-    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -409,7 +390,6 @@ class RedTeamScore(models.Model):
 
     @property
     def affected_boxes_display(self) -> str:
-        """Return display string for affected boxes."""
         return format_boxes_display(self.affected_boxes)
 
     def calculate_points(self) -> Decimal:
@@ -457,7 +437,6 @@ class RedTeamScore(models.Model):
 
     @property
     def outcomes_display(self) -> list[str]:
-        """Return list of outcome labels for display."""
         outcomes = []
         if self.root_access:
             outcomes.append("Root Access (-100)")
@@ -530,12 +509,10 @@ class IncidentReport(models.Model):
         related_name="incidents_submitted",
     )
 
-    # Attack details
     attack_description = models.TextField()
     source_ip = models.GenericIPAddressField()
     destination_ip = models.GenericIPAddressField(null=True, blank=True)
 
-    # Affected infrastructure
     affected_boxes = models.JSONField(
         default=list,
         blank=True,
@@ -543,17 +520,14 @@ class IncidentReport(models.Model):
     )
     affected_service = models.CharField(max_length=100, blank=True)
 
-    # Timeline
     attack_detected_at = models.DateTimeField(help_text="When the attack was detected")
     attack_mitigated = models.BooleanField(
         default=False,
         help_text="Attack was successfully mitigated",
     )
 
-    # Evidence
     evidence_notes = models.TextField(blank=True)
 
-    # Gold team review
     is_approved = models.BooleanField(default=False)
     matched_to_red_score = models.ForeignKey(
         RedTeamScore,
@@ -579,7 +553,6 @@ class IncidentReport(models.Model):
     )
     approved_at = models.DateTimeField(null=True, blank=True)
 
-    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -598,7 +571,6 @@ class IncidentReport(models.Model):
 
     @property
     def affected_boxes_display(self) -> str:
-        """Return display string for affected boxes."""
         return format_boxes_display(self.affected_boxes)
 
 
@@ -650,7 +622,6 @@ class InjectScore(models.Model):
     inject_name = models.CharField(max_length=200)
     max_points = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
-    # Grading
     points_awarded = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -676,7 +647,6 @@ class InjectScore(models.Model):
         help_text="User who approved this feedback",
     )
 
-    # Approval tracking
     is_approved = models.BooleanField(
         default=False,
         help_text="Grade has been approved by supervisor",
@@ -695,7 +665,6 @@ class InjectScore(models.Model):
         help_text="User who approved this grade",
     )
 
-    # Audit
     graded_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -744,7 +713,6 @@ class OrangeTeamScore(models.Model):
         related_name="orange_scores_submitted",
     )
 
-    # Check details
     description = models.TextField(help_text="Description of the orange team check")
     points_awarded = models.DecimalField(
         max_digits=10,
@@ -752,7 +720,6 @@ class OrangeTeamScore(models.Model):
         help_text="Points to add (positive) or deduct (negative)",
     )
 
-    # Approval tracking
     is_approved = models.BooleanField(
         default=False,
         help_text="Whether this check has been approved",
@@ -779,7 +746,6 @@ class OrangeTeamScore(models.Model):
         help_text="Orange check this score was created from (null for manual adjustments)",
     )
 
-    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -810,7 +776,6 @@ class ServiceScore(models.Model):
         related_name="service_scores",
     )
 
-    # Scores from Quotient
     service_points = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -829,7 +794,6 @@ class ServiceScore(models.Model):
         help_text="Manual point adjustments (stored as negative)",
     )
 
-    # Sync tracking
     synced_at = models.DateTimeField(auto_now=True)
     synced_by = models.ForeignKey(
         User,
@@ -893,7 +857,6 @@ class FinalScore(models.Model):
         related_name="final_scores",
     )
 
-    # Component scores
     service_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
     inject_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
     orange_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
@@ -902,7 +865,6 @@ class FinalScore(models.Model):
     sla_penalties = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
     point_adjustments = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
 
-    # Total and rank
     total_score = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
     rank = models.IntegerField(null=True, blank=True)
     is_excluded = models.BooleanField(
@@ -910,7 +872,6 @@ class FinalScore(models.Model):
         help_text="Exclude from comparative analysis and leaderboard",
     )
 
-    # Calculation tracking
     calculated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

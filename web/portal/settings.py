@@ -1,5 +1,3 @@
-"""Django settings for wccomps project."""
-
 import os
 import secrets
 import sys
@@ -9,19 +7,15 @@ import django_stubs_ext
 
 django_stubs_ext.monkeypatch()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", secrets.token_urlsafe(50))
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# CSRF trusted origins for reverse proxy
 CSRF_TRUSTED_ORIGINS = [
     "https://bot.wccomps.org",
     "https://register.wccomps.org",
@@ -46,8 +40,6 @@ LEGACY_HOSTS = [
     "tickets.wccomps.org",
 ]
 
-
-# Application definition
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -108,9 +100,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "portal.wsgi.application"
 
 
-# Database
-# https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -119,22 +108,15 @@ DATABASES = {
         "PASSWORD": os.environ.get("DB_PASSWORD", "wccomps"),
         "HOST": os.environ.get("DB_HOST", "localhost"),
         "PORT": os.environ.get("DB_PORT", "5432"),
-        # Persistent connections: each worker reuses its connection for up to 10 minutes
         "CONN_MAX_AGE": 600,
-        # Health checks: Verify connection is alive before using
         "CONN_HEALTH_CHECKS": True,
         "OPTIONS": {
-            # Connection timeout
             "connect_timeout": 10,
-            # Statement timeout (30 seconds max per query)
             "options": "-c statement_timeout=30000",
         },
     }
 }
 
-
-# Password validation
-# https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -152,9 +134,6 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.0/topics/i18n/
-
 LANGUAGE_CODE = "en-us"
 
 TIME_ZONE = "UTC"
@@ -164,19 +143,14 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.0/howto/static-files/
-
 STATIC_URL = "static/"
 STATIC_ROOT = str(BASE_DIR / "staticfiles")
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
-# Media files (user uploads)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = str(BASE_DIR / "media")
 
-# WhiteNoise configuration for serving static files
-# Use simple storage for tests (no manifest required)
+# Tests use plain static storage, which needs no collectstatic manifest
 if "test" in sys.argv or "pytest" in sys.modules:
     PASSWORD_HASHERS = [
         "django.contrib.auth.hashers.MD5PasswordHasher",
@@ -205,27 +179,21 @@ else:
 # Trust X-Forwarded-Proto header from the reverse proxy (Cloudflare tunnel, then the gateway)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# Security settings for production
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     # Don't redirect to HTTPS: Cloudflare terminates it
     SECURE_SSL_REDIRECT = False
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# OAuth configuration (custom Authentik OIDC)
 LOGIN_URL = "/auth/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
-# Authentik OAuth settings
 AUTHENTIK_URL = os.environ.get("AUTHENTIK_URL", "https://auth.wccomps.org")
 AUTHENTIK_CLIENT_ID = os.environ.get("AUTHENTIK_CLIENT_ID")
 AUTHENTIK_SECRET = os.environ.get("AUTHENTIK_SECRET")
@@ -240,7 +208,6 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_SAMESITE = "Lax"  # Allow cookies across OAuth redirects
 SESSION_COOKIE_HTTPONLY = True  # Explicit (Django default, but important for security audits)
 
-# WCComps specific settings
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:5000")
 DISCORD_LOG_CHANNEL_ID = int(os.environ.get("DISCORD_LOG_CHANNEL_ID", "0"))
 DISCORD_TICKET_QUEUE_CHANNEL_ID = int(os.environ.get("DISCORD_TICKET_QUEUE_CHANNEL_ID", "0"))
@@ -251,14 +218,12 @@ DISCORD_WELCOME_CHANNEL_ID = int(os.environ.get("DISCORD_WELCOME_CHANNEL_ID", "0
 DISCORD_LINK_CHANNEL_ID = int(os.environ.get("DISCORD_LINK_CHANNEL_ID", "0"))
 BLUETEAM_ROLE_ID = int(os.environ.get("BLUETEAM_ROLE_ID", "0"))
 
-# Authentik group to Discord role mappings
 BLACKTEAM_ROLE_ID = int(os.environ.get("BLACKTEAM_ROLE_ID", "0"))
 WHITETEAM_ROLE_ID = int(os.environ.get("WHITETEAM_ROLE_ID", "0"))
 ORANGETEAM_ROLE_ID = int(os.environ.get("ORANGETEAM_ROLE_ID", "0"))
 REDTEAM_ROLE_ID = int(os.environ.get("REDTEAM_ROLE_ID", "0"))
 GOLDTEAM_ROLE_ID = int(os.environ.get("GOLDTEAM_ROLE_ID", "0"))
 
-# Authentik group name to Discord role ID mapping
 GROUP_ROLE_MAPPING = {
     "WCComps_BlackTeam": BLACKTEAM_ROLE_ID,
     "WCComps_WhiteTeam": WHITETEAM_ROLE_ID,
@@ -273,7 +238,6 @@ COMPETITION_GUILD_ID = int(os.environ.get("DISCORD_GUILD_ID", "0"))
 
 AUTHENTIK_TOKEN = os.environ.get("AUTHENTIK_TOKEN", "")
 
-# Quotient API settings
 QUOTIENT_API_URL = os.environ.get("QUOTIENT_API_URL", "https://scoring.wccomps.org")
 
 # Quotient login: an [[admin]] account from Quotient's event.conf
@@ -292,11 +256,9 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@wccomps.org")
 DEFAULT_REPLY_TO_EMAIL = os.environ.get("DEFAULT_REPLY_TO_EMAIL", "info@wccomps.org")
 SERVER_EMAIL = os.environ.get("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
 
-# HTTP client defaults
 HTTPX_DEFAULT_TIMEOUT = int(os.environ.get("HTTPX_DEFAULT_TIMEOUT", "10"))
 DISCORD_WEBHOOK_TIMEOUT = int(os.environ.get("DISCORD_WEBHOOK_TIMEOUT", "5"))
 
-# Logging configuration - capture errors to stdout and Discord
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

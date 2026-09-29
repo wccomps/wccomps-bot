@@ -1,9 +1,4 @@
-"""Ticketing views package.
-
-Re-exports all view functions so existing imports continue to work:
-    from ticketing import views
-    views.ticket_list(...)
-"""
+"""Re-exports every view so callers can use ``from ticketing import views``."""
 
 from .actions import (
     ticket_cancel,

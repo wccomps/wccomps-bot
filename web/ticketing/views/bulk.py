@@ -1,5 +1,3 @@
-"""Bulk ticket operations views."""
-
 import logging
 from typing import cast
 

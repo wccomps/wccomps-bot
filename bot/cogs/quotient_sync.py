@@ -22,7 +22,6 @@ class QuotientSyncCog(commands.Cog):
         self.sync_quotient_task.start()
 
     async def cog_unload(self) -> None:
-        """Clean up when cog is unloaded."""
         self.sync_quotient_task.cancel()
 
     @tasks.loop(minutes=SYNC_MINUTES)
@@ -54,7 +53,6 @@ class QuotientSyncCog(commands.Cog):
 
     @sync_quotient_task.before_loop
     async def before_sync_quotient(self) -> None:
-        """Wait for bot to be ready before starting task."""
         if self.bot.is_closed():
             return
         try:
@@ -65,5 +63,4 @@ class QuotientSyncCog(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
-    """Load the cog."""
     await bot.add_cog(QuotientSyncCog(bot))

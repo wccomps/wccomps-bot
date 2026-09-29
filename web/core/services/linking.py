@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class LinkResult:
-    """Result of a linking operation."""
-
     success: bool
     error_template: str | None = None
     error_context: dict[str, str] | None = None
@@ -27,10 +25,7 @@ class LinkResult:
 
 
 def validate_link_token(url_token: str | None, session_token: str | None, username: str) -> LinkResult | LinkToken:
-    """Validate the link token from URL and session.
-
-    Returns LinkToken on success, LinkResult with error on failure.
-    """
+    """Validate the link token from URL and session, returning the LinkToken or an error LinkResult."""
     if not url_token:
         return LinkResult(
             success=False,
@@ -100,15 +95,7 @@ def enforce_account_link_policy(
     team: Team | None,
     is_team_account: bool,
 ) -> LinkResult | None:
-    """Check if account linking is allowed by policy.
-
-    Returns:
-        None if linking is allowed (no policy violation).
-        LinkResult with error details if linking is blocked.
-
-    Note: This follows the "error-or-None" pattern -- callers should check
-    ``if result is not None: return render(...)`` to handle violations.
-    """
+    """Check if account linking is allowed by policy, returning an error LinkResult if blocked, else None."""
     if is_team_account:
         return None
 
@@ -160,10 +147,7 @@ def execute_link(
     team: Team | None,
     is_team_account: bool,
 ) -> LinkResult | None:
-    """Create the DiscordLink, handling team fullness with row locking.
-
-    Returns error LinkResult or None on success.
-    """
+    """Create the DiscordLink, locking the team row to enforce fullness; returns an error LinkResult or None."""
     if is_team_account and team:
         with transaction.atomic():
             team = Team.objects.select_for_update().get(pk=team.pk)
@@ -222,7 +206,6 @@ def finalize_link(
     groups: list[str],
 ) -> None:
     """Mark token used, create audit records, and queue Discord tasks."""
-    # Mark token as used
     try:
         token_obj = LinkToken.objects.get(token=link_token.token)
         token_obj.used = True
@@ -230,7 +213,6 @@ def finalize_link(
     except LinkToken.DoesNotExist:
         logger.warning(f"LinkToken disappeared during linking flow: token={link_token.token[:8]}...")
 
-    # Audit record
     LinkAttempt.objects.create(
         discord_id=discord_id,
         discord_username=discord_username,
@@ -240,7 +222,6 @@ def finalize_link(
         failure_reason="",
     )
 
-    # Discord task: assign group-based roles (for all accounts)
     DiscordTask.create_assign_group_roles(discord_id=discord_id, authentik_groups=groups)
 
     if is_team_account and team and team_number is not None:

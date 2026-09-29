@@ -1,5 +1,3 @@
-"""Team management models."""
-
 import logging
 from collections.abc import Iterable
 
@@ -21,20 +19,15 @@ class Team(models.Model):
     team_name = models.CharField(max_length=100)
     authentik_group = models.CharField(max_length=255, blank=True)
 
-    # Discord integration
     discord_role_id = models.BigIntegerField(null=True, blank=True)
     discord_category_id = models.BigIntegerField(null=True, blank=True)
 
-    # Limits
     max_members = models.IntegerField(default=10)
 
-    # Ticket sequence counter
     ticket_counter = models.IntegerField(default=0)
 
-    # Status
     is_active = models.BooleanField(default=True)
 
-    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -45,19 +38,15 @@ class Team(models.Model):
         return f"Team {self.team_number}"
 
     def clean(self) -> None:
-        """Validate team constraints."""
         super().clean()
 
-        # Auto-generate authentik_group if not provided
         if not self.authentik_group and self.team_number:
             self.authentik_group = f"WCComps_BlueTeam{self.team_number:02d}"
 
-        # Validate team_number range (1-MAX_TEAMS)
         if self.team_number is not None and (self.team_number < 1 or self.team_number > MAX_TEAMS):
             msg = f"Team number must be between 1 and {MAX_TEAMS}, got {self.team_number}"
             raise ValidationError({"team_number": msg})
 
-        # Validate max_members (must be positive)
         if self.max_members is not None and self.max_members < 1:
             raise ValidationError({"max_members": f"Team must have at least 1 member, got {self.max_members}"})
 
@@ -69,7 +58,6 @@ class Team(models.Model):
         using: str | None = None,
         update_fields: Iterable[str] | None = None,
     ) -> None:
-        """Override save to run validation."""
         # Skip validation when using update_fields (e.g., with F() expressions)
         if not update_fields:
             self.full_clean()
@@ -85,7 +73,6 @@ class Team(models.Model):
         return self.members.filter(is_active=True).count()
 
     def is_full(self) -> bool:
-        """Check if team has reached max members."""
         return self.get_member_count() >= self.max_members
 
 
@@ -104,7 +91,6 @@ class DiscordLink(models.Model):
     linked_at = models.DateTimeField(auto_now_add=True)
     unlinked_at = models.DateTimeField(null=True, blank=True)
 
-    # Student helper fields (moved from Person model)
     is_student_helper = models.BooleanField(
         default=False,
         db_index=True,
@@ -153,7 +139,6 @@ class DiscordLink(models.Model):
         return f"{self.discord_username} → {self.user.username}"
 
     def set_helper(self, role_name: str, role_id: int | None = None) -> None:
-        """Grant student helper access."""
         self.is_student_helper = True
         self.helper_role_name = role_name
         if role_id is not None:
@@ -164,7 +149,6 @@ class DiscordLink(models.Model):
         self.save()
 
     def remove_helper(self, reason: str = "") -> None:
-        """Revoke student helper access."""
         if self.is_student_helper:
             self.is_student_helper = False
             self.helper_deactivated_at = timezone.now()
@@ -173,11 +157,7 @@ class DiscordLink(models.Model):
 
     @classmethod
     def deactivate_previous_links(cls, discord_id: int, exclude_pk: int | None = None) -> int:
-        """Deactivate any existing active links for this Discord user.
-
-        Must be called explicitly before creating/activating a new link.
-        Returns the number of links deactivated.
-        """
+        """Deactivate this Discord user's active links (returns the count); call before creating a new link."""
         qs = cls.objects.filter(discord_id=discord_id, is_active=True)
         if exclude_pk:
             qs = qs.exclude(pk=exclude_pk)
@@ -218,7 +198,6 @@ class LinkToken(models.Model):
         return f"Token for {self.discord_username}"
 
     def is_expired(self) -> bool:
-        """Check if token has expired."""
         return timezone.now() > self.expires_at
 
 
@@ -260,16 +239,11 @@ class LinkRateLimit(models.Model):
 
     @classmethod
     def check_rate_limit(cls, discord_id: int) -> tuple[bool, int]:
-        """
-        Check if user has exceeded rate limit (5 attempts per hour).
-
-        Returns: (is_allowed, attempts_in_last_hour)
-        """
+        """Check the 5-attempts-per-hour limit, returning (is_allowed, attempts_in_last_hour)."""
         from datetime import timedelta
 
         one_hour_ago = timezone.now() - timedelta(hours=1)
 
-        # Count attempts in last hour
         recent_attempts = cls.objects.filter(discord_id=discord_id, attempted_at__gte=one_hour_ago).count()
 
         return recent_attempts < 5, recent_attempts
@@ -284,7 +258,6 @@ class SchoolInfo(models.Model):
     secondary_email = models.EmailField(blank=True)
     notes = models.TextField(blank=True)
 
-    # Audit
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.CharField(max_length=255, blank=True)

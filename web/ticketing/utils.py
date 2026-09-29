@@ -23,7 +23,6 @@ THREAD_ARCHIVE_DELAY = timedelta(seconds=60)
 
 
 def _make_async[**P, T](fn: Callable[P, T]) -> Callable[P, Awaitable[T]]:
-    """Create an async version of a sync function using sync_to_async."""
 
     @functools.wraps(fn)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
@@ -38,16 +37,7 @@ def get_user_for_ticket(
     discord_id: int | None = None,
     user: User | None = None,
 ) -> User | None:
-    """
-    Get a User for ticket assignment/resolution.
-
-    Args:
-        discord_id: Discord user ID (looks up DiscordLink -> User)
-        user: Django User object (preferred, returned directly)
-
-    Returns:
-        User object or None if not found.
-    """
+    """Return `user` if given, else the User behind an active DiscordLink for `discord_id`."""
     if user:
         return user
 
@@ -87,27 +77,10 @@ def create_ticket_atomic(
     actor_username: str = "system",
     enforce_team_limit: bool = True,
 ) -> Ticket:
-    """
-    Create a ticket with atomic ticket number generation.
+    """Create a ticket with an atomically generated ticket number.
 
-    Uses transaction with select_for_update() to prevent race conditions.
-
-    Args:
-        team: Team to create ticket for
-        category: TicketCategory instance
-        title: Ticket title
-        description: Ticket description
-        hostname: Hostname (optional)
-        ip_address: IP address (optional)
-        service_name: Service name (optional)
-        actor_username: Username of person creating ticket (for history)
-        enforce_team_limit: Apply TEAM_TICKET_LIMIT (False for staff filing on a team's behalf)
-
-    Returns:
-        Created Ticket instance
-
-    Raises:
-        TicketRateLimitError: The team hit TEAM_TICKET_LIMIT
+    Raises TicketRateLimitError when enforce_team_limit is set (False for staff filing on a
+    team's behalf) and the team hit TEAM_TICKET_LIMIT.
     """
     with transaction.atomic():
         # Lock the team row to prevent concurrent ticket creation
@@ -119,16 +92,13 @@ def create_ticket_atomic(
             if Ticket.objects.filter(team=team, created_at__gte=since).count() >= TEAM_TICKET_LIMIT:
                 raise TicketRateLimitError
 
-        # Atomically increment counter
         team.ticket_counter = F("ticket_counter") + 1
         team.save(update_fields=["ticket_counter"])
         team.refresh_from_db()
 
-        # Generate ticket number
         sequence = team.ticket_counter
         ticket_number = f"T{team.team_number:03d}-{sequence:03d}"
 
-        # Create ticket
         ticket = Ticket.objects.create(
             ticket_number=ticket_number,
             team=team,
@@ -142,7 +112,6 @@ def create_ticket_atomic(
             points_charged=category.points,
         )
 
-        # Create history entry
         TicketHistory.objects.create(
             ticket=ticket,
             action="created",
@@ -162,19 +131,7 @@ def claim_ticket_atomic(
     discord_username: str | None = None,
     user: User | None = None,
 ) -> tuple[Ticket | None, str | None]:
-    """
-    Claim a ticket atomically with race condition protection.
-
-    Args:
-        ticket_id: ID of ticket to claim
-        actor_username: Username for history (e.g., "discord:user" or "web:user")
-        discord_id: Discord user ID (optional, used to look up User via DiscordLink)
-        discord_username: Discord username (optional, for history only)
-        user: Django User object (preferred)
-
-    Returns:
-        Tuple of (ticket, error_message). If error, ticket is None.
-    """
+    """Claim a ticket atomically; returns (ticket, None) or (None, error_message)."""
     with transaction.atomic():
         ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
@@ -189,13 +146,11 @@ def claim_ticket_atomic(
         if not assignee:
             return None, "Could not find a valid user to assign."
 
-        # Update ticket
         ticket.status = Ticket.STATUS_CLAIMED
         ticket.assigned_to = assignee
         ticket.assigned_at = timezone.now()
         ticket.save()
 
-        # Create history entry
         TicketHistory.objects.create(
             ticket=ticket,
             action="claimed",
@@ -222,24 +177,9 @@ def resolve_ticket_atomic(
     discord_username: str | None = None,
     user: User | None = None,
 ) -> tuple[Ticket | None, str | None]:
-    """
-    Resolve a ticket atomically.
+    """Resolve a ticket atomically; returns (ticket, None) or (None, error_message).
 
-    Side effects:
-        - If the ticket has a Discord thread, schedules archiving 60s later
-          via thread_archive_scheduled_at.
-
-    Args:
-        ticket_id: ID of ticket to resolve
-        actor_username: Username for history (e.g., "discord:user" or "web:user")
-        resolution_notes: Notes describing resolution
-        points_override: Override points for variable-point categories
-        discord_id: Discord user ID (optional, used to look up User via DiscordLink)
-        discord_username: Discord username (optional, for history only)
-        user: Django User object (preferred)
-
-    Returns:
-        Tuple of (ticket, error_message). If error, ticket is None.
+    If the ticket has a Discord thread, schedules its archiving via thread_archive_scheduled_at.
     """
     with transaction.atomic():
         ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
@@ -250,12 +190,10 @@ def resolve_ticket_atomic(
         if not ticket.can_transition_to(Ticket.STATUS_RESOLVED):
             return None, f"Cannot resolve ticket with status: {ticket.status}."
 
-        # Determine points
         cat_info = get_category_config(ticket.category_id) or {}
 
         # If points_override is provided, use it (for both variable and fixed categories)
         if points_override is not None:
-            # For variable categories, validate range if bounds are set
             if cat_info.get("variable_points", False):
                 min_pts = int(cat_info.get("min_points", 0))
                 max_pts = int(cat_info.get("max_points", 0))
@@ -265,26 +203,21 @@ def resolve_ticket_atomic(
                     return None, f"Point value must be at most {max_pts}."
             point_penalty = points_override
         else:
-            # No override provided
             if cat_info.get("variable_points", False):
-                # Variable categories require an explicit value
                 return (
                     None,
                     "This category requires an explicit point value.",
                 )
-            # Use default for fixed categories
             point_penalty = cat_info.get("points", 0)
 
         resolver = get_user_for_ticket(discord_id=discord_id, user=user)
 
-        # Update ticket
         ticket.status = Ticket.STATUS_RESOLVED
         ticket.resolved_at = timezone.now()
         ticket.resolved_by = resolver
         ticket.resolution_notes = resolution_notes
         ticket.points_charged = point_penalty
 
-        # If not already assigned, mark as assigned to resolver
         if not ticket.assigned_to and resolver:
             ticket.assigned_to = resolver
 
@@ -293,7 +226,6 @@ def resolve_ticket_atomic(
 
         ticket.save()
 
-        # Create history entry
         TicketHistory.objects.create(
             ticket=ticket,
             action="resolved",
@@ -318,17 +250,7 @@ def unclaim_ticket_atomic(
     actor_username: str,
     user: User | None = None,
 ) -> tuple[Ticket | None, str | None]:
-    """
-    Unclaim a ticket atomically.
-
-    Args:
-        ticket_id: ID of ticket to unclaim
-        actor_username: Username for history (e.g., "discord:user" or "web:user")
-        user: User performing the unclaim (optional, for history)
-
-    Returns:
-        Tuple of (ticket, error_message). If error, ticket is None.
-    """
+    """Unclaim a ticket atomically; returns (ticket, None) or (None, error_message)."""
     with transaction.atomic():
         ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
@@ -338,13 +260,11 @@ def unclaim_ticket_atomic(
         if ticket.status != Ticket.STATUS_CLAIMED:
             return None, f"Cannot unclaim ticket with status: {ticket.status}."
 
-        # Reset ticket to open
         ticket.status = Ticket.STATUS_OPEN
         ticket.assigned_to = None
         ticket.assigned_at = None
         ticket.save()
 
-        # Create history entry
         TicketHistory.objects.create(
             ticket=ticket,
             action="unclaimed",
@@ -371,16 +291,7 @@ def reassign_ticket_atomic(
 
     Open tickets are not reassigned: callers claim them for the new assignee instead
     (claim_ticket_atomic with that user), as the Discord /tickets reassign command does.
-
-    Args:
-        ticket_id: ID of ticket to reassign
-        actor_username: Username for history (e.g., "discord:user" or "web:user")
-        discord_id: Discord user ID of new assignee (optional, used to look up User)
-        discord_username: Discord username of new assignee (optional, for history only)
-        user: Django User object of new assignee (preferred)
-
-    Returns:
-        Tuple of (ticket, error_message). If error, ticket is None.
+    Returns (ticket, None) or (None, error_message).
     """
     with transaction.atomic():
         ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
@@ -398,12 +309,10 @@ def reassign_ticket_atomic(
         if not new_assignee:
             return None, "Could not find a valid user for the new assignee."
 
-        # Update ticket assignment
         ticket.assigned_to = new_assignee
         ticket.assigned_at = timezone.now()
         ticket.save()
 
-        # Create history entry
         TicketHistory.objects.create(
             ticket=ticket,
             action="reassigned",
@@ -432,16 +341,8 @@ def cancel_ticket_atomic(
     Cancel a ticket atomically, with no point penalty.
 
     Teams cancel only open tickets; staff (``staff=True``) may also cancel claimed ones.
-
-    Args:
-        ticket_id: ID of ticket to cancel
-        actor_username: Username for history
-        user: User performing the cancel (optional, for history actor)
-        reason: Stored as the resolution notes (default "Cancelled by <actor>")
-        staff: Whether the canceller is ticketing staff
-
-    Returns:
-        Tuple of (ticket, error_message). If error, ticket is None.
+    ``reason`` becomes the resolution notes (default "Cancelled by <actor>").
+    Returns (ticket, None) or (None, error_message).
     """
     with transaction.atomic():
         ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
@@ -482,12 +383,7 @@ def change_ticket_category_atomic(
     actor_username: str,
     user: User | None = None,
 ) -> tuple[Ticket | None, str | None]:
-    """
-    Move a ticket to another category atomically, recording both categories' names and points.
-
-    Returns:
-        Tuple of (ticket, error_message). If error, ticket is None.
-    """
+    """Move a ticket to another category atomically, recording both categories' names and points."""
     with transaction.atomic():
         ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 
@@ -533,18 +429,7 @@ def reopen_ticket_atomic(
     reopen_reason: str = "",
     user: User | None = None,
 ) -> tuple[Ticket | None, str | None]:
-    """
-    Reopen a resolved ticket atomically.
-
-    Args:
-        ticket_id: ID of ticket to reopen
-        actor_username: Username for history
-        reopen_reason: Reason for reopening
-        user: User performing the reopen (optional, for history actor)
-
-    Returns:
-        Tuple of (ticket, error_message). If error, ticket is None.
-    """
+    """Reopen a resolved ticket atomically; returns (ticket, None) or (None, error_message)."""
     with transaction.atomic():
         ticket = Ticket.objects.select_for_update(of=("self",)).select_related("team").filter(id=ticket_id).first()
 

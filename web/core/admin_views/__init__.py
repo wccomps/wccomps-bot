@@ -1,9 +1,4 @@
-"""Admin views package.
-
-Re-exports all view functions so existing imports continue to work:
-    from core import admin_views
-    admin_views.admin_competition(...)
-"""
+"""Re-exports the views so `admin_views.<view>` references keep working."""
 
 from .broadcast import (
     admin_broadcast,

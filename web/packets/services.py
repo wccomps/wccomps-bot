@@ -1,5 +1,3 @@
-"""Services for team packet distribution."""
-
 import json
 import logging
 from collections.abc import Iterator
@@ -24,38 +22,22 @@ from core.utils import ndjson_progress as _progress
 
 
 class PacketDistributionService:
-    """Service for distributing team packets."""
-
     def distribute_packet(self, packet: Packet) -> dict[str, int]:
-        """
-        Distribute a packet to all teams.
-
-        Returns:
-            Dictionary with counts: {
-                'total': total teams,
-                'email_sent': emails sent,
-                'email_failed': emails failed,
-                'created': new distributions created
-            }
-        """
+        """Distribute a packet to all teams."""
         if not packet.is_ready_for_distribution():
             raise ValueError(f"Packet {packet.id} is not ready for distribution")
 
         if not packet.event:
             raise ValueError("Packet must be linked to an event for distribution")
 
-        # Mark packet as distributing
         packet.mark_as_distributing()
 
-        # Create distribution records for all active teams
         distributions_created = self._create_distributions_for_teams(packet)
 
-        # Send emails if enabled
         email_stats = {"sent": 0, "failed": 0}
         if packet.send_via_email:
             email_stats = self._send_emails_for_packet(packet)
 
-        # Mark packet as completed if all emails sent
         if email_stats["failed"] == 0:
             packet.mark_as_completed()
 
@@ -70,11 +52,9 @@ class PacketDistributionService:
         """Create PacketDistribution records for active teams with contact emails."""
         teams = Team.objects.filter(is_active=True).exclude(school_info=None)
 
-        # Get teams that don't already have distributions
         existing_teams = PacketDistribution.objects.filter(packet=packet).values_list("team_id", flat=True)
         teams_to_create = teams.exclude(id__in=existing_teams)
 
-        # Create distributions for teams that don't have them
         distributions = [
             PacketDistribution(
                 packet=packet,
@@ -91,7 +71,6 @@ class PacketDistributionService:
         return len(distributions)
 
     def _send_emails_for_packet(self, packet: Packet) -> dict[str, int]:
-        """Send emails for all pending distributions of a packet."""
         distributions = PacketDistribution.objects.filter(packet=packet, email_status="pending").select_related("team")
 
         sent_count = 0
@@ -111,15 +90,11 @@ class PacketDistributionService:
     def _ensure_team_credentials(self, event: Event, team: Team) -> EventTeamAssignment:
         """Ensure an EventTeamAssignment with credentials exists for this team+event.
 
-        Side effects (on first call per team+event):
-            - Creates TeamRegistration from SchoolInfo
-            - Creates EventTeamAssignment
-            - Generates password and sets it in Authentik via API
+        The first call creates the TeamRegistration and assignment and sets a new password in Authentik.
         """
         assignment = EventTeamAssignment.objects.filter(event=event, team=team).first()
 
         if not assignment:
-            # Create a TeamRegistration from SchoolInfo if needed
             school_info = SchoolInfo.objects.filter(team=team).first()
             school_name = school_info.school_name if school_info else f"Team {team.team_number}"
 
@@ -140,23 +115,13 @@ class PacketDistributionService:
         return assignment
 
     def send_packet_email(self, distribution: PacketDistribution, override_emails: list[str] | None = None) -> None:
-        """
-        Send packet email to a team.
-
-        Args:
-            distribution: The distribution record to send for.
-            override_emails: If provided, send to these addresses instead of SchoolInfo lookup.
-
-        Raises:
-            Exception: If email sending fails
-        """
+        """Send packet email to a team, or to override_emails instead of the SchoolInfo addresses."""
         packet = distribution.packet
         team = distribution.team
 
         if not packet.event:
             raise ValueError("Packet must be linked to an event for distribution")
 
-        # Determine recipients
         if override_emails:
             recipients = override_emails
         else:
@@ -165,10 +130,8 @@ class PacketDistributionService:
                 raise ValueError(f"No email address for team {team.team_number}")
             recipients = [email_address]
 
-        # Ensure credentials exist (creates assignment + password if needed)
         assignment = self._ensure_team_credentials(packet.event, team)
 
-        # Prepare email context
         username = f"team{team.team_number:02d}"
         raw_extras = packet.team_extras.get(str(team.team_number), {}) if packet.team_extras else {}
         # Format keys for display: "api_key" -> "API Key", "max_spend_usd" -> "Max Spend USD"
@@ -182,12 +145,10 @@ class PacketDistributionService:
             "team_extras": team_extras,
         }
 
-        # Render email templates
         subject = f"WCComps: {packet.title}"
         text_content = render_to_string("packets/emails/packet_notification.txt", context)
         html_content = render_to_string("packets/emails/packet_notification.html", context)
 
-        # Create email with packet attached
         email = EmailMultiAlternatives(
             subject=subject,
             body=text_content,
@@ -198,10 +159,8 @@ class PacketDistributionService:
         email.attach_alternative(html_content, "text/html")
         email.attach(packet.filename, bytes(packet.file_data), packet.mime_type)
 
-        # Send email
         email.send(fail_silently=False)
 
-        # Mark as sent
         sent_to = ", ".join(recipients)
         distribution.mark_as_sent(sent_to)
         # The packet carries the team's credentials: record the first delivery, which is what
@@ -216,7 +175,6 @@ class PacketDistributionService:
         if not packet.event:
             raise ValueError("Packet must be linked to an event")
 
-        # Ensure credentials exist (creates assignment + password if needed)
         assignment = self._ensure_team_credentials(packet.event, team)
 
         username = f"team{team.team_number:02d}"
@@ -248,7 +206,6 @@ class PacketDistributionService:
         logger.info(f"Sent test email for packet {packet.id} (team {team.team_number}) to {email}")
 
     def _get_team_email(self, team: Team) -> str | None:
-        """Get email address for a team from SchoolInfo."""
         try:
             school_info = SchoolInfo.objects.get(team=team)
             return school_info.contact_email
@@ -284,7 +241,6 @@ class PacketDistributionService:
                     yield _progress(f"Failed Team {dist.team.team_number}: {error}", completed, total, ok=False)
 
     def stream_distribute_packet(self, packet: Packet) -> Iterator[str]:
-        """Distribute a packet with streaming progress."""
         if not packet.event:
             yield json.dumps({"done": True, "success": False, "message": "Packet must be linked to an event"}) + "\n"
             return
@@ -338,7 +294,6 @@ class PacketDistributionService:
             yield json.dumps({"done": True, "success": True, "message": f"No {label} distributions to resend"}) + "\n"
             return
 
-        # Reset to pending
         PacketDistribution.objects.filter(packet=packet, email_status=status_filter).update(
             email_status="pending", email_error_message=""
         )
@@ -370,7 +325,6 @@ class PacketDistributionService:
         )
 
     def stream_resend_failed(self, packet: Packet) -> Iterator[str]:
-        """Resend failed distributions with streaming progress."""
         yield from self._stream_resend(packet, "failed", "failed")
 
     def stream_retry_pending(self, packet: Packet) -> Iterator[str]:

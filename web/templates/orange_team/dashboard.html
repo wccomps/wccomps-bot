@@ -51,7 +51,6 @@
     {% if messages %}
         {% for message in messages %}<c-alert variant="{{ message.tags }}">{{ message }}</c-alert>{% endfor %}
     {% endif %}
-    {# Check-in status #}
     <c-module>
         <div class="status-bar">
             <div class="d-flex justify-between items-center flex-wrap gap-10">
@@ -85,7 +84,6 @@
             </div>
         </div>
     </c-module>
-    {# Follow-up reminders #}
     {% if followups %}
         <c-module>
             <h2>Follow-Up Reminders</h2>
@@ -130,7 +128,6 @@
             </c-table>
         </c-module>
     {% endif %}
-    {# My Assignments #}
     <c-module>
         <h2>My Assignments</h2>
         {% if assignments %}

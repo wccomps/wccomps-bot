@@ -1,5 +1,3 @@
-"""URL configuration for ticketing app."""
-
 from django.urls import path
 
 from . import views

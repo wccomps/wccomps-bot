@@ -13,17 +13,13 @@ from team.models import MAX_TEAMS, Team
 
 logger = logging.getLogger(__name__)
 
-# -- Constants --
 
 TEAM_CHAT_CHANNEL_KEYWORD = "chat"
 THREAD_AUTO_ARCHIVE_MINUTES: Final[Literal[10080]] = 10080  # 7 days
 DISCORD_EMBED_FIELD_CHAR_LIMIT = 1024
 
-# -- Logging --
-
 
 async def log_to_ops_channel(bot: discord.Client, message: str, embed: discord.Embed | None = None) -> None:
-    """Log a message to the operations channel."""
     try:
         channel_id = settings.DISCORD_LOG_CHANNEL_ID
         if not channel_id:
@@ -78,17 +74,7 @@ async def report_missing_discord_settings(bot: discord.Client) -> None:
 async def get_team_or_respond(
     interaction: discord.Interaction, team_number: int, validate_range: bool = True
 ) -> Team | None:
-    """
-    Get team by number or respond with error message.
-
-    Args:
-        interaction: Discord interaction to respond to
-        team_number: Team number to look up
-        validate_range: If True, validate team_number is between 1-MAX_TEAMS
-
-    Returns:
-        Team object if found, None if not found (error sent to user)
-    """
+    """Get a team by number, or send the user an error and return None."""
     from team.models import Team
 
     if validate_range and (team_number < 1 or team_number > MAX_TEAMS):
@@ -102,16 +88,8 @@ async def get_team_or_respond(
     return team
 
 
-# -- Role Management --
-
-
 async def safe_remove_role(member: discord.Member, role: discord.Role, reason: str | None = None) -> bool:
-    """
-    Safely remove a role from a member, catching permission errors.
-
-    Returns:
-        True if role was removed or member didn't have it, False on error
-    """
+    """Remove a role from a member; True if removed or not held, False on error."""
     if role not in member.roles:
         return True
 
@@ -127,12 +105,7 @@ async def safe_remove_role(member: discord.Member, role: discord.Role, reason: s
 
 
 async def remove_blueteam_role(member: discord.Member, guild: discord.Guild, reason: str | None = None) -> bool:
-    """
-    Remove Blueteam role from a member if they have it.
-
-    Returns:
-        True if removed or not present, False on error
-    """
+    """Remove the Blueteam role if held; True if removed or not present, False on error."""
     blueteam_role = discord.utils.get(guild.roles, name="Blueteam")
     if not blueteam_role:
         return True
@@ -142,19 +115,7 @@ async def remove_blueteam_role(member: discord.Member, guild: discord.Guild, rea
 
 @sync_to_async
 def get_team_member_discord_ids(team: Team) -> list[int]:
-    """
-    Get list of Discord IDs for all active team members.
-
-    Args:
-        team: Team object to get members from
-
-    Returns:
-        List of Discord IDs as integers
-    """
     return list(team.members.filter(is_active=True).values_list("discord_id", flat=True))
-
-
-# -- UI Components --
 
 
 class ConfirmView(discord.ui.View):
@@ -180,8 +141,6 @@ class ConfirmView(discord.ui.View):
 
 
 class ConfirmButton(discord.ui.Button["ConfirmView"]):
-    """Confirm button for ConfirmView."""
-
     async def callback(self, interaction: discord.Interaction) -> None:
         if self.view:
             self.view.confirmed = True
@@ -190,8 +149,6 @@ class ConfirmButton(discord.ui.Button["ConfirmView"]):
 
 
 class CancelButton(discord.ui.Button["ConfirmView"]):
-    """Cancel button for ConfirmView."""
-
     async def callback(self, interaction: discord.Interaction) -> None:
         if self.view:
             self.view.confirmed = False

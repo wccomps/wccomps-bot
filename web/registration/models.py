@@ -1,5 +1,3 @@
-"""Models for team registration."""
-
 import secrets
 from datetime import timedelta
 
@@ -9,13 +7,10 @@ from django.utils import timezone
 
 
 def generate_edit_token() -> str:
-    """Generate a secure random token for registration editing."""
     return secrets.token_urlsafe(48)
 
 
 class TeamRegistration(models.Model):
-    """Team registration for competition."""
-
     STATUS_CHOICES = [
         ("pending", "Pending Review"),
         ("approved", "Approved"),
@@ -59,20 +54,17 @@ class TeamRegistration(models.Model):
         return f"{self.school_name} ({self.status})"
 
     def approve(self, user: User) -> None:
-        """Approve the registration."""
         self.status = "approved"
         self.approved_at = timezone.now()
         self.approved_by = user
         self.save()
 
     def reject(self, reason: str) -> None:
-        """Reject the registration."""
         self.status = "rejected"
         self.rejection_reason = reason
         self.save()
 
     def mark_as_paid(self) -> None:
-        """Mark registration as paid."""
         self.status = "paid"
         self.paid_at = timezone.now()
         self.save()
@@ -94,16 +86,11 @@ class Season(models.Model):
 
 
 class EventQuerySet(models.QuerySet["Event"]):
-    """Custom queryset for Event model."""
-
     def annotate_enrollment_count(self) -> EventQuerySet:
-        """Annotate events with their enrollment count."""
         return self.annotate(enrollment_count=models.Count("enrollments"))
 
 
 class EventManager(models.Manager["Event"]):
-    """Custom manager for Event model."""
-
     def get_queryset(self) -> EventQuerySet:
         return EventQuerySet(self.model, using=self._db)
 
@@ -112,8 +99,6 @@ class EventManager(models.Manager["Event"]):
 
 
 class Event(models.Model):
-    """Competition event within a season."""
-
     EVENT_TYPE_CHOICES = [
         ("invitational", "Invitational"),
         ("qualifier", "Qualifier"),
@@ -155,8 +140,6 @@ class Event(models.Model):
 
 
 class RegistrationContact(models.Model):
-    """Contact information for a team registration."""
-
     ROLE_CHOICES = [
         ("captain", "Team Captain"),
         ("co_captain", "Co-Captain"),
@@ -183,8 +166,6 @@ class RegistrationContact(models.Model):
 
 
 class RegistrationEventEnrollment(models.Model):
-    """Track which events a school registration signed up for."""
-
     registration = models.ForeignKey(TeamRegistration, on_delete=models.CASCADE, related_name="event_enrollments")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="enrollments")
     enrolled_at = models.DateTimeField(auto_now_add=True)
