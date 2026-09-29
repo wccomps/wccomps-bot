@@ -1,0 +1,40 @@
+"""Ticket thread buttons keep working across restarts and reconnects without re-editing any message."""
+
+from typing import Any
+from unittest.mock import MagicMock
+
+import discord
+import pytest
+from asgiref.sync import sync_to_async
+
+from bot.ticket_dashboard import TicketActionView, format_ticket_embed
+from team.models import Team
+from ticketing.models import Ticket, TicketCategory
+
+pytestmark = [pytest.mark.asyncio, pytest.mark.django_db(transaction=True)]
+
+
+def _custom_ids(view: discord.ui.View) -> set[str]:
+    return {item.custom_id for item in view.children if isinstance(item, discord.ui.Button) and item.custom_id}
+
+
+async def test_posted_buttons_are_routed_to_the_registered_view() -> None:
+    """Discord routes a click by custom_id, so the view main.py registers must cover every posted button."""
+    registered = TicketActionView(ticket_id=0)
+    posted = TicketActionView(ticket_id=123)
+
+    assert registered.is_persistent()
+    assert _custom_ids(posted) and _custom_ids(posted) == _custom_ids(registered)
+
+
+async def test_registered_view_finds_the_ticket_from_the_posted_embed(db: Any) -> None:
+    team = await Team.objects.acreate(team_number=22, team_name="Team 22", max_members=5)
+    category = await TicketCategory.objects.acreate(pk=91, display_name="Box", sort_order=91)
+    ticket = await Ticket.objects.acreate(
+        ticket_number="T022-004", team=team, category=category, title="Web down: port 80", status="open"
+    )
+    ticket = await Ticket.objects.select_related("team", "assigned_to").aget(pk=ticket.pk)
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.message.embeds = [await sync_to_async(format_ticket_embed)(ticket)]
+
+    assert await TicketActionView(ticket_id=0)._get_ticket_id_from_interaction(interaction) == ticket.id
