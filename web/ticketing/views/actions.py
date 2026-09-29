@@ -8,9 +8,8 @@ from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from core.auth_utils import get_authentik_groups, get_authentik_id, has_permission
+from core.auth_utils import get_authentik_id, get_user_team, has_permission
 from core.models import DiscordTask
-from core.utils import get_team_from_groups
 from team.models import DiscordLink
 from ticketing.forms import TicketChangeCategoryForm, TicketReassignForm, TicketReopenForm, TicketResolveForm
 from ticketing.models import Ticket
@@ -23,10 +22,9 @@ def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
     """Cancel an open ticket (team members only)."""
     user = cast(User, request.user)
     authentik_username = user.username
-    groups = get_authentik_groups(user)
-    team, _team_number, is_team = get_team_from_groups(groups)
+    team = get_user_team(user)
 
-    if not is_team or not team:
+    if not team:
         return render(
             request,
             "error.html",

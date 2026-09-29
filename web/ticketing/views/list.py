@@ -9,9 +9,8 @@ from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonRe
 from django.shortcuts import render
 from django.utils import timezone
 
-from core.auth_utils import get_authentik_groups, has_permission
+from core.auth_utils import get_user_team, has_permission
 from core.tickets_config import get_all_categories, get_category_config
-from core.utils import get_team_from_groups
 from ticketing.models import Ticket
 
 logger = logging.getLogger(__name__)
@@ -30,10 +29,9 @@ def ticket_list(request: HttpRequest) -> HttpResponse:
         or has_permission(user, "ticketing_admin")
         or has_permission(user, "admin")
     )
-    groups = get_authentik_groups(user)
-    team, _team_number, is_team = get_team_from_groups(groups)
+    team = get_user_team(user)
 
-    if not is_ops and not is_team:
+    if not is_ops and not team:
         return HttpResponseForbidden("You do not have permission to view tickets.")
 
     from core.utils import filter_sort_paginate
