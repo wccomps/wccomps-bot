@@ -14,7 +14,8 @@ from team.models import SchoolInfo, Team
 def _infer_header_mapping(fieldnames: list[str]) -> dict[str, str] | None:
     """Infer canonical column names by inspecting header text.
 
-    Detects email columns (contain 'email'), and assigns the remaining
+    Maps other email columns (contain 'email'), in order, to whichever of contact_email and
+    secondary_email is still free; any beyond those are ignored. Assigns the remaining
     unmapped column as school_name. Returns None if headers already canonical.
     """
     canonical = {"school_name", "contact_email", "secondary_email", "notes"}
@@ -26,12 +27,14 @@ def _infer_header_mapping(fieldnames: list[str]) -> dict[str, str] | None:
     mapping: dict[str, str] = {}
     unmapped: list[str] = []
     skipped: list[str] = []
+    # Email slots not already taken by a column named exactly that
+    email_columns = iter(c for c in ("contact_email", "secondary_email") if c not in normalized.values())
     for raw in fieldnames:
         norm = raw.strip().lower()
-        if "email" in norm:
-            mapping[raw] = "contact_email"
-        elif norm.replace(" ", "_") in canonical:
+        if norm.replace(" ", "_") in canonical:
             mapping[raw] = norm.replace(" ", "_")
+        elif "email" in norm:
+            mapping[raw] = next(email_columns, norm.replace(" ", "_"))
         elif "team" in norm or norm.replace(" ", "").replace("#", "").isdigit():
             # Skip team number columns — teams are assigned randomly
             skipped.append(raw)
