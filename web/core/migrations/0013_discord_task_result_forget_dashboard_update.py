@@ -39,7 +39,8 @@ class Migration(migrations.Migration):
 
     operations = [
         # The bot on the previous release still reads and writes dashboard_update during a rolling
-        # deploy, so the table stays and only Django's state forgets the model; a later release drops it.
+        # deploy, so the table stays and only Django's state forgets the model; it can be dropped once no
+        # pod runs the previous release.
         migrations.SeparateDatabaseAndState(
             state_operations=[migrations.DeleteModel(name='DashboardUpdate')],
         ),

@@ -50,12 +50,7 @@ class AuditLog(models.Model):
 
 
 class DiscordTask(models.Model):
-    """Task queue for Discord API operations (rate limit resilience).
-
-    The task types and their payloads are the dataclasses in core/discord_tasks.py; queue one with
-    DiscordTask.enqueue(<payload>). The bot consumes the queue (bot/discord_queue.py) and stores what a
-    handler reports back in result.
-    """
+    """Work queued for the bot (bot/discord_queue.py); the task types are core/discord_tasks.py's payloads."""
 
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -101,10 +96,12 @@ class DiscordTask(models.Model):
     def typed_payload(self) -> discord_tasks.TaskPayload:
         """Raises KeyError for an unknown task type, TypeError for a missing field.
 
-        Keys the type doesn't declare are dropped: rows outlive the code that wrote them.
+        Keys the type doesn't declare are dropped: rows outlive the code that wrote them. A missing
+        ticket_id comes from the ticket FK, where the previous release's web put it.
         """
         cls = discord_tasks.PAYLOAD_TYPES[self.task_type]
-        return cls(**{f.name: self.payload[f.name] for f in fields(cls) if f.name in self.payload})
+        values = {"ticket_id": self.ticket_id, **self.payload} if self.ticket_id is not None else self.payload
+        return cls(**{f.name: values[f.name] for f in fields(cls) if f.name in values})
 
     @classmethod
     def enqueue(cls, payload: discord_tasks.TaskPayload) -> DiscordTask:
