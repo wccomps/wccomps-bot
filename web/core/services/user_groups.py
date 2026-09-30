@@ -51,7 +51,7 @@ def refresh_user_groups(manager: AuthentikManager | None = None) -> GroupRefresh
     Logins only refresh the logging-in user, so removals, deactivations and deletions in
     Authentik never reached permission checks (web or Discord). Inactive or deleted users
     get no groups. Raises GroupRefreshAbortedError, changing nothing, if Authentik's answer
-    doesn't recognise most users who currently hold groups.
+    doesn't recognise most users who currently hold groups, or lists groups it doesn't return.
     """
     manager = manager or AuthentikManager()
     groups = {
@@ -64,6 +64,11 @@ def refresh_user_groups(manager: AuthentikManager | None = None) -> GroupRefresh
     }
     if not users:
         raise GroupRefreshAbortedError("Authentik returned no users")
+    # A short group listing would silently strip those groups from everyone (and, via the role sync,
+    # their Discord roles), so any group a user or another group refers to must be in it.
+    referenced = {pk for u in users.values() for pk in u.groups} | {p for g in groups.values() for p in g.parents}
+    if unknown := referenced - groups.keys():
+        raise GroupRefreshAbortedError(f"Authentik's group list is missing {len(unknown)} groups its users are in")
 
     rows = list(UserGroups.objects.select_related("user"))
     holding = [row for row in rows if row.groups]

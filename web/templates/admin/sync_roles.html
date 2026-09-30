@@ -13,9 +13,9 @@
             <div>
                 <p>Synchronize Discord roles based on Authentik group membership.</p>
                 <ul class="text-muted mb-10">
-                    <li>Users in Authentik groups (e.g., WCComps_GoldTeam) will get corresponding Discord roles</li>
-                    <li>Users must have linked their Discord account to be synced</li>
-                    <li>Anyone else holding a synced role loses it, including members who haven't linked; they get it back once they link and are in the group</li>
+                    <li>Linked users get the Discord role for each of their Authentik groups (e.g., WCComps_GoldTeam), and team members get their team role and Blueteam</li>
+                    <li>Anyone else holding one of those roles loses it, including members who haven't linked; they get it back once they link and are in the group or on the team</li>
+                    <li>This also runs automatically every 5 minutes</li>
                 </ul>
                 <c-button_row class="mt-20">
                     <c-button variant="primary" @click="requestSyncPreview" ::disabled="loading">
@@ -23,7 +23,7 @@
                         <span x-show="loading">Working...</span>
                     </c-button>
                     <c-button variant="default" @click="requestSyncLive" ::disabled="loading">
-                        Sync (Add Roles Only)
+                        Sync Roles Now
                     </c-button>
                 </c-button_row>
             </div>
@@ -65,7 +65,7 @@
                 async requestSync(dryRun) {
                     const confirmMsg = dryRun ?
                         'Preview role changes? No changes will be made.' :
-                        'Add missing Discord roles for linked users? Nothing is removed.';
+                        'Sync Discord roles now? Anyone holding a synced role their groups or team seat do not grant loses it, including members who have not linked. Run the preview first to see who.';
 
                     if (!confirm(confirmMsg)) {
                         return;

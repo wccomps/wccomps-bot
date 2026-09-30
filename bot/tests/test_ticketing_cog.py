@@ -588,7 +588,7 @@ class TestTicketCommand:
 
         interaction.guild.get_channel = Mock(return_value=mock_category)
 
-        with patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock):
+        with patch("bot.ticket_dashboard.trigger_dashboard"):
             await cog.create_ticket.callback(
                 cog,
                 interaction,
@@ -657,7 +657,7 @@ class TestTicketCommand:
         interaction.guild.get_channel = Mock(return_value=mock_category)
 
         with (
-            patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock),
+            patch("bot.ticket_dashboard.trigger_dashboard"),
             patch("bot.cogs.ticketing.get_quotient_client", return_value=mock_client),
         ):
             await cog.create_ticket.callback(

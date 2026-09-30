@@ -1,5 +1,5 @@
 import ipaddress
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from datetime import datetime
 from typing import TypedDict
 from zoneinfo import ZoneInfo
@@ -9,6 +9,8 @@ from django.core.paginator import Page, Paginator
 from django.db.models import Model, QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
+
+from core.discord_tasks import SyncRolesResult
 
 
 def client_ip(request: HttpRequest) -> str:
@@ -125,15 +127,15 @@ def bulk_approve(  # type: ignore[explicit-any]
     return redirect(redirect_url)
 
 
-def role_sync_summary(stats: Mapping[str, object], *, dry_run: bool) -> str:
+def role_sync_summary(stats: SyncRolesResult, *, dry_run: bool) -> str:
     """One-line role sync result, shared by the bot (ops channel) and the web Sync Roles page.
 
     Lives in core, not bot/, so web code doesn't import the bot package.
     """
     added, removed = ("would be added", "would be removed") if dry_run else ("added", "removed")
     return (
-        f"{'[DRY RUN] ' if dry_run else ''}Role sync complete: {stats.get('roles_added', 0)} {added}, "
-        f"{stats.get('roles_removed', 0)} {removed}, {stats.get('errors', 0)} errors"
+        f"{'[DRY RUN] ' if dry_run else ''}Role sync complete: {stats['roles_added']} {added}, "
+        f"{stats['roles_removed']} {removed}, {stats['errors']} errors"
     )
 
 

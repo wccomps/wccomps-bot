@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from bot.heartbeat import record as record_heartbeat
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection
-from core.models import BotState, DashboardUpdate
+from core.models import BotState
 from core.tickets_config import get_category_config
 from ticketing.models import Ticket
 
@@ -31,6 +31,7 @@ class UnifiedDashboard:
         self.dashboard_channel_id: int | None = None
         self.sort_by = "created"  # Options: created, stale, team
         self.filter_status = "all"  # Options: all, open, claimed
+        self._needs_update = False
 
     def start(self) -> None:
         self.running = True
@@ -119,23 +120,16 @@ class UnifiedDashboard:
         await self._update_dashboard()
 
     async def _check_and_update(self) -> None:
-
-        # DB errors propagate so the loop skips its heartbeat.
-        @sync_to_async
-        def check_needs_update() -> bool:
-            dashboard_update = DashboardUpdate.objects.first()
-            if not dashboard_update:
-                dashboard_update = DashboardUpdate.objects.create(needs_update=True)
-
-            if dashboard_update.needs_update:
-                dashboard_update.needs_update = False
-                dashboard_update.save()
-                return True
-            return False
-
-        needs_update = await check_needs_update()
-        if needs_update:
+        if not self._needs_update:
+            return
+        # Cleared first so a trigger during the refresh isn't lost; a refresh that fails on the DB is
+        # retried next pass, and the error propagates so the loop skips its heartbeat.
+        self._needs_update = False
+        try:
             await self._update_dashboard()
+        except Exception:
+            self._needs_update = True
+            raise
 
     def _get_stale_indicator(self, ticket: Ticket) -> str:
         """Get progressive stale indicator based on time claimed."""
@@ -311,16 +305,9 @@ class UnifiedDashboard:
             # Discord trouble is not ours to fix by restarting; anything else (the DB) propagates.
             logger.exception(f"Error updating dashboard: {e}")
 
-    async def trigger_update(self) -> None:
-        """Trigger a dashboard update (called from other parts of the bot)."""
-
-        @sync_to_async
-        def mark_needs_update() -> None:
-            dashboard_update, _ = DashboardUpdate.objects.get_or_create(pk=1)
-            dashboard_update.needs_update = True
-            dashboard_update.save()
-
-        await mark_needs_update()
+    def trigger_update(self) -> None:
+        """Refresh the dashboard on the loop's next pass, so a burst of ticket changes costs one edit."""
+        self._needs_update = True
 
 
 class DashboardControlView(discord.ui.View):

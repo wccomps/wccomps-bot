@@ -1,5 +1,5 @@
 """Background refresh of stored Authentik groups, so removals and deactivations take effect, followed by a
-role sync so linked users get the Discord roles their groups and team seats call for."""
+role sync that brings everyone's synced Discord roles in line with them."""
 
 import logging
 
@@ -29,7 +29,7 @@ async def refresh_groups_now() -> None:
 
 
 async def sync_roles_now(bot: commands.Bot) -> None:
-    """Add the roles linked users are missing; never raises (the caller is a background loop)."""
+    """Sync the competition guild's roles; never raises (the caller is a background loop)."""
     try:
         await AuthentikRoleSyncManager(bot).sync_roles()
     except Exception as e:
@@ -37,7 +37,7 @@ async def sync_roles_now(bot: commands.Bot) -> None:
 
 
 class AuthentikGroupsCog(commands.Cog):
-    """Keeps UserGroups in step with Authentik between logins, and adds the Discord roles they grant."""
+    """Keeps UserGroups, and the Discord roles they grant, in step with Authentik between logins."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot

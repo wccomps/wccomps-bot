@@ -8,6 +8,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
 from core.auth_utils import get_user_team, has_permission
+from core.discord_tasks import TicketCreatedWeb
 from core.models import DiscordTask
 from core.tickets_config import get_all_categories
 from team.models import Team
@@ -150,14 +151,7 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
                     actor_username=authentik_username,
                     enforce_team_limit=not is_admin,
                 )
-                DiscordTask.create_ticket_created_web(
-                    ticket_id=ticket.id,
-                    ticket_number=ticket.ticket_number,
-                    team_number=team.team_number,
-                    category=category_obj.display_name,
-                    title=title,
-                    created_by=authentik_username,
-                )
+                DiscordTask.enqueue(TicketCreatedWeb(ticket_id=ticket.id))
 
             logger.info(f"Ticket {ticket.ticket_number} created via web by {authentik_username} for {team.team_name}")
 

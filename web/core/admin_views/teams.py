@@ -8,6 +8,7 @@ from django.utils import timezone
 from core.auth_utils import require_permission
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import reset_team_password
+from core.discord_tasks import RemoveRole, SetupTeamInfrastructure
 from core.forms import TeamActionForm, TeamsBulkActionForm
 from core.models import AuditLog, DiscordTask
 from team.models import DiscordLink, Team, team_username
@@ -112,7 +113,7 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             link.is_active = False
             link.unlinked_at = timezone.now()
             link.save()
-            DiscordTask.create_remove_role(discord_id=link.discord_id, team_number=team_number)
+            DiscordTask.enqueue(RemoveRole(discord_id=link.discord_id, team_number=team_number))
 
             AuditLog.objects.create(
                 action="user_unlinked",
@@ -137,7 +138,7 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             link.is_active = False
             link.unlinked_at = timezone.now()
             link.save()
-            DiscordTask.create_remove_role(discord_id=link.discord_id, team_number=team_number)
+            DiscordTask.enqueue(RemoveRole(discord_id=link.discord_id, team_number=team_number))
             unlinked += 1
 
         password, error = reset_team_password(team_number)
@@ -177,7 +178,7 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             )
 
     elif action == "recreate_channels":
-        DiscordTask.create_setup_team_infrastructure(team_number=team_number)
+        DiscordTask.enqueue(SetupTeamInfrastructure(team_number=team_number))
 
         AuditLog.objects.create(
             action="team_channels_recreate_requested",
@@ -234,7 +235,7 @@ def admin_teams_bulk_action(request: HttpRequest) -> HttpResponse:
 
     elif action == "recreate":
         for team_number in team_numbers:
-            DiscordTask.create_setup_team_infrastructure(team_number=team_number)
+            DiscordTask.enqueue(SetupTeamInfrastructure(team_number=team_number))
 
         AuditLog.objects.create(
             action="teams_recreate_requested",

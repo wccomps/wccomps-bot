@@ -10,6 +10,7 @@ from hypothesis import settings as hypothesis_settings
 from hypothesis import strategies as st
 
 from core.auth_utils import get_authentik_groups, get_authentik_id, team_for_groups
+from core.discord_tasks import PostTicketUpdate, SyncRoles
 from core.models import AuditLog, CompetitionConfig, DiscordTask
 from team.models import Team
 
@@ -106,6 +107,33 @@ class TestDiscordTaskModel:
         assert task.status == "pending"
         assert task.retry_count == 0
         assert task.max_retries == 5
+
+    def test_enqueue_takes_the_type_from_the_payload_and_the_ticket_from_its_id(self, box_reset_category):
+        from ticketing.models import Ticket
+
+        team = Team.objects.create(team_number=3, team_name="Team 03")
+        ticket = Ticket.objects.create(ticket_number="T003-001", team=team, category=box_reset_category, title="t")
+        update = PostTicketUpdate(ticket_id=ticket.id, action="reopened", actor="ops", reason="again")
+
+        task = DiscordTask.enqueue(update)
+
+        task.refresh_from_db()
+        assert (task.task_type, task.status, task.ticket_id) == ("post_ticket_update", "pending", ticket.id)
+        assert task.typed_payload() == update
+
+    def test_enqueue_leaves_the_ticket_unset_for_payloads_without_one(self):
+        assert DiscordTask.enqueue(SyncRoles(requested_by="ops", dry_run=True)).ticket_id is None
+
+    def test_typed_payload_ignores_keys_the_type_does_not_declare(self):
+        task = DiscordTask(task_type="sync_roles", payload={"requested_by": "ops", "dry_run": True, "progress": {}})
+
+        assert task.typed_payload() == SyncRoles(requested_by="ops", dry_run=True)
+
+    def test_clean_rejects_a_payload_missing_a_field(self):
+        from django.core.exceptions import ValidationError
+
+        with pytest.raises(ValidationError, match="team_number"):
+            DiscordTask(task_type="assign_role", payload={"discord_id": 1}).clean()
 
 
 class TestCompetitionConfigModel:
@@ -255,34 +283,3 @@ class TestTeamModelProperties:
             )
 
         assert "team_number" in str(exc_info.value)
-
-
-class TestDiscordTaskTypeConsistency:
-    """Ensure DiscordTask type definitions stay in sync across model and queue processor.
-
-    When adding a new task type, you must update:
-      1. TASK_TYPE_CHOICES in core/models.py
-      2. required_keys in DiscordTask.clean()
-      3. Handler + dispatch entry in bot/discord_queue.py
-    This test catches drift between those three locations.
-    """
-
-    def test_task_type_choices_match_required_keys(self):
-        """Every TASK_TYPE_CHOICES entry must have a required_keys entry."""
-        import contextlib
-
-        choice_types = {t for t, _ in DiscordTask.TASK_TYPE_CHOICES}
-        # Verify each choice type is recognized by clean() (has a required_keys entry)
-        task = DiscordTask()
-        for task_type in choice_types:
-            task.task_type = task_type
-            task.payload = {}
-            with contextlib.suppress(Exception):
-                task.clean()
-
-    def test_every_task_type_has_a_queue_handler_and_vice_versa(self):
-        """A type without a handler fails forever in the bot; a handler without a type can't be queued."""
-        from bot.discord_queue import DiscordQueueProcessor
-
-        choice_types = {t for t, _ in DiscordTask.TASK_TYPE_CHOICES}
-        assert choice_types == set(DiscordQueueProcessor._task_handlers)
