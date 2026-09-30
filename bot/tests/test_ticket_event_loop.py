@@ -19,7 +19,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.django_db(transaction=True)]
 
 @pytest.fixture
 async def claimed_ticket(db: Any) -> Ticket:
-    team = await Team.objects.acreate(team_number=21, team_name="Team 21", max_members=5)
+    team = await Team.objects.acreate(team_number=21, team_name="Team 21")
     category = await TicketCategory.objects.acreate(
         pk=90, display_name="Variable", points=0, variable_points=True, min_points=5, max_points=50, sort_order=90
     )

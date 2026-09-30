@@ -22,7 +22,7 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def team(db: object) -> Team:
     """Create a test team."""
-    return Team.objects.create(team_number=5, team_name="Test Team", is_active=True, max_members=10)
+    return Team.objects.create(team_number=5, team_name="Test Team", is_active=True)
 
 
 @pytest.fixture

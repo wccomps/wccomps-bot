@@ -21,7 +21,6 @@ async def team(db):
         team_number=team_num,
         team_name=f"Test Team {team_num}",
         authentik_group=f"WCComps_Team{team_num:02d}",
-        max_members=10,
     )
 
 
@@ -478,13 +477,11 @@ class TestRemoveAllTeamRoles:
             team_number=1,
             team_name="Team A",
             authentik_group="WCComps_BlueTeam01",
-            max_members=5,
         )
         team2 = await Team.objects.acreate(
             team_number=2,
             team_name="Team B",
             authentik_group="WCComps_BlueTeam02",
-            max_members=5,
         )
 
         # Setup infrastructure for both teams
@@ -518,7 +515,6 @@ class TestRemoveAllTeamRoles:
             team_number=3,
             team_name="Team C",
             authentik_group="WCComps_BlueTeam03",
-            max_members=5,
         )
         role, _ = await manager.setup_team_infrastructure(team.team_number)
 
@@ -561,7 +557,6 @@ class TestRemoveAllTeamRoles:
             team_number=4,
             team_name="Team D",
             authentik_group="WCComps_BlueTeam04",
-            max_members=5,
         )
         role, _ = await manager.setup_team_infrastructure(team.team_number)
 

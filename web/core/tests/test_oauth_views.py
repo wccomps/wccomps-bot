@@ -7,7 +7,13 @@ from django.contrib.auth.models import User
 from django.test import Client
 from django.utils import timezone
 
+from core.models import CompetitionConfig
 from team.models import DiscordLink, LinkAttempt, LinkToken, Team
+
+
+def _set_member_limit(limit: int) -> None:
+    CompetitionConfig.objects.update_or_create(pk=1, defaults={"max_team_members": limit})
+
 
 pytestmark = pytest.mark.django_db
 
@@ -133,7 +139,6 @@ class TestLinkCallback:
         team = Team.objects.create(
             team_number=1,
             team_name="Blue Team 01",
-            max_members=10,
         )
         token = LinkToken.objects.create(
             token="success_token_123",
@@ -179,10 +184,10 @@ class TestLinkCallback:
         """Cannot link when team is at max capacity."""
         from unittest.mock import patch
 
+        _set_member_limit(1)
         team = Team.objects.create(
             team_number=1,
             team_name="Blue Team 01",
-            max_members=1,
         )
         # Fill the team
         existing_user = User.objects.create_user(username="existinguser")
@@ -222,7 +227,8 @@ class TestLinkCallback:
         """Their own current link is the one being replaced, so it doesn't count toward the limit."""
         from unittest.mock import patch
 
-        team = Team.objects.create(team_number=1, team_name="Blue Team 01", max_members=1)
+        _set_member_limit(1)
+        team = Team.objects.create(team_number=1, team_name="Blue Team 01")
         DiscordLink.objects.create(
             discord_id=987654321, discord_username="discorduser", user=blue_team_user, team=team, is_active=True
         )
@@ -348,7 +354,7 @@ class TestDiscordLinkConstraints:
 
     def test_only_one_active_link_per_discord_user(self, blue_team_user):
         """Calling deactivate_previous_links before creating new link deactivates previous active link."""
-        team = Team.objects.create(team_number=1, team_name="Blue Team 01", max_members=10)
+        team = Team.objects.create(team_number=1, team_name="Blue Team 01")
         discord_id = 123456789
         user1 = User.objects.create_user(username="auth1")
         user2 = User.objects.create_user(username="auth2")
@@ -381,7 +387,7 @@ class TestDiscordLinkConstraints:
 
     def test_multiple_discord_users_can_link_to_team_account(self):
         """Multiple Discord users can link to same team Authentik account."""
-        team = Team.objects.create(team_number=1, team_name="Blue Team 01", max_members=10)
+        team = Team.objects.create(team_number=1, team_name="Blue Team 01")
         # Blue teams share a single Authentik account
         team_user = User.objects.create_user(username="team01")
 

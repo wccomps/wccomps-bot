@@ -201,14 +201,14 @@ class TestTeamModelProperties:
     )
     @hypothesis_settings(max_examples=20, deadline=None)
     def test_team_creation_with_valid_numbers(self, team_number: int, max_members: int):
-        """Team can be created with valid team numbers and max_members."""
+        """Team can be created with valid team numbers, and its member limit is the competition's."""
+        CompetitionConfig.objects.update_or_create(pk=1, defaults={"max_team_members": max_members})
         # Clean up any existing team with this number
         Team.objects.filter(team_number=team_number).delete()
 
         team = Team.objects.create(
             team_number=team_number,
             team_name=f"Test Team {team_number}",
-            max_members=max_members,
         )
 
         assert team.team_number == team_number
@@ -226,11 +226,11 @@ class TestTeamModelProperties:
 
         team_num = hash(uuid.uuid4()) % 50 + 1
         Team.objects.filter(team_number=team_num).delete()
+        CompetitionConfig.objects.update_or_create(pk=1, defaults={"max_team_members": max_members})
 
         team = Team.objects.create(
             team_number=team_num,
             team_name=f"Capacity Test {team_num}",
-            max_members=max_members,
         )
 
         # Empty team is never full

@@ -12,7 +12,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tickets():
-    team = Team.objects.create(team_number=1, team_name="Team 01", max_members=10)
+    team = Team.objects.create(team_number=1, team_name="Team 01")
     category = TicketCategory.objects.get(pk=6)
     return {
         status: Ticket.objects.create(

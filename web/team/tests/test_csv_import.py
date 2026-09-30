@@ -18,7 +18,6 @@ def setup_teams() -> list[Team]:
         team = Team.objects.create(
             team_name=f"Team {i}",
             team_number=i,
-            max_members=10,
             is_active=True,
         )
         teams.append(team)

@@ -11,7 +11,7 @@ WCComps Portal is a competition management platform for WRCCDC. Three components
 
 ```bash
 # Run tests from the repo root (requires test DB: docker compose -f docker-compose.test.yml up -d --wait).
-# From web/ pytest ignores testpaths: it skips bot/tests and collects integration_tests (live Authentik).
+# From web/ pytest ignores testpaths and skips bot/tests.
 PYTHONPATH="$(pwd)/web:$(pwd)" DB_HOST=localhost DB_PORT=5433 DB_USER=test_user DB_PASSWORD=test_password DB_NAME=wccomps_test uv run pytest -m "not browser"
 # Browser tests (Playwright): same env, `-m browser -n0`
 

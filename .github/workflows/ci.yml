@@ -73,7 +73,6 @@ jobs:
         run: |
           uv run pytest -m "not browser"
         env:
-          DJANGO_SETTINGS_MODULE: portal.settings
           PYTHONPATH: ${{ github.workspace }}/web:${{ github.workspace }}
           DJANGO_SECRET_KEY: test-secret-key-for-ci
 

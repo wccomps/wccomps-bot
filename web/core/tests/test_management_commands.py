@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.core.management import call_command
 
 from core.competition_utils import wipe_competition_data
-from core.models import CompetitionConfig, DiscordTask
+from core.models import DiscordTask
 from team.models import DiscordLink, LinkAttempt, LinkToken, Team
 from ticketing.models import Ticket, TicketCategory, TicketHistory
 
@@ -26,18 +26,6 @@ class TestInitTeamsCommand:
 
         assert Team.objects.count() == 50
         assert "Initialization complete: 50 created" in out.getvalue()
-
-    def test_uses_competition_config_max_members(self):
-        """Teams should use max_members from CompetitionConfig."""
-        config = CompetitionConfig.get_config()
-        config.max_team_members = 8
-        config.save()
-
-        call_command("init_teams", stdout=StringIO())
-
-        team = Team.objects.first()
-        assert team is not None
-        assert team.max_members == 8
 
     def test_idempotent_running_twice(self):
         """Running twice should not create duplicates."""
@@ -90,7 +78,7 @@ class TestWipeCompetitionData:
     @pytest.fixture
     def populated_database(self):
         """Create test data in the database."""
-        team = Team.objects.create(team_number=1, team_name="Test Team", max_members=10)
+        team = Team.objects.create(team_number=1, team_name="Test Team")
         ticket = Ticket.objects.create(
             ticket_number="T001-001",
             team=team,

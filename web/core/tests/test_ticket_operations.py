@@ -17,7 +17,6 @@ def team_with_tickets(blue_team_user):
     team = Team.objects.create(
         team_number=1,
         team_name="Blue Team 01",
-        max_members=10,
         ticket_counter=3,
     )
     box_reset = TicketCategory.objects.get(pk=2)
@@ -56,7 +55,6 @@ def other_team_ticket():
     team = Team.objects.create(
         team_number=2,
         team_name="Blue Team 02",
-        max_members=10,
     )
     other = TicketCategory.objects.get(pk=6)
     ticket = Ticket.objects.create(

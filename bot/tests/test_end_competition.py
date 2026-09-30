@@ -18,7 +18,6 @@ def teams_with_discord_roles(db):
             team = await Team.objects.acreate(
                 team_number=i,
                 team_name=f"BlueTeam{i:02d}",
-                max_members=5,
                 discord_role_id=5000 + i,
                 discord_category_id=6000 + i,
             )
@@ -96,7 +95,6 @@ class TestEndCompetition:
         await Team.objects.acreate(
             team_number=1,
             team_name="TeamWithoutRole",
-            max_members=5,
             discord_role_id=None,
             discord_category_id=None,
         )
@@ -111,7 +109,6 @@ class TestEndCompetition:
         await Team.objects.acreate(
             team_number=1,
             team_name="TeamWithMissingRole",
-            max_members=5,
             discord_role_id=99999,  # Non-existent role
             discord_category_id=6001,
         )

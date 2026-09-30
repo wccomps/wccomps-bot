@@ -98,17 +98,15 @@ def sync_service_scores(user: User | None = None) -> dict[str, int]:
     uptimes_by_team: dict[int, dict[str, float]] = {}
     if uptimes_data:
         for tu in uptimes_data:
-            uptimes_by_team[tu.team_id] = tu.uptimes
+            uptimes_by_team[tu.team_number] = tu.uptimes
 
     teams_updated = 0
     teams_created = 0
     details_synced = 0
 
     for team_export in export_data:
-        # Extract team number from name (e.g., "team09" -> 9)
-        team_num = int("".join(c for c in team_export.team_name if c.isdigit()) or "0")
         try:
-            team = Team.objects.get(team_number=team_num)
+            team = Team.objects.get(team_number=team_export.team_number)
         except Team.DoesNotExist:
             continue
 
@@ -126,7 +124,7 @@ def sync_service_scores(user: User | None = None) -> dict[str, int]:
         else:
             teams_updated += 1
 
-        team_uptimes = uptimes_by_team.get(team_num, {})
+        team_uptimes = uptimes_by_team.get(team_export.team_number, {})
         ServiceDetail.objects.filter(team=team).delete()
         details = [
             ServiceDetail(

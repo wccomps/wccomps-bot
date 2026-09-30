@@ -16,7 +16,7 @@ from bot.utils import ConfirmView, log_to_ops_channel, team_chat_channel
 from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
 from core.utils import parse_datetime_to_utc
-from team.models import MAX_TEAMS, Team
+from team.models import MAX_TEAMS, Team, team_username
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class AdminCompetitionCog(commands.Cog):
         password_list = []
         failed_resets = []
         for team_num in teams:
-            username = f"team{team_num:02d}"
+            username = team_username(team_num)
             password, error = await sync_to_async(reset_team_password)(team_num)
             if password:
                 password_list.append((team_num, username, password))
@@ -146,8 +146,6 @@ class AdminCompetitionCog(commands.Cog):
         old_max = config.max_team_members
         config.max_team_members = max_members
         await config.asave(update_fields=["max_team_members"])
-
-        await Team.objects.aupdate(max_members=max_members)
 
         await AuditLog.objects.acreate(
             action="max_team_members_updated",
@@ -211,10 +209,6 @@ class AdminCompetitionCog(commands.Cog):
             return
 
         config = await sync_to_async(CompetitionConfig.get_config)()
-
-        # Populate controlled applications from Authentik if not already set
-        if not config.controlled_applications:
-            await sync_to_async(config.ensure_controlled_applications)()
 
         config.competition_start_time = start_time
         await config.asave(update_fields=["competition_start_time"])
@@ -286,10 +280,6 @@ class AdminCompetitionCog(commands.Cog):
             return
 
         config = await sync_to_async(CompetitionConfig.get_config)()
-
-        # Populate controlled applications from Authentik if not already set
-        if not config.controlled_applications:
-            await sync_to_async(config.ensure_controlled_applications)()
 
         config.competition_end_time = end_time
         await config.asave(update_fields=["competition_end_time"])

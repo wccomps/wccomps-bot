@@ -24,7 +24,6 @@ class TestTicketCreationWorkflow:
             team_number=35,
             team_name="Test Team",
             discord_category_id=3001,
-            max_members=5,
         )
 
         ticket = await Ticket.objects.acreate(
@@ -108,7 +107,6 @@ class TestTicketCreationWorkflow:
             team_number=37,
             team_name="Test Team 3",
             discord_category_id=3003,
-            max_members=5,
         )
 
         ticket = await Ticket.objects.acreate(
@@ -161,7 +159,6 @@ class TestTicketResolutionWorkflow:
         team = await Team.objects.acreate(
             team_number=38,
             team_name="Test Team Resolve",
-            max_members=5,
         )
 
         ticket = await Ticket.objects.acreate(
@@ -205,7 +202,6 @@ class TestTicketResolutionWorkflow:
         team = await Team.objects.acreate(
             team_number=39,
             team_name="Test Team Audit",
-            max_members=5,
         )
 
         ticket = await Ticket.objects.acreate(
@@ -246,7 +242,6 @@ class TestTicketResolutionWorkflow:
         team = await Team.objects.acreate(
             team_number=40,
             team_name="Test Team Dashboard",
-            max_members=5,
         )
 
         ticket = await Ticket.objects.acreate(
@@ -284,7 +279,6 @@ class TestTicketResolutionWorkflow:
         team = await Team.objects.acreate(
             team_number=41,
             team_name="Test Team Double Resolve",
-            max_members=5,
         )
 
         ticket = await Ticket.objects.acreate(

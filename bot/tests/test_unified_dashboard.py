@@ -176,7 +176,7 @@ class TestUnifiedDashboard:
         bot = AsyncMock(spec=discord.Client)
         dashboard = UnifiedDashboard(bot)
 
-        team = await Team.objects.acreate(team_number=1, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=1, team_name="Test Team")
 
         ticket = await Ticket.objects.acreate(
             ticket_number="T001-001",
@@ -196,7 +196,7 @@ class TestUnifiedDashboard:
         bot = AsyncMock(spec=discord.Client)
         dashboard = UnifiedDashboard(bot)
 
-        team = await Team.objects.acreate(team_number=2, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=2, team_name="Test Team")
 
         ticket = await Ticket.objects.acreate(
             ticket_number="T002-001",
@@ -217,7 +217,7 @@ class TestUnifiedDashboard:
         bot = AsyncMock(spec=discord.Client)
         dashboard = UnifiedDashboard(bot)
 
-        team = await Team.objects.acreate(team_number=3, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=3, team_name="Test Team")
 
         ticket = await Ticket.objects.acreate(
             ticket_number="T003-001",
@@ -238,7 +238,7 @@ class TestUnifiedDashboard:
         bot = AsyncMock(spec=discord.Client)
         dashboard = UnifiedDashboard(bot)
 
-        team = await Team.objects.acreate(team_number=4, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=4, team_name="Test Team")
 
         ticket = await Ticket.objects.acreate(
             ticket_number="T004-001",
@@ -259,7 +259,7 @@ class TestUnifiedDashboard:
         bot = AsyncMock(spec=discord.Client)
         dashboard = UnifiedDashboard(bot)
 
-        team = await Team.objects.acreate(team_number=5, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=5, team_name="Test Team")
 
         ticket = await Ticket.objects.acreate(
             ticket_number="T005-001",
@@ -355,7 +355,7 @@ class TestUnifiedDashboard:
         dashboard.dashboard_message_id = 1111
         dashboard.dashboard_channel_id = 2222
 
-        team = await Team.objects.acreate(team_number=10, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=10, team_name="Test Team")
 
         await Ticket.objects.acreate(
             ticket_number="T010-001",
@@ -397,7 +397,7 @@ class TestUnifiedDashboard:
         dashboard.dashboard_channel_id = 2222
         dashboard.sort_by = "stale"
 
-        team = await Team.objects.acreate(team_number=11, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=11, team_name="Test Team")
 
         await Ticket.objects.acreate(
             ticket_number="T011-001",
@@ -449,9 +449,9 @@ class TestUnifiedDashboard:
         dashboard.dashboard_channel_id = 2222
         dashboard.sort_by = "team"
 
-        team_a = await Team.objects.acreate(team_number=20, team_name="Alpha Team", max_members=5)
+        team_a = await Team.objects.acreate(team_number=20, team_name="Alpha Team")
 
-        team_b = await Team.objects.acreate(team_number=21, team_name="Bravo Team", max_members=5)
+        team_b = await Team.objects.acreate(team_number=21, team_name="Bravo Team")
 
         await Ticket.objects.acreate(
             ticket_number="T021-001",
@@ -501,7 +501,7 @@ class TestUnifiedDashboard:
         dashboard.dashboard_channel_id = 2222
         dashboard.filter_status = "open"
 
-        team = await Team.objects.acreate(team_number=30, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=30, team_name="Test Team")
 
         await Ticket.objects.acreate(
             ticket_number="T030-001",
@@ -546,7 +546,7 @@ class TestUnifiedDashboard:
         dashboard.dashboard_channel_id = 2222
         dashboard.filter_status = "claimed"
 
-        team = await Team.objects.acreate(team_number=31, team_name="Test Team", max_members=5)
+        team = await Team.objects.acreate(team_number=31, team_name="Test Team")
 
         await Ticket.objects.acreate(
             ticket_number="T031-001",

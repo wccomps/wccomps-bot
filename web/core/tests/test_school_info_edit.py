@@ -1,0 +1,77 @@
+"""Editing a team's school info by hand assigns the team to the active event, as the CSV import does."""
+
+from datetime import date
+
+import pytest
+from django.test import Client
+from django.urls import reverse
+from registration.models import Event, EventTeamAssignment, Season, TeamRegistration
+
+from team.models import SchoolInfo, Team
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def client(gold_team_user):
+    client = Client()
+    client.force_login(gold_team_user)
+    return client
+
+
+@pytest.fixture
+def event():
+    season = Season.objects.create(name="2026", year=2026, is_active=True)
+    return Event.objects.create(
+        season=season, name="Invitational", event_type="invitational", date=date(2026, 10, 3), is_active=True
+    )
+
+
+def _edit(client, team_number, school_name):
+    return client.post(
+        reverse("school_info_edit", kwargs={"team_number": team_number}),
+        {"school_name": school_name, "contact_email": "coach@example.edu"},
+    )
+
+
+def test_new_school_info_assigns_the_team_to_the_active_event(client, event):
+    team = Team.objects.create(team_number=4, team_name="Team 04")
+
+    _edit(client, 4, "Example University")
+
+    assignment = EventTeamAssignment.objects.get(event=event)
+    assert assignment.team == team
+    assert assignment.registration.school_name == "Example University"
+
+
+def test_already_assigned_team_keeps_its_assignment(client, event):
+    team = Team.objects.create(team_number=4, team_name="Team 04")
+    registration = TeamRegistration.objects.create(school_name="Example University", status="paid")
+    EventTeamAssignment.objects.create(event=event, team=team, registration=registration)
+
+    _edit(client, 4, "Example University (renamed)")
+
+    assert EventTeamAssignment.objects.get(event=event).registration == registration
+    assert SchoolInfo.objects.get(team=team).school_name == "Example University (renamed)"
+
+
+def test_school_with_a_team_in_the_event_is_refused(client, event):
+    other = Team.objects.create(team_number=2, team_name="Team 02")
+    registration = TeamRegistration.objects.create(school_name="Example University", status="paid")
+    EventTeamAssignment.objects.create(event=event, team=other, registration=registration)
+    Team.objects.create(team_number=4, team_name="Team 04")
+
+    response = _edit(client, 4, "Example University")
+
+    assert b"already has a team" in response.content
+    assert not SchoolInfo.objects.filter(team__team_number=4).exists()
+    assert EventTeamAssignment.objects.count() == 1
+
+
+def test_no_active_event_saves_school_info_only(client):
+    Team.objects.create(team_number=4, team_name="Team 04")
+
+    _edit(client, 4, "Example University")
+
+    assert SchoolInfo.objects.filter(team__team_number=4).exists()
+    assert not EventTeamAssignment.objects.exists()

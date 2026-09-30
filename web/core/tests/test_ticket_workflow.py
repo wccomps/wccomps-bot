@@ -25,7 +25,6 @@ def setup_team():
     team = Team.objects.create(
         team_name="Test Team",
         team_number=1,
-        max_members=10,
         ticket_counter=0,
     )
     return team

@@ -28,7 +28,7 @@ def _no_quotient():
 
 @pytest.fixture
 def team():
-    return Team.objects.create(team_number=1, team_name="Team 01", max_members=10)
+    return Team.objects.create(team_number=1, team_name="Team 01")
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ def test_cancelled_tickets_still_count(team, category):
 
 def test_limit_is_per_team(team, category):
     _fill(team, category)
-    other = Team.objects.create(team_number=2, team_name="Team 02", max_members=10)
+    other = Team.objects.create(team_number=2, team_name="Team 02")
 
     assert create_ticket_atomic(team=other, category=category, title="fine").team == other
 

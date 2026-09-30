@@ -76,7 +76,7 @@ async def test_help_panel_ticket_gets_thread_and_no_malformed_task(
     categories: tuple[TicketCategory, TicketCategory], mock_interaction: Any, mock_bot: Any
 ) -> None:
     consult, _ = categories
-    team = await Team.objects.acreate(team_number=12, team_name="Team 12", discord_category_id=4242, max_members=5)
+    team = await Team.objects.acreate(team_number=12, team_name="Team 12", discord_category_id=4242)
     member = await User.objects.acreate(username="team12member")
     await UserGroups.objects.acreate(user=member, authentik_id="team12member-uid", groups=[team.authentik_group])
     await DiscordLink.objects.acreate(

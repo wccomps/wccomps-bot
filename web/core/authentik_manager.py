@@ -166,23 +166,6 @@ class AuthentikManager:
             logger.error(f"Unexpected error getting application '{slug}': {e}", exc_info=True)
             return None
 
-    def list_blueteam_applications(self) -> list[str]:
-        """List only application slugs that have a BlueTeam group binding."""
-        all_slugs = self.list_applications()
-        bt_slugs: list[str] = []
-        for slug in all_slugs:
-            app = self.get_application_by_slug(slug)
-            if not app:
-                continue
-            binding, _ = self.get_blueteam_binding(app["pk"])
-            if binding:
-                bt_slugs.append(slug)
-                logger.info(f"App '{slug}' has BlueTeam binding")
-            else:
-                logger.debug(f"App '{slug}' has no BlueTeam binding, skipping")
-        logger.info(f"Found {len(bt_slugs)} apps with BlueTeam bindings: {bt_slugs}")
-        return bt_slugs
-
     def get_blueteam_binding(self, app_pk: str) -> tuple[AuthentikBinding | None, str | None]:
         """Find the application's BlueTeam group binding, returning (binding, error_message)."""
         url = f"{self.base_url}/api/v3/policies/bindings/"
@@ -455,12 +438,12 @@ class AuthentikManager:
         Leaves is_active alone: team accounts are enabled only while the competition runs.
         """
         from core.authentik_utils import validate_team_account
-        from team.models import MAX_TEAMS
+        from team.models import MAX_TEAMS, team_username
 
         if team_number < 1 or team_number > MAX_TEAMS:
             return (False, f"Team number must be between 1 and {MAX_TEAMS}")
 
-        username = f"team{team_number:02d}"
+        username = team_username(team_number)
 
         try:
             response = self.client.get(

@@ -8,10 +8,10 @@ from django.core.mail import EmailMultiAlternatives
 from django.db import close_old_connections
 from django.template.loader import render_to_string
 from django.utils import timezone
-from registration.models import Event, EventTeamAssignment, TeamRegistration
+from registration.models import Event, EventTeamAssignment
 
 from core.authentik_utils import reset_team_password
-from team.models import SchoolInfo, Team
+from team.models import SchoolInfo, Team, team_username
 
 from .models import Packet, PacketDistribution
 
@@ -88,22 +88,16 @@ class PacketDistributionService:
         return {"sent": sent_count, "failed": failed_count}
 
     def _ensure_team_credentials(self, event: Event, team: Team) -> EventTeamAssignment:
-        """Ensure an EventTeamAssignment with credentials exists for this team+event.
+        """The team's assignment to the event, setting a new Authentik password on first use.
 
-        The first call creates the TeamRegistration and assignment and sets a new password in Authentik.
+        Assignments come from the school list import and the event page; packets never create one.
         """
         assignment = EventTeamAssignment.objects.filter(event=event, team=team).first()
-
         if not assignment:
-            school_info = SchoolInfo.objects.filter(team=team).first()
-            school_name = school_info.school_name if school_info else f"Team {team.team_number}"
-
-            registration, _ = TeamRegistration.objects.get_or_create(
-                school_name=school_name,
-                defaults={"status": "approved"},
+            raise ValueError(
+                f"Team {team.team_number} is not assigned to {event.name}. Assign it on the event page, "
+                "or import the school list or edit the team's school info while the event is active."
             )
-            assignment = EventTeamAssignment.objects.create(event=event, registration=registration, team=team)
-            logger.info(f"Created EventTeamAssignment for team {team.team_number} in {event.name}")
 
         if not assignment.password_generated:
             password, error = reset_team_password(team.team_number)
@@ -132,7 +126,7 @@ class PacketDistributionService:
 
         assignment = self._ensure_team_credentials(packet.event, team)
 
-        username = f"team{team.team_number:02d}"
+        username = team_username(team.team_number)
         raw_extras = packet.team_extras.get(str(team.team_number), {}) if packet.team_extras else {}
         # Format keys for display: "api_key" -> "API Key", "max_spend_usd" -> "Max Spend USD"
         team_extras = {k.replace("_", " ").title(): v for k, v in raw_extras.items()}
@@ -177,7 +171,7 @@ class PacketDistributionService:
 
         assignment = self._ensure_team_credentials(packet.event, team)
 
-        username = f"team{team.team_number:02d}"
+        username = team_username(team.team_number)
         raw_extras = packet.team_extras.get(str(team.team_number), {}) if packet.team_extras else {}
         team_extras = {k.replace("_", " ").title(): v for k, v in raw_extras.items()}
         context = {

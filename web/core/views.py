@@ -4,6 +4,7 @@ from typing import cast
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import UploadedFile
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 
@@ -293,22 +294,42 @@ def school_info_edit(request: HttpRequest, team_number: int) -> HttpResponse:
         secondary_email = form.cleaned_data.get("secondary_email", "")
         notes = form.cleaned_data.get("notes", "")
 
-        if school_info:
-            school_info.school_name = school_name
-            school_info.contact_email = contact_email
-            school_info.secondary_email = secondary_email
-            school_info.notes = notes
-            school_info.updated_by = authentik_username
-            school_info.save()
-        else:
-            school_info = SchoolInfo.objects.create(
-                team=team,
-                school_name=school_name,
-                contact_email=contact_email,
-                secondary_email=secondary_email,
-                notes=notes,
-                updated_by=authentik_username,
+        from team.forms import active_event, assign_school_to_event
+
+        # A team edited in by hand joins the active event like an imported one, so packets can reach it
+        join_event = active_event()
+        if join_event and join_event.team_assignments.filter(team=team).exists():
+            join_event = None
+        if join_event and join_event.team_assignments.filter(registration__school_name=school_name).exists():
+            return render(
+                request,
+                "school_info_edit.html",
+                {
+                    "team": team,
+                    "school_info": school_info,
+                    "error": f"{school_name} already has a team in {join_event}.",
+                },
             )
+
+        with transaction.atomic():
+            if school_info:
+                school_info.school_name = school_name
+                school_info.contact_email = contact_email
+                school_info.secondary_email = secondary_email
+                school_info.notes = notes
+                school_info.updated_by = authentik_username
+                school_info.save()
+            else:
+                school_info = SchoolInfo.objects.create(
+                    team=team,
+                    school_name=school_name,
+                    contact_email=contact_email,
+                    secondary_email=secondary_email,
+                    notes=notes,
+                    updated_by=authentik_username,
+                )
+            if join_event:
+                assign_school_to_event(join_event, team, school_name)
 
         logger.info(f"School info updated for Team {team_number} by {authentik_username}")
 

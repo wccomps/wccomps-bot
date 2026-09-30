@@ -19,7 +19,7 @@ from core.forms import ActionForm, AppSlugForm, ResetPasswordsForm, SetMaxMember
 from core.models import AuditLog, CompetitionConfig, DiscordTask
 from core.services.competition import CompetitionRunResult, run_competition
 from core.utils import ndjson_progress as _progress
-from team.models import MAX_TEAMS
+from team.models import MAX_TEAMS, team_username
 
 from ..auth_utils import has_permission, require_permission
 from ..utils import parse_datetime_to_utc
@@ -40,8 +40,6 @@ def _has_admin_or_gold_access(user: User) -> bool:
 
 
 def _action_set_max_members(request: HttpRequest, config: CompetitionConfig, authentik_username: str) -> JsonResponse:
-    from team.models import Team
-
     form = SetMaxMembersForm(request.POST)
     if not form.is_valid():
         return JsonResponse({"error": "Max members must be 1-20"}, status=400)
@@ -50,8 +48,6 @@ def _action_set_max_members(request: HttpRequest, config: CompetitionConfig, aut
     old_max = config.max_team_members
     config.max_team_members = max_members
     config.save()
-
-    Team.objects.update(max_members=max_members)
 
     AuditLog.objects.create(
         action="max_team_members_updated",
@@ -114,9 +110,6 @@ def _action_set_start_time(request: HttpRequest, config: CompetitionConfig, auth
     try:
         start_time = parse_datetime_to_utc(datetime_str, tz_name)
 
-        if not config.controlled_applications:
-            config.ensure_controlled_applications()
-
         config.competition_start_time = start_time
         config.save()
 
@@ -143,9 +136,6 @@ def _action_set_end_time(request: HttpRequest, config: CompetitionConfig, authen
 
     try:
         end_time = parse_datetime_to_utc(datetime_str, tz_name)
-
-        if not config.controlled_applications:
-            config.ensure_controlled_applications()
 
         config.competition_end_time = end_time
         config.save()
@@ -189,9 +179,6 @@ def _action_set_schedule(request: HttpRequest, config: CompetitionConfig, authen
             end_time = parse_datetime_to_utc(end_dt, end_tz)
             config.competition_end_time = end_time
             details["end_time"] = end_time.isoformat()
-
-        if not config.controlled_applications:
-            config.ensure_controlled_applications()
 
         config.save()
 
@@ -302,7 +289,7 @@ def _action_reset_passwords(request: HttpRequest, config: CompetitionConfig, aut
     failed_resets = []
 
     for team_num in team_numbers:
-        username = f"team{team_num:02d}"
+        username = team_username(team_num)
         password, error = reset_team_password(team_num)
         if password:
             password_list.append((team_num, username, password))

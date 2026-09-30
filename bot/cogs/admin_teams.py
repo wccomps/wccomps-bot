@@ -4,6 +4,7 @@ import logging
 import re
 
 import discord
+from asgiref.sync import sync_to_async
 from discord import app_commands
 from discord.ext import commands
 from django.utils import timezone
@@ -19,8 +20,8 @@ from bot.utils import (
 )
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import parse_team_range, reset_team_password
-from core.models import AuditLog
-from team.models import MAX_TEAMS, DiscordLink, Team
+from core.models import AuditLog, CompetitionConfig
+from team.models import MAX_TEAMS, DiscordLink, Team, team_username
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +39,12 @@ class AdminTeamsCog(commands.Cog):
     async def admin_teams(self, interaction: discord.Interaction) -> None:
         """List all teams with member counts."""
         teams = [team async for team in Team.objects.all().order_by("team_number")]
+        max_members = (await sync_to_async(CompetitionConfig.get_config)()).max_team_members
         team_statuses = []
 
         for team in teams:
             member_count = await team.members.filter(is_active=True).acount()
-            status = f"#{team.team_number:02d} {team.team_name}: {member_count}/{team.max_members} members"
+            status = f"#{team.team_number:02d} {team.team_name}: {member_count}/{max_members} members"
             team_statuses.append(status)
 
         embed = discord.Embed(title="Team Status", color=discord.Color.blue())
@@ -68,11 +70,12 @@ class AdminTeamsCog(commands.Cog):
             return
 
         member_count = await team.members.filter(is_active=True).acount()
+        max_members = (await sync_to_async(CompetitionConfig.get_config)()).max_team_members
         members = [m async for m in team.members.filter(is_active=True).select_related("user").order_by("linked_at")]
 
         embed = discord.Embed(title=f"{team.team_name} Details", color=discord.Color.blue())
         embed.add_field(name="Team Number", value=f"#{team.team_number}", inline=True)
-        embed.add_field(name="Members", value=f"{member_count}/{team.max_members}", inline=True)
+        embed.add_field(name="Members", value=f"{member_count}/{max_members}", inline=True)
         embed.add_field(name="Authentik Group", value=team.authentik_group, inline=False)
 
         if members:
@@ -332,7 +335,7 @@ class AdminTeamsCog(commands.Cog):
         else:
             results.append(f"❌ Failed to reset password: {error}")
 
-        username = f"team{team_number:02d}"
+        username = team_username(team_number)
         session_success, session_error, sessions_revoked = await sync_to_async(auth_manager.revoke_user_sessions)(
             username
         )

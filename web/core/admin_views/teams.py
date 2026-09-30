@@ -10,7 +10,7 @@ from core.authentik_manager import AuthentikManager
 from core.authentik_utils import reset_team_password
 from core.forms import TeamActionForm, TeamsBulkActionForm
 from core.models import AuditLog, DiscordTask
-from team.models import DiscordLink, Team
+from team.models import DiscordLink, Team, team_username
 
 from .competition import _has_admin_or_gold_access
 
@@ -144,7 +144,7 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
         success = password is not None
         auth_manager = AuthentikManager()
 
-        username = f"team{team_number:02d}"
+        username = team_username(team_number)
         session_success, session_error, sessions_revoked = auth_manager.revoke_user_sessions(username)
 
         AuditLog.objects.create(

@@ -44,7 +44,7 @@ def category(db: object) -> TicketCategory:
 @pytest.fixture
 def team_for_tickets(db: object) -> Team:
     """Create a team for ticket tests."""
-    return Team.objects.create(team_number=42, team_name="Test Team", is_active=True, max_members=10)
+    return Team.objects.create(team_number=42, team_name="Test Team", is_active=True)
 
 
 class TestAdminCategoriesList:
