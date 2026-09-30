@@ -3,25 +3,16 @@
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
-from typing import TypedDict
 
 import discord
 from asgiref.sync import sync_to_async
 from django.conf import settings
 
+from core.discord_tasks import SyncRolesResult
+
 logger = logging.getLogger(__name__)
 
 GUILD_CHUNK_TIMEOUT = 30.0
-
-
-class RoleSyncStats(TypedDict, total=False):
-    roles_added: int
-    roles_removed: int
-    errors: int
-    extra_linked: int  # linked users holding a role their Authentik groups don't grant
-    unlinked_holders: int  # unlinked users holding a synced role (can't verify)
-    changes: list[str]
 
 
 class AuthentikRoleSyncManager:
@@ -38,21 +29,23 @@ class AuthentikRoleSyncManager:
             logger.error(f"Competition guild {self.competition_guild_id} not found")
         return guild
 
-    async def sync_roles(
-        self,
-        dry_run: bool = False,
-        progress_callback: Callable[[int, int, str], Awaitable[None]] | None = None,
-    ) -> RoleSyncStats:
+    async def sync_roles(self, dry_run: bool = False) -> SyncRolesResult:
         """Add roles from Authentik groups (UserGroups) to linked users in the competition guild.
 
-        progress_callback, if given, is awaited with (current, total, role_name) per group mapping.
         Add-only: roles a user shouldn't have are counted (extra_linked, unlinked_holders), never removed.
         """
         competition_guild = self._get_competition_guild()
         if not competition_guild:
-            return {"roles_added": 0, "roles_removed": 0, "errors": 1, "changes": []}
+            return {
+                "roles_added": 0,
+                "roles_removed": 0,
+                "errors": 1,
+                "extra_linked": 0,
+                "unlinked_holders": 0,
+                "changes": [],
+            }
 
-        stats: RoleSyncStats = {
+        stats: SyncRolesResult = {
             "roles_added": 0,
             "roles_removed": 0,
             "errors": 0,
@@ -119,14 +112,7 @@ class AuthentikRoleSyncManager:
         for group_name, discord_ids in group_to_discord_ids.items():
             logger.info(f"  {group_name}: {len(discord_ids)} linked Discord users")
 
-        total_mappings = len(self.group_role_mapping)
-        for idx, (group_name, role_id) in enumerate(self.group_role_mapping.items(), start=1):
-            competition_role = competition_guild.get_role(role_id)
-            role_name = competition_role.name if competition_role else f"Role {role_id}"
-
-            if progress_callback:
-                await progress_callback(idx, total_mappings, role_name)
-
+        for group_name, role_id in self.group_role_mapping.items():
             try:
                 await self._sync_authentik_group(
                     competition_guild,
@@ -162,7 +148,7 @@ class AuthentikRoleSyncManager:
         role_id: int,
         should_have_role_discord_ids: set[int],
         linked_discord_ids: set[int],
-        stats: RoleSyncStats,
+        stats: SyncRolesResult,
         dry_run: bool,
     ) -> None:
         """Sync one Authentik group to its Discord role. Only ever ADDS the role.

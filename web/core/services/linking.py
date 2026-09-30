@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from django.contrib.auth.models import User
 from django.db import transaction
 
+from core.discord_tasks import AssignGroupRoles, AssignRole, LogToChannel
 from core.models import DiscordTask
 from team.models import DiscordLink, LinkAttempt, LinkToken, Team
 
@@ -213,16 +214,18 @@ def finalize_link(
         failure_reason="",
     )
 
-    DiscordTask.create_assign_group_roles(discord_id=discord_id, authentik_groups=groups)
+    DiscordTask.enqueue(AssignGroupRoles(discord_id=discord_id, authentik_groups=groups))
 
     if team:
-        DiscordTask.create_assign_role(discord_id=discord_id, team_number=team.team_number)
-        DiscordTask.create_log_to_channel(
-            message=f"User Linked: <@{discord_id}> ({discord_username}) \u2192 **{team.team_name}**"
+        DiscordTask.enqueue(AssignRole(discord_id=discord_id, team_number=team.team_number))
+        DiscordTask.enqueue(
+            LogToChannel(message=f"User Linked: <@{discord_id}> ({discord_username}) → **{team.team_name}**")
         )
         logger.info(f"Successfully linked {discord_username} ({discord_id}) to {team.team_name}")
     else:
-        DiscordTask.create_log_to_channel(
-            message=f"User Linked: <@{discord_id}> ({discord_username}) \u2192 **{authentik_username}** (non-team)"
+        DiscordTask.enqueue(
+            LogToChannel(
+                message=f"User Linked: <@{discord_id}> ({discord_username}) \u2192 **{authentik_username}** (non-team)"
+            )
         )
         logger.info(f"Successfully linked {discord_username} ({discord_id}) to {authentik_username}")

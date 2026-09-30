@@ -31,18 +31,14 @@ def test_status_returns_summary_and_changes(admin_client):
     task = DiscordTask.objects.create(
         task_type="sync_roles",
         status="completed",
-        payload={
-            "requested_by": "admin",
-            "dry_run": True,
-            "result": {
-                "roles_added": 2,
-                "roles_removed": 0,
-                "extra_linked": 1,
-                "unlinked_holders": 3,
-                "errors": 0,
-                "dry_run": True,
-                "changes": ["[DRY RUN] ✗ Extra: bob (Bob) has Gold Team but is not in WCComps_GoldTeam (not removed)"],
-            },
+        payload={"requested_by": "admin", "dry_run": True},
+        result={
+            "roles_added": 2,
+            "roles_removed": 0,
+            "extra_linked": 1,
+            "unlinked_holders": 3,
+            "errors": 0,
+            "changes": ["[DRY RUN] ✗ Extra: bob (Bob) has Gold Team but is not in WCComps_GoldTeam (not removed)"],
         },
     )
 
@@ -51,7 +47,29 @@ def test_status_returns_summary_and_changes(admin_client):
     assert "2 would be added" in data["message"]
     assert "1 linked users with extra roles" in data["message"]
     assert "3 unlinked role holders" in data["message"]
-    assert data["changes"] == task.payload["result"]["changes"]
+    assert data["changes"] == task.result["changes"]
+
+
+def test_status_reads_a_result_the_previous_release_left_in_the_payload(admin_client):
+    """A sync the old bot finished during a rolling deploy has no result column value."""
+    result = {
+        "roles_added": 1,
+        "roles_removed": 0,
+        "extra_linked": 0,
+        "unlinked_holders": 0,
+        "errors": 0,
+        "changes": [],
+    }
+    task = DiscordTask.objects.create(
+        task_type="sync_roles",
+        status="completed",
+        payload={"requested_by": "admin", "dry_run": False, "result": result},
+    )
+
+    response = admin_client.get(reverse("admin_task_status", args=[task.pk]))
+
+    assert response.status_code == 200
+    assert "1 added" in response.json()["message"]
 
 
 def test_blue_team_cannot_trigger_sync(blue_team_user):

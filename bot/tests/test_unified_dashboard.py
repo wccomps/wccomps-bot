@@ -8,7 +8,7 @@ import pytest
 from django.utils import timezone
 
 from bot.unified_dashboard import UnifiedDashboard
-from core.models import BotState, DashboardUpdate
+from core.models import BotState
 from team.models import Team
 from ticketing.models import Ticket
 
@@ -142,34 +142,54 @@ class TestUnifiedDashboard:
             assert dashboard.dashboard_message_id == 3333
             mock_channel.send.assert_called_once()
 
-    async def test_check_and_update_updates_when_needed(self) -> None:
-        """Test _check_and_update triggers update when flag is set."""
-        bot = AsyncMock(spec=discord.Client)
-        dashboard = UnifiedDashboard(bot)
+    async def test_triggers_between_passes_cost_one_update(self) -> None:
+        dashboard = UnifiedDashboard(AsyncMock(spec=discord.Client))
 
-        await DashboardUpdate.objects.acreate(needs_update=True)
+        with patch.object(dashboard, "_update_dashboard", new_callable=AsyncMock) as mock_update:
+            dashboard.trigger_update()
+            dashboard.trigger_update()
+            await dashboard._check_and_update()
+            await dashboard._check_and_update()
+
+        mock_update.assert_awaited_once()
+
+    async def test_no_update_without_a_trigger(self) -> None:
+        dashboard = UnifiedDashboard(AsyncMock(spec=discord.Client))
 
         with patch.object(dashboard, "_update_dashboard", new_callable=AsyncMock) as mock_update:
             await dashboard._check_and_update()
 
-            mock_update.assert_called_once()
+        mock_update.assert_not_awaited()
 
-            # Verify flag cleared
-            dashboard_update = await DashboardUpdate.objects.afirst()
-            assert dashboard_update is not None
-            assert dashboard_update.needs_update is False
+    async def test_failed_refresh_is_retried_next_pass(self) -> None:
+        dashboard = UnifiedDashboard(AsyncMock(spec=discord.Client))
+        dashboard.trigger_update()
 
-    async def test_check_and_update_skips_when_not_needed(self) -> None:
-        """Test _check_and_update skips update when flag is not set."""
-        bot = AsyncMock(spec=discord.Client)
-        dashboard = UnifiedDashboard(bot)
-
-        await DashboardUpdate.objects.acreate(needs_update=False)
-
-        with patch.object(dashboard, "_update_dashboard", new_callable=AsyncMock) as mock_update:
+        fails_once = AsyncMock(side_effect=[RuntimeError("db down"), None])
+        with patch.object(dashboard, "_update_dashboard", fails_once) as update:
+            with pytest.raises(RuntimeError):
+                await dashboard._check_and_update()
+            await dashboard._check_and_update()
             await dashboard._check_and_update()
 
-            mock_update.assert_not_called()
+        assert update.await_count == 2
+
+    async def test_db_error_while_updating_propagates(self) -> None:
+        """A pass with a pending refresh lets DB errors through, so the loop skips its heartbeat."""
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.fetch_message = AsyncMock()
+        bot = MagicMock(spec=discord.Client)
+        bot.get_channel.return_value = channel
+        dashboard = UnifiedDashboard(bot)
+        dashboard.dashboard_message_id = 1
+        dashboard.dashboard_channel_id = 2
+        dashboard.trigger_update()
+
+        with (
+            patch("ticketing.models.Ticket.objects.filter", side_effect=RuntimeError("db down")),
+            pytest.raises(RuntimeError, match="db down"),
+        ):
+            await dashboard._check_and_update()
 
     async def test_get_stale_indicator_no_assigned_at(self, box_reset_category) -> None:
         """Test _get_stale_indicator returns empty string for unassigned tickets."""
@@ -601,14 +621,3 @@ class TestUnifiedDashboard:
 
         assert dashboard.dashboard_message_id is None
         assert dashboard.dashboard_channel_id is None
-
-    async def test_trigger_update(self) -> None:
-        """Test trigger_update sets needs_update flag."""
-        bot = AsyncMock(spec=discord.Client)
-        dashboard = UnifiedDashboard(bot)
-
-        await dashboard.trigger_update()
-
-        dashboard_update = await DashboardUpdate.objects.afirst()
-        assert dashboard_update is not None
-        assert dashboard_update.needs_update is True

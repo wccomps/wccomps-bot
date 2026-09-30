@@ -11,6 +11,7 @@ from asgiref.sync import sync_to_async
 from django.utils import timezone
 
 from bot.discord_queue import DiscordQueueProcessor
+from core.discord_tasks import SyncRoles
 from core.models import DiscordTask
 from team.models import Team
 
@@ -84,7 +85,7 @@ class TestAssignRoleRetry:
         processor.discord_manager.setup_team_infrastructure = AsyncMock()
 
         # Process task
-        await processor._handle_assign_role(task)
+        await processor._handle_assign_role(task.typed_payload())
 
         # Verify role assignment was called
         processor.discord_manager.assign_team_role.assert_called_once()
@@ -285,8 +286,6 @@ class TestAssignRoleRetry:
 
     async def test_assign_role_missing_payload_fields(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """Test handling of missing payload fields - retries then fails."""
-        # Use bulk_create to bypass save() validation — this simulates a
-        # malformed task that somehow made it into the DB.
         tasks = await sync_to_async(DiscordTask.objects.bulk_create)(
             [
                 DiscordTask(
@@ -314,7 +313,7 @@ class TestAssignRoleRetry:
         assert task.status == "pending"
         assert task.retry_count == 1
         assert task.next_retry_at is not None
-        assert "discord_id or team_number" in task.error_message or "Missing discord_id" in task.error_message
+        assert "discord_id" in task.error_message
 
     async def test_assign_role_member_not_found(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """Test handling when member is not found in guild - completes gracefully."""
@@ -648,7 +647,33 @@ class TestStrandedTasks:
         handler = AsyncMock()
         processor = DiscordQueueProcessor(MagicMock())
 
-        with patch.dict(DiscordQueueProcessor._task_handlers, {"log_to_channel": handler}):
+        with patch.object(processor, "_dispatch", handler):
             await processor._process_task(task)
 
         handler.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_handler_return_is_stored_as_result_and_payload_is_left_alone() -> None:
+    task = await sync_to_async(DiscordTask.enqueue)(SyncRoles(requested_by="ops", dry_run=True))
+    stats = {
+        "roles_added": 2,
+        "roles_removed": 0,
+        "errors": 0,
+        "extra_linked": 0,
+        "unlinked_holders": 0,
+        "changes": ["+ alice"],
+    }
+
+    with (
+        patch("bot.role_sync.AuthentikRoleSyncManager.sync_roles", new=AsyncMock(return_value=stats)),
+        patch("bot.utils.log_to_ops_channel", new=AsyncMock()),
+    ):
+        await DiscordQueueProcessor(MagicMock())._process_task(task)
+
+    await task.arefresh_from_db()
+    assert task.status == "completed"
+    assert task.payload == {"requested_by": "ops", "dry_run": True}
+    assert task.result["roles_added"] == 2
+    assert task.result["changes"] == ["+ alice"]
