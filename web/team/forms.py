@@ -10,7 +10,7 @@ from django.core.files.uploadedfile import UploadedFile
 from django.core.validators import validate_email
 from django.db import transaction
 
-from team.models import SchoolInfo, Team
+from team.models import SchoolInfo, Team, default_team_name
 
 if TYPE_CHECKING:
     from registration.models import Event
@@ -230,6 +230,9 @@ def validate_csv_data(rows: list[CSVRowData]) -> CSVValidationResult:
     inactive = [t.team_number for t in teams if not t.is_active]
     if inactive:
         warnings.append(f"Activates team(s) {', '.join(map(str, inactive))}.")
+    renamed = [t.team_name for t in Team.objects.all() if t.team_name != default_team_name(t.team_number)]
+    if renamed:
+        warnings.append(f"Resets {len(renamed)} team name(s) from the last event ({', '.join(renamed)}).")
 
     random.shuffle(teams)
 
@@ -265,7 +268,8 @@ def apply_csv_import(
     teams_to_create: list[CSVRowData],
     updated_by: str,
 ) -> dict[str, int]:
-    """Replace all school info with the rows, activate their teams, and reassign the active event's teams."""
+    """Replace all school info with the rows, reset every team name, activate the rows' teams, and reassign
+    the active event's teams."""
     from registration.models import EventTeamAssignment
 
     created = 0
@@ -273,6 +277,11 @@ def apply_csv_import(
 
     event = active_event()
     SchoolInfo.objects.all().delete()
+    # Names like a school's shortname belong to the last event's assignment, not the team slot
+    teams = list(Team.objects.all())
+    for team in teams:
+        team.team_name = default_team_name(team.team_number)
+    Team.objects.bulk_update(teams, ["team_name"])
     if event:
         EventTeamAssignment.objects.filter(event=event).delete()
     activated = Team.objects.filter(pk__in=[row["_team"].pk for row in teams_to_create], is_active=False).update(

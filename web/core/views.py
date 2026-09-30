@@ -377,7 +377,6 @@ def _parse_school_info_csv(csv_file: UploadedFile[bytes]) -> tuple[dict[str, obj
                 "contact_email": row["contact_email"],
                 "secondary_email": row.get("secondary_email", ""),
                 "notes": row.get("notes", ""),
-                "team_name": row.get("team_name", ""),
             }
             for row in validation_result["teams_to_create"]
         ]
