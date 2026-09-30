@@ -4,9 +4,10 @@ from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
 from django.views.decorators.http import require_POST
 
 from core.auth_utils import require_permission
-from team.models import Team
+from core.utils import ndjson_progress
 
-from ..models import FinalScore
+from ..calculator import Standing, compute_standings, get_leaderboard, get_standing
+from .leaderboard import build_scorecard_context
 
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
@@ -17,63 +18,10 @@ def export_index(request: HttpRequest) -> HttpResponse:
 
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_red_scores(request: HttpRequest) -> HttpResponse:
-    from ..export import export_red_scores_csv, export_red_scores_json
+def export_dataset(request: HttpRequest, dataset: str) -> HttpResponse:
+    from .. import export
 
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_red_scores_json()
-    return export_red_scores_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_incidents(request: HttpRequest) -> HttpResponse:
-    from ..export import export_incidents_csv, export_incidents_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_incidents_json()
-    return export_incidents_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_orange_adjustments(request: HttpRequest) -> HttpResponse:
-    from ..export import export_orange_adjustments_csv, export_orange_adjustments_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_orange_adjustments_json()
-    return export_orange_adjustments_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_inject_grades(request: HttpRequest) -> HttpResponse:
-    from ..export import export_inject_grades_csv, export_inject_grades_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_inject_grades_json()
-    return export_inject_grades_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_final_scores(request: HttpRequest) -> HttpResponse:
-    from ..export import export_final_scores_csv, export_final_scores_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_final_scores_json()
-    return export_final_scores_csv()
-
-
-@require_permission("gold_team", error_message="Only Gold Team members can access this")
-def export_tickets(request: HttpRequest) -> HttpResponse:
-    from ..export import export_tickets_csv, export_tickets_json
-
-    export_format = request.GET.get("format", "csv").lower()
-    if export_format == "json":
-        return export_tickets_json()
-    return export_tickets_csv()
+    return export.export_dataset(dataset, request.GET.get("format", "csv").lower())
 
 
 @require_permission("gold_team", error_message="Only Gold Team members can access this")
@@ -90,53 +38,15 @@ def export_scorecards(request: HttpRequest) -> HttpResponse:
     import io
     import zipfile
 
-    import weasyprint
-    from django.template.loader import render_to_string
     from django.utils import timezone
 
-    from ..calculator import calculate_team_score_detailed
-    from ..models import FinalScore, RedTeamScore
-    from .leaderboard import _compute_scorecard_stats
-
-    scores = FinalScore.objects.filter(is_excluded=False, rank__isnull=False).select_related("team").order_by("rank")
-
+    standings = compute_standings()
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for final_score in scores:
-            team = final_score.team
-            red_scores = (
-                RedTeamScore.objects.filter(affected_teams=team, is_approved=True)
-                .select_related("attack_type")
-                .order_by("attack_type__name", "pk")
+        for score in get_leaderboard(standings):
+            zf.writestr(
+                f"team-{score.team.team_number:02d}-scorecard.pdf", _generate_team_pdf(score, standings, request)
             )
-
-            stats = _compute_scorecard_stats(team, final_score)
-            detailed = calculate_team_score_detailed(team)
-
-            context = {
-                "team": team,
-                "score": final_score,
-                "red_scores": red_scores,
-                "stats": stats,
-                "red_total": sum(r.points_per_team for r in red_scores),
-                "inject_total": sum(i["points"] for i in stats["inject_stats"]),
-                "service_total": sum(s["points"] for s in stats["service_stats"]),
-                "scaling": {
-                    "service_raw": detailed["service_raw"],
-                    "inject_raw": detailed["inject_raw"],
-                    "orange_raw": detailed["orange_raw"],
-                    "service_modifier": detailed["service_modifier"],
-                    "inject_modifier": detailed["inject_modifier"],
-                    "orange_modifier": detailed["orange_modifier"],
-                    "service_weight": detailed["service_weight"],
-                    "inject_weight": detailed["inject_weight"],
-                    "orange_weight": detailed["orange_weight"],
-                },
-            }
-
-            html_string = render_to_string("scoring/scorecard_print.html", context, request=request)
-            pdf_bytes = weasyprint.HTML(string=html_string).write_pdf()
-            zf.writestr(f"team-{team.team_number:02d}-scorecard.pdf", pdf_bytes)
 
     timestamp = timezone.now().strftime("%Y%m%d-%H%M%S")
     response = HttpResponse(buf.getvalue(), content_type="application/zip")
@@ -176,12 +86,15 @@ def _send_scorecard_email(
         return False
 
 
-def _build_email_context(team: Team, score: FinalScore, total_teams: int) -> dict[str, object]:
+def _build_email_context(score: Standing, total_teams: int) -> dict[str, object]:
     """Build email template context for a team's scorecard."""
+    from django.utils import timezone
+
     from team.models import SchoolInfo
 
     from ..models import QuotientMetadataCache
 
+    team = score.team
     metadata = QuotientMetadataCache.objects.first()
     event_name = metadata.event_name if metadata else "Competition"
 
@@ -193,7 +106,7 @@ def _build_email_context(team: Team, score: FinalScore, total_teams: int) -> dic
 
     return {
         "event_name": event_name,
-        "event_date": score.calculated_at,
+        "event_date": timezone.now(),
         "school_name": school_name,
         "team_number": team.team_number,
         "service_points": score.service_points,
@@ -209,52 +122,14 @@ def _build_email_context(team: Team, score: FinalScore, total_teams: int) -> dic
     }
 
 
-def _generate_team_pdf(team: Team, score: FinalScore, request: HttpRequest) -> bytes:
+def _generate_team_pdf(score: Standing, standings: list[Standing], request: HttpRequest) -> bytes:
     import weasyprint
     from django.template.loader import render_to_string
 
-    from ..calculator import calculate_team_score_detailed
-    from ..models import RedTeamScore
-    from .leaderboard import _compute_scorecard_stats
-
-    red_scores = (
-        RedTeamScore.objects.filter(affected_teams=team, is_approved=True)
-        .select_related("attack_type")
-        .order_by("attack_type__name", "pk")
-    )
-    stats = _compute_scorecard_stats(team, score)
-    detailed = calculate_team_score_detailed(team)
-
-    context = {
-        "team": team,
-        "score": score,
-        "red_scores": red_scores,
-        "stats": stats,
-        "red_total": sum(r.points_per_team for r in red_scores),
-        "inject_total": sum(i["points"] for i in stats["inject_stats"]),
-        "service_total": sum(s["points"] for s in stats["service_stats"]),
-        "scaling": {
-            "service_raw": detailed["service_raw"],
-            "inject_raw": detailed["inject_raw"],
-            "orange_raw": detailed["orange_raw"],
-            "service_modifier": detailed["service_modifier"],
-            "inject_modifier": detailed["inject_modifier"],
-            "orange_modifier": detailed["orange_modifier"],
-            "service_weight": detailed["service_weight"],
-            "inject_weight": detailed["inject_weight"],
-            "orange_weight": detailed["orange_weight"],
-        },
-    }
+    context = build_scorecard_context(score, standings)
     html_string = render_to_string("scoring/scorecard_print.html", context, request=request)
     pdf_bytes: bytes = weasyprint.HTML(string=html_string).write_pdf()
     return pdf_bytes
-
-
-def _progress(step: str, current: int, total: int, ok: bool = True) -> str:
-    """Encode a single progress line as newline-delimited JSON."""
-    import json
-
-    return json.dumps({"step": step, "current": current, "total": total, "ok": ok}) + "\n"
 
 
 def _stream_email_scorecards(request: HttpRequest) -> Iterator[str]:
@@ -266,8 +141,9 @@ def _stream_email_scorecards(request: HttpRequest) -> Iterator[str]:
 
     logger = logging.getLogger(__name__)
 
-    scores = FinalScore.objects.filter(is_excluded=False, rank__isnull=False).select_related("team").order_by("rank")
-    total_teams = scores.count()
+    standings = compute_standings()
+    scores = get_leaderboard(standings)
+    total_teams = len(scores)
 
     sendable = []
     for score in scores:
@@ -289,17 +165,17 @@ def _stream_email_scorecards(request: HttpRequest) -> Iterator[str]:
     sent = 0
     failed = 0
     for i, (team, score, emails) in enumerate(sendable, 1):
-        email_ctx = _build_email_context(team, score, total_teams)
-        pdf_bytes = _generate_team_pdf(team, score, request)
+        email_ctx = _build_email_context(score, total_teams)
+        pdf_bytes = _generate_team_pdf(score, standings, request)
         success = _send_scorecard_email(emails, email_ctx, team.team_number, pdf_bytes)
 
         if success:
             sent += 1
-            yield _progress(f"Sent to Team {team.team_number}", i, total)
+            yield ndjson_progress(f"Sent to Team {team.team_number}", i, total)
         else:
             failed += 1
             logger.error("Failed to email scorecard to Team %d", team.team_number)
-            yield _progress(f"Failed Team {team.team_number}", i, total, ok=False)
+            yield ndjson_progress(f"Failed Team {team.team_number}", i, total, ok=False)
 
     message = f"Sent {sent}, failed {failed}" if failed else f"Emailed scorecards to {sent} teams"
     yield json.dumps({"done": True, "success": failed == 0, "message": message}) + "\n"
@@ -313,10 +189,10 @@ def email_scorecards(request: HttpRequest) -> HttpResponse:
 
     from team.models import SchoolInfo
 
-    scores = FinalScore.objects.filter(is_excluded=False, rank__isnull=False).select_related("team").order_by("rank")
+    scores = get_leaderboard()
 
-    if not scores.exists():
-        messages.error(request, "No scores available. Recalculate scores first.")
+    if not scores:
+        messages.error(request, "No ranked teams yet.")
         return redirect("leaderboard_page")
 
     team_rows = []
@@ -357,7 +233,7 @@ def email_scorecards(request: HttpRequest) -> HttpResponse:
             "team_rows": team_rows,
             "teams_with_email": teams_with_email,
             "teams_without_email": teams_without_email,
-            "total_teams": scores.count(),
+            "total_teams": len(scores),
         },
     )
 
@@ -376,15 +252,13 @@ def stream_email_scorecards(request: HttpRequest) -> StreamingHttpResponse:
 def email_scorecard(request: HttpRequest, team_number: int) -> HttpResponse:
     """Email scorecard to a single team. GET shows confirmation, POST sends."""
     from django.contrib import messages
-    from django.shortcuts import get_object_or_404, redirect, render
+    from django.shortcuts import redirect, render
 
     from team.models import SchoolInfo
 
-    from ..models import FinalScore
-
-    score = get_object_or_404(FinalScore, team__team_number=team_number)
+    standings = compute_standings()
+    score = get_standing(team_number, standings)
     team = score.team
-    total_teams = FinalScore.objects.filter(is_excluded=False, rank__isnull=False).count()
 
     try:
         school_info = team.school_info
@@ -397,8 +271,8 @@ def email_scorecard(request: HttpRequest, team_number: int) -> HttpResponse:
         return redirect("leaderboard_scorecard", team_number=team_number)
 
     if request.method == "POST":
-        email_ctx = _build_email_context(team, score, total_teams)
-        pdf_bytes = _generate_team_pdf(team, score, request)
+        email_ctx = _build_email_context(score, len(get_leaderboard(standings)))
+        pdf_bytes = _generate_team_pdf(score, standings, request)
 
         success = _send_scorecard_email(emails, email_ctx, team_number, pdf_bytes)
 

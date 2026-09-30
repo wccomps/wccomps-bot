@@ -6,7 +6,8 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
-from scoring.models import FinalScore, InjectScore, ServiceDetail
+from scoring.calculator import Standing
+from scoring.models import InjectScore, ServiceDetail
 from team.models import Team
 
 pytestmark = pytest.mark.django_db
@@ -22,41 +23,36 @@ def teams():
     ]
 
 
+def _standing(team, rank, total, service, inject, orange, red, sla, is_excluded=False):
+    return Standing(
+        team=team,
+        service_points=Decimal(service),
+        inject_points=Decimal(inject),
+        orange_points=Decimal(orange),
+        red_deductions=Decimal(red),
+        sla_penalties=Decimal(sla),
+        point_adjustments=Decimal("0"),
+        incident_recovery_points=Decimal("0"),
+        total_score=Decimal(total),
+        is_excluded=is_excluded,
+        rank=rank,
+    )
+
+
 @pytest.fixture
 def scores(teams):
-    """Create FinalScore records for all teams."""
+    """Standings for all teams."""
     return [
-        FinalScore.objects.create(
-            team=teams[0],
-            service_points=Decimal("8000"),
-            inject_points=Decimal("5000"),
-            orange_points=Decimal("3000"),
-            red_deductions=Decimal("-500"),
-            sla_penalties=Decimal("-200"),
-            total_score=Decimal("15300"),
-            rank=2,
-        ),
-        FinalScore.objects.create(
-            team=teams[1],
-            service_points=Decimal("10000"),
-            inject_points=Decimal("6000"),
-            orange_points=Decimal("4000"),
-            red_deductions=Decimal("-100"),
-            sla_penalties=Decimal("-100"),
-            total_score=Decimal("19800"),
-            rank=1,
-        ),
-        FinalScore.objects.create(
-            team=teams[2],
-            service_points=Decimal("6000"),
-            inject_points=Decimal("3000"),
-            orange_points=Decimal("2000"),
-            red_deductions=Decimal("-800"),
-            sla_penalties=Decimal("-500"),
-            total_score=Decimal("9700"),
-            rank=3,
-        ),
+        _standing(teams[0], 2, "15300", "8000", "5000", "3000", "-500", "-200"),
+        _standing(teams[1], 1, "19800", "10000", "6000", "4000", "-100", "-100"),
+        _standing(teams[2], 3, "9700", "6000", "3000", "2000", "-800", "-500"),
     ]
+
+
+def _exclude_third(scores):
+    third = scores[2]
+    third.is_excluded = True
+    third.rank = None
 
 
 class TestComputeScorecardStats:
@@ -65,7 +61,7 @@ class TestComputeScorecardStats:
     def test_compute_category_ranks(self, teams, scores):
         from scoring.views import _compute_scorecard_stats
 
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         assert stats["team_count"] == 3
         assert stats["category_ranks"]["services"]["rank"] == 2
@@ -108,7 +104,7 @@ class TestComputeScorecardStats:
             is_approved=True,
         )
 
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         assert len(stats["inject_stats"]) == 2
         inj1 = next(s for s in stats["inject_stats"] if s["name"] == "Inject 1")
@@ -124,12 +120,7 @@ class TestComputeScorecardStats:
         from scoring.views import _compute_scorecard_stats
 
         unranked_team = Team.objects.create(team_number=50, team_name="Unranked", is_active=True)
-        FinalScore.objects.create(
-            team=unranked_team,
-            service_points=Decimal("0"),
-            total_score=Decimal("0"),
-            rank=None,
-        )
+        scores.append(_standing(unranked_team, None, "0", "0", "0", "0", "0", "0"))
 
         # Ranked teams: inj-1 = 80, 100, 60 → avg 80
         for t, pts in [(teams[0], 80), (teams[1], 100), (teams[2], 60)]:
@@ -149,7 +140,7 @@ class TestComputeScorecardStats:
             is_approved=True,
         )
 
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         inj1 = stats["inject_stats"][0]
         # avg should be (80+100+60)/3 = 80, not (80+100+60+0)/4 = 60
@@ -167,9 +158,9 @@ class TestComputeScorecardStats:
                 points_awarded=Decimal(str(pts)),
                 is_approved=True,
             )
-        FinalScore.objects.filter(team=teams[2]).update(is_excluded=True)
+        _exclude_third(scores)
 
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         inj1 = stats["inject_stats"][0]
         # avg should be (80+100)/2 = 90, not (80+100+60)/3
@@ -180,7 +171,7 @@ class TestComputeScorecardStats:
         from scoring.views import _compute_scorecard_stats
 
         # teams[0] is rank 2 (middle), should have neighbors above and below
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         assert len(stats["neighbors"]) == 2
         above = next(n for n in stats["neighbors"] if n["rank"] == 1)
@@ -194,7 +185,7 @@ class TestComputeScorecardStats:
         from scoring.views import _compute_scorecard_stats
 
         # teams[1] is rank 1, should only have one neighbor below
-        stats = _compute_scorecard_stats(teams[1], scores[1])
+        stats = _compute_scorecard_stats(scores[1], scores)
 
         assert len(stats["neighbors"]) == 1
         assert stats["neighbors"][0]["rank"] == 2
@@ -202,7 +193,7 @@ class TestComputeScorecardStats:
     def test_compute_insights(self, teams, scores):
         from scoring.views import _compute_scorecard_stats
 
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         assert len(stats["insights"]) >= 1
         assert all(isinstance(i, str) for i in stats["insights"])
@@ -215,7 +206,7 @@ class TestComputeScorecardStats:
         for t, pts in [(teams[0], 200), (teams[1], 350), (teams[2], 250)]:
             ServiceDetail.objects.create(team=t, service_name="berryessa-ssh", points=Decimal(str(pts)))
 
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         assert len(stats["service_stats"]) == 2
         tahoe = next(s for s in stats["service_stats"] if s["name"] == "tahoe-dns")
@@ -230,18 +221,13 @@ class TestComputeScorecardStats:
         from scoring.views import _compute_scorecard_stats
 
         unranked_team = Team.objects.create(team_number=50, team_name="Unranked", is_active=True)
-        FinalScore.objects.create(
-            team=unranked_team,
-            service_points=Decimal("0"),
-            total_score=Decimal("0"),
-            rank=None,
-        )
+        scores.append(_standing(unranked_team, None, "0", "0", "0", "0", "0", "0"))
 
         for t, pts in [(teams[0], 400), (teams[1], 450), (teams[2], 300)]:
             ServiceDetail.objects.create(team=t, service_name="tahoe-dns", points=Decimal(str(pts)))
         ServiceDetail.objects.create(team=unranked_team, service_name="tahoe-dns", points=Decimal("0"))
 
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         tahoe = stats["service_stats"][0]
         # avg should be (400+450+300)/3, not (400+450+300+0)/4
@@ -251,10 +237,9 @@ class TestComputeScorecardStats:
     def test_excluded_team_not_in_stats(self, teams, scores):
         from scoring.views import _compute_scorecard_stats
 
-        # Exclude team3 (rank 3)
-        FinalScore.objects.filter(team=teams[2]).update(is_excluded=True)
+        _exclude_third(scores)
 
-        stats = _compute_scorecard_stats(teams[0], scores[0])
+        stats = _compute_scorecard_stats(scores[0], scores)
 
         assert stats["team_count"] == 2
         assert stats["category_ranks"]["services"]["rank"] == 2

@@ -1,18 +1,19 @@
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TypedDict
 
-from django.db import transaction
 from django.db.models import Q, QuerySet, Sum
-from registration.models import Event
+from django.http import Http404
 
 from team.models import Team
 
 from .models import (
-    FinalScore,
+    Approvable,
     IncidentReport,
     InjectScore,
     OrangeTeamScore,
     RedTeamScore,
+    ScoringExclusion,
     ScoringTemplate,
     ServiceScore,
 )
@@ -90,27 +91,90 @@ def _get_modifiers(template: ScoringTemplate) -> tuple[Decimal, Decimal, Decimal
     return modifiers[0], modifiers[1], modifiers[2]
 
 
-def get_approved_inject_total(team: Team, event: Event | None = None) -> Decimal:
-    filters = {"team": team, "is_approved": True}
-    if event:
-        filters["event"] = event
-    return InjectScore.objects.filter(**filters).aggregate(total=Sum("points_awarded"))["total"] or Decimal("0")
+class _RawScores(TypedDict):
+    service: Decimal
+    sla: Decimal
+    adjustments: Decimal
+    inject: Decimal
+    orange: Decimal
+    red: Decimal
+    recovery: Decimal
 
 
-def get_approved_orange_total(team: Team, event: Event | None = None) -> Decimal:
-    filters = {"team": team, "is_approved": True}
-    if event:
-        filters["event"] = event
-    return OrangeTeamScore.objects.filter(**filters).aggregate(total=Sum("points_awarded"))["total"] or Decimal("0")
+def _raw_scores(teams: list[Team]) -> dict[int, _RawScores]:
+    """Unscaled inputs per team: synced service scores plus approved submissions."""
+    zero = Decimal("0")
+    team_ids = [team.pk for team in teams]
+    raw: dict[int, _RawScores] = {
+        team_id: {
+            "service": zero,
+            "sla": zero,
+            "adjustments": zero,
+            "inject": zero,
+            "orange": zero,
+            "red": zero,
+            "recovery": zero,
+        }
+        for team_id in team_ids
+    }
+    for service in ServiceScore.objects.filter(team_id__in=team_ids):
+        raw[service.team_id]["service"] = service.service_points
+        raw[service.team_id]["sla"] = service.sla_violations
+        raw[service.team_id]["adjustments"] = service.point_adjustments
+
+    def approved_totals(model: type[Approvable], team_field: str, points_field: str) -> dict[int, Decimal]:
+        rows = (
+            model._default_manager.filter(is_approved=True, **{f"{team_field}__in": team_ids})
+            .values(team_field)
+            .annotate(total=Sum(points_field))
+        )
+        return {row[team_field]: row["total"] for row in rows}
+
+    for team_id, total in approved_totals(InjectScore, "team", "points_awarded").items():
+        raw[team_id]["inject"] = total.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    for team_id, total in approved_totals(OrangeTeamScore, "team", "points_awarded").items():
+        raw[team_id]["orange"] = total
+    for team_id, total in approved_totals(RedTeamScore, "affected_teams", "points_per_team").items():
+        raw[team_id]["red"] = zero - total
+    for team_id, total in approved_totals(IncidentReport, "team", "points_returned").items():
+        raw[team_id]["recovery"] = total
+    return raw
 
 
-def get_approved_red_deductions(team: Team, event: Event | None = None) -> Decimal:
-    filters = {"affected_teams": team, "is_approved": True}
-    if event:
-        filters["event"] = event
-    red_scores = RedTeamScore.objects.filter(**filters)
-    total = sum(red_score.points_per_team for red_score in red_scores)
-    return Decimal(str(total)) * Decimal("-1")
+def _breakdown(raw: _RawScores, template: ScoringTemplate) -> DetailedScoreBreakdown:
+    service_mod, inject_mod, orange_mod = _get_modifiers(template)
+    scaled_service = raw["service"] * service_mod
+    scaled_inject = raw["inject"] * inject_mod
+    scaled_orange = raw["orange"] * orange_mod
+
+    two_places = Decimal("0.01")
+    total_score = (
+        scaled_service + scaled_inject + scaled_orange + raw["sla"] + raw["adjustments"] + raw["red"] + raw["recovery"]
+    ).quantize(two_places, rounding=ROUND_HALF_UP)
+
+    return {
+        "service_points": scaled_service.quantize(two_places, rounding=ROUND_HALF_UP),
+        "inject_points": scaled_inject.quantize(two_places, rounding=ROUND_HALF_UP),
+        "orange_points": scaled_orange.quantize(two_places, rounding=ROUND_HALF_UP),
+        "red_deductions": raw["red"],
+        "sla_penalties": raw["sla"],
+        "point_adjustments": raw["adjustments"],
+        "incident_recovery_points": raw["recovery"],
+        "total_score": total_score,
+        "service_raw": raw["service"],
+        "inject_raw": raw["inject"],
+        "orange_raw": raw["orange"],
+        "service_modifier": service_mod,
+        "inject_modifier": inject_mod,
+        "orange_modifier": orange_mod,
+        "service_weight": template.service_weight,
+        "inject_weight": template.inject_weight,
+        "orange_weight": template.orange_weight,
+    }
+
+
+def _template() -> ScoringTemplate:
+    return ScoringTemplate.objects.first() or ScoringTemplate()
 
 
 def calculate_team_score(team: Team) -> ScoreBreakdown:
@@ -138,112 +202,74 @@ def calculate_team_score(team: Team) -> ScoreBreakdown:
 
 def calculate_team_score_detailed(team: Team) -> DetailedScoreBreakdown:
     """Like calculate_team_score but also returns raw scores, modifiers, and weights."""
-    template = ScoringTemplate.objects.first() or ScoringTemplate()
-    service_mod, inject_mod, orange_mod = _get_modifiers(template)
-
-    service_score = ServiceScore.objects.filter(team=team).first()
-    if service_score:
-        service_raw = service_score.service_points
-        sla_raw = service_score.sla_violations
-        point_adj = service_score.point_adjustments
-    else:
-        service_raw = Decimal("0")
-        sla_raw = Decimal("0")
-        point_adj = Decimal("0")
-
-    inject_raw = get_approved_inject_total(team).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-    orange_raw = get_approved_orange_total(team)
-    red_raw = get_approved_red_deductions(team)
-    recovery_raw = IncidentReport.objects.filter(
-        team=team,
-        is_approved=True,
-    ).aggregate(total=Sum("points_returned"))["total"] or Decimal("0")
-
-    scaled_service = service_raw * service_mod
-    scaled_inject = inject_raw * inject_mod
-    scaled_orange = orange_raw * orange_mod
-
-    two_places = Decimal("0.01")
-    total_score = (
-        scaled_service + scaled_inject + scaled_orange + sla_raw + point_adj + red_raw + recovery_raw
-    ).quantize(two_places, rounding=ROUND_HALF_UP)
-
-    return {
-        # Standard fields (same as calculate_team_score)
-        "service_points": scaled_service.quantize(two_places, rounding=ROUND_HALF_UP),
-        "inject_points": scaled_inject.quantize(two_places, rounding=ROUND_HALF_UP),
-        "orange_points": scaled_orange.quantize(two_places, rounding=ROUND_HALF_UP),
-        "red_deductions": red_raw,
-        "sla_penalties": sla_raw,
-        "point_adjustments": point_adj,
-        "incident_recovery_points": recovery_raw,
-        "total_score": total_score,
-        # Raw scores (before scaling)
-        "service_raw": service_raw,
-        "inject_raw": inject_raw,
-        "orange_raw": orange_raw,
-        "service_modifier": service_mod,
-        "inject_modifier": inject_mod,
-        "orange_modifier": orange_mod,
-        "service_weight": template.service_weight,
-        "inject_weight": template.inject_weight,
-        "orange_weight": template.orange_weight,
-    }
+    return _breakdown(_raw_scores([team])[team.pk], _template())
 
 
-def _has_scoring_activity(scores: ScoreBreakdown) -> bool:
-    return any(scores[key] != 0 for key in SCORE_COMPONENT_FIELDS)  # type: ignore[literal-required]
+@dataclass
+class Standing:
+    """A team's current score, computed from the scoring inputs on every read."""
+
+    team: Team
+    service_points: Decimal
+    inject_points: Decimal
+    orange_points: Decimal
+    red_deductions: Decimal
+    sla_penalties: Decimal
+    point_adjustments: Decimal
+    incident_recovery_points: Decimal
+    total_score: Decimal
+    is_excluded: bool
+    rank: int | None = None
+
+    @property
+    def has_scoring_activity(self) -> bool:
+        return any(getattr(self, field) != 0 for field in SCORE_COMPONENT_FIELDS)
 
 
-def _score_defaults(scores: ScoreBreakdown, *, rank: int | None) -> dict[str, Decimal | int | None]:
-    """Build FinalScore defaults dict from a score breakdown."""
-    defaults: dict[str, Decimal | int | None] = {field: scores[field] for field in SCORE_COMPONENT_FIELDS}  # type: ignore[literal-required]
-    defaults["total_score"] = scores["total_score"]
-    defaults["rank"] = rank
-    return defaults
+def compute_standings() -> list[Standing]:
+    """Every active team's score, highest first.
 
+    Teams with scoring activity that are not excluded are ranked 1..n; the rest have rank None.
+    """
+    teams = list(Team.objects.filter(is_active=True).order_by("team_number"))
+    raw = _raw_scores(teams)
+    template = _template()
+    excluded_team_ids = set(ScoringExclusion.objects.values_list("team_id", flat=True))
 
-@transaction.atomic
-def recalculate_all_scores() -> None:
-    """Recalculate scores for all teams and update rankings; only teams with scoring activity are ranked."""
-    teams = Team.objects.filter(is_active=True)
-
-    score_data = []
+    standings = []
     for team in teams:
-        scores = calculate_team_score(team)
-        score_data.append((team, scores))
+        breakdown = _breakdown(raw[team.pk], template)
+        standings.append(
+            Standing(
+                team=team,
+                is_excluded=team.pk in excluded_team_ids,
+                total_score=breakdown["total_score"],
+                **{field: breakdown[field] for field in SCORE_COMPONENT_FIELDS},  # type: ignore[literal-required]
+            )
+        )
+    standings.sort(key=lambda standing: standing.total_score, reverse=True)
 
-    active_teams = [(t, s) for t, s in score_data if _has_scoring_activity(s)]
-    inactive_teams = [(t, s) for t, s in score_data if not _has_scoring_activity(s)]
-
-    active_teams.sort(key=lambda x: x[1]["total_score"], reverse=True)
-
-    excluded_team_ids = set(FinalScore.objects.filter(is_excluded=True).values_list("team_id", flat=True))
-
-    # Update or create FinalScore records; only non-excluded teams get a rank
     rank = 0
-    for team, scores in active_teams:
-        is_excluded = team.pk in excluded_team_ids
-        if not is_excluded:
+    for standing in standings:
+        if standing.has_scoring_activity and not standing.is_excluded:
             rank += 1
-        FinalScore.objects.update_or_create(
-            team=team,
-            defaults=_score_defaults(scores, rank=rank if not is_excluded else None),
-        )
-
-    for team, scores in inactive_teams:
-        FinalScore.objects.update_or_create(
-            team=team,
-            defaults=_score_defaults(scores, rank=None),
-        )
+            standing.rank = rank
+    return standings
 
 
-def get_leaderboard() -> list[FinalScore]:
-    """FinalScores ordered by rank, excluding excluded teams and teams with no scoring activity."""
-    exclude_kwargs = dict.fromkeys(SCORE_COMPONENT_FIELDS, 0)
-    return list(
-        FinalScore.objects.filter(is_excluded=False).exclude(**exclude_kwargs).select_related("team").order_by("rank")
-    )
+def get_leaderboard(standings: list[Standing] | None = None) -> list[Standing]:
+    """Ranked standings in rank order: excluded teams and teams with no scoring activity left out."""
+    if standings is None:
+        standings = compute_standings()
+    return [standing for standing in standings if standing.rank is not None]
+
+
+def get_standing(team_number: int, standings: list[Standing]) -> Standing:
+    """The standing of an active team, or 404."""
+    for standing in standings:
+        if standing.team.team_number == team_number:
+            return standing
+    raise Http404(f"No active team {team_number}")
 
 
 def suggest_red_score_matches(incident: IncidentReport) -> QuerySet[RedTeamScore]:

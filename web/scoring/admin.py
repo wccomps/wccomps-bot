@@ -3,7 +3,6 @@ from django.utils.html import format_html
 
 from .models import (
     AttackType,
-    FinalScore,
     IncidentReport,
     IncidentScreenshot,
     InjectScore,
@@ -12,6 +11,7 @@ from .models import (
     RedTeamIPPool,
     RedTeamScore,
     RedTeamScreenshot,
+    ScoringExclusion,
     ScoringTemplate,
     ServiceScore,
     format_boxes_display,
@@ -252,25 +252,11 @@ class ServiceScoreAdmin(admin.ModelAdmin[ServiceScore]):
         return format_html('<span style="color: {};">{}</span>', color, f"{total:.2f}")
 
 
-@admin.register(FinalScore)
-class FinalScoreAdmin(admin.ModelAdmin[FinalScore]):
-    list_display = [
-        "rank",
-        "team",
-        "total_score",
-        "service_points",
-        "inject_points",
-        "orange_points",
-        "red_deductions",
-        "incident_recovery_points",
-        "is_excluded",
-        "calculated_at",
-    ]
-    list_filter = ["is_excluded"]
-    list_editable = ["is_excluded"]
+@admin.register(ScoringExclusion)
+class ScoringExclusionAdmin(admin.ModelAdmin[ScoringExclusion]):
+    list_display = ["team", "created_at"]
     search_fields = ["team__team_name"]
-    readonly_fields = ["calculated_at"]
-    ordering = ["rank"]
+    readonly_fields = ["created_at"]
 
 
 @admin.register(ScoringTemplate)

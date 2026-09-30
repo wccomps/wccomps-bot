@@ -5,7 +5,6 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from core.auth_utils import get_user_team, has_permission, require_permission
@@ -257,21 +256,13 @@ def bulk_approve_incidents(request: HttpRequest) -> HttpResponse:
     from core.utils import bulk_approve
 
     user = cast(User, request.user)
-    now = timezone.now()
-
-    def approve(incident: IncidentReport) -> None:
-        incident.is_approved = True
-        incident.approved_by = user
-        incident.approved_at = now
-        incident.save()
-
     return bulk_approve(
         request,
         field_name="incident_ids",
         queryset=IncidentReport.objects.filter(is_approved=False),
         redirect_url="scoring:review_incidents",
         item_label="incident",
-        on_item=approve,
+        on_item=lambda item: item.approve(user),
     )
 
 
@@ -290,10 +281,7 @@ def match_incident(request: HttpRequest, incident_id: int) -> HttpResponse:
 
         if form.is_valid():
             incident = form.save(commit=False)
-            incident.is_approved = True
-            incident.approved_by = cast(User, request.user)
-            incident.approved_at = timezone.now()
-            incident.save()
+            incident.approve(cast(User, request.user))
 
             messages.success(request, f"Incident #{incident.id} reviewed and {incident.points_returned} points awarded")
             return redirect("scoring:review_incidents")

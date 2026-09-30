@@ -83,7 +83,6 @@
                     </tr>
                 {% endfor %}
             </c-table>
-            <p class="text-muted text-sm mt-10">Last updated: {{ scores.0.calculated_at|date:"Y-m-d H:i:s" }}</p>
         {% else %}
             <c-empty_state title="No scores yet">
                 {% if is_gold_team or is_admin %}
@@ -93,9 +92,6 @@
                         </li>
                         <li>
                             Click <strong>Sync Service Scores</strong> below to pull latest data
-                        </li>
-                        <li>
-                            Click <strong>Recalculate</strong> to generate the leaderboard
                         </li>
                     </ol>
                 {% else %}
@@ -118,14 +114,6 @@
                     {% csrf_token %}
                     <c-button type="submit" variant="default">
                         Sync Service Scores
-                    </c-button>
-                </form>
-                <form method="post"
-                      action="{% url 'scoring:recalculate_scores' %}"
-                      class="m-0">
-                    {% csrf_token %}
-                    <c-button type="submit" variant="primary">
-                        Recalculate
                     </c-button>
                 </form>
             {% endif %}

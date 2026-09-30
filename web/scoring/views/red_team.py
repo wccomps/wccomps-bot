@@ -5,7 +5,6 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from core.auth_utils import has_permission, require_permission
@@ -216,21 +215,13 @@ def bulk_approve_red_scores(request: HttpRequest) -> HttpResponse:
     from core.utils import bulk_approve
 
     user = cast(User, request.user)
-    now = timezone.now()
-
-    def approve(finding: RedTeamScore) -> None:
-        finding.is_approved = True
-        finding.approved_at = now
-        finding.approved_by = user
-        finding.save()
-
     return bulk_approve(
         request,
         field_name="finding_ids",
         queryset=RedTeamScore.objects.filter(is_approved=False),
         redirect_url="scoring:red_team_findings",
         item_label="finding",
-        on_item=approve,
+        on_item=lambda item: item.approve(user),
     )
 
 

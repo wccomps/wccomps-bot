@@ -1,12 +1,12 @@
 from orange_team.models import OrangeAssignment, OrangeCheckIn
 from scoring.models import (
-    FinalScore,
     IncidentReport,
     IncidentScreenshot,
     InjectScore,
     OrangeTeamScore,
     RedTeamScore,
     RedTeamScreenshot,
+    ScoringExclusion,
     ServiceDetail,
     ServiceScore,
 )
@@ -33,7 +33,7 @@ def wipe_competition_data() -> dict[str, int]:
         "OrangeTeamScore": OrangeTeamScore.objects.all().delete()[0],
         "ServiceDetail": ServiceDetail.objects.all().delete()[0],
         "ServiceScore": ServiceScore.objects.all().delete()[0],
-        "FinalScore": FinalScore.objects.all().delete()[0],
+        "ScoringExclusion": ScoringExclusion.objects.all().delete()[0],
         "OrangeAssignment": OrangeAssignment.objects.all().delete()[0],
         "OrangeCheckIn": OrangeCheckIn.objects.all().delete()[0],
         # Blue team Discord links only (staff/volunteer links preserved)

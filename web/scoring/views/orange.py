@@ -5,7 +5,6 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from core.auth_utils import require_permission
@@ -106,19 +105,11 @@ def bulk_approve_orange_adjustments(request: HttpRequest) -> HttpResponse:
     from core.utils import bulk_approve
 
     user = cast(User, request.user)
-    now = timezone.now()
-
-    def approve(score: OrangeTeamScore) -> None:
-        score.is_approved = True
-        score.approved_at = now
-        score.approved_by = user
-        score.save()
-
     return bulk_approve(
         request,
         field_name="adjustment_ids",
         queryset=OrangeTeamScore.objects.filter(is_approved=False),
         redirect_url="scoring:review_orange",
         item_label="check",
-        on_item=approve,
+        on_item=lambda item: item.approve(user),
     )

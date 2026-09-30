@@ -243,21 +243,13 @@ def inject_grades_bulk_approve(request: HttpRequest) -> HttpResponse:
     from core.utils import bulk_approve
 
     user = cast(User, request.user)
-    now = timezone.now()
-
-    def approve(grade: InjectScore) -> None:
-        grade.is_approved = True
-        grade.approved_at = now
-        grade.approved_by = user
-        grade.save()
-
     return bulk_approve(
         request,
         field_name="grade_ids",
         queryset=InjectScore.objects.filter(is_approved=False),
         redirect_url="scoring:inject_grades_review",
         item_label="inject grade",
-        on_item=approve,
+        on_item=lambda item: item.approve(user),
     )
 
 
