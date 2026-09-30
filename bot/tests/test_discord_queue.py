@@ -657,7 +657,14 @@ class TestStrandedTasks:
 @pytest.mark.django_db(transaction=True)
 async def test_handler_return_is_stored_as_result_and_payload_is_left_alone() -> None:
     task = await sync_to_async(DiscordTask.enqueue)(SyncRoles(requested_by="ops", dry_run=True))
-    stats = {"roles_added": 2, "roles_removed": 0, "errors": 0, "changes": ["+ alice"]}
+    stats = {
+        "roles_added": 2,
+        "roles_removed": 0,
+        "errors": 0,
+        "extra_linked": 0,
+        "unlinked_holders": 0,
+        "changes": ["+ alice"],
+    }
 
     with (
         patch("bot.role_sync.AuthentikRoleSyncManager.sync_roles", new=AsyncMock(return_value=stats)),

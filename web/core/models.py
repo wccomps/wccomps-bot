@@ -1,14 +1,10 @@
 from dataclasses import asdict, fields
-from typing import TYPE_CHECKING
 
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
 from core import discord_tasks
-
-if TYPE_CHECKING:
-    from ticketing.models import Ticket
 
 
 class UserGroups(models.Model):
@@ -111,8 +107,14 @@ class DiscordTask(models.Model):
         return cls(**{f.name: self.payload[f.name] for f in fields(cls) if f.name in self.payload})
 
     @classmethod
-    def enqueue(cls, payload: discord_tasks.TaskPayload, ticket: Ticket | None = None) -> DiscordTask:
-        return cls.objects.create(task_type=payload.task_type, ticket=ticket, payload=asdict(payload), status="pending")
+    def enqueue(cls, payload: discord_tasks.TaskPayload) -> DiscordTask:
+        """A payload's ticket_id also sets the ticket FK, so deleting a ticket drops its pending tasks."""
+        return cls.objects.create(
+            task_type=payload.task_type,
+            ticket_id=getattr(payload, "ticket_id", None),
+            payload=asdict(payload),
+            status="pending",
+        )
 
 
 class BotState(models.Model):

@@ -81,7 +81,7 @@ class TestTicketCreationWorkflow:
         discord_manager.guild = guild
 
         # Process task (simulating queue processor)
-        with patch("bot.ticket_dashboard.post_ticket_to_dashboard"):
+        with patch("bot.ticket_dashboard.trigger_dashboard"):
             processor = DiscordQueueProcessor(bot)
             processor.discord_manager = discord_manager
             await processor._handle_ticket_created_web(task.typed_payload())
@@ -134,7 +134,7 @@ class TestTicketCreationWorkflow:
 
         bot = AsyncMock(spec=discord.Client)
 
-        with patch("bot.discord_queue.post_ticket_to_dashboard") as mock_dashboard:
+        with patch("bot.discord_queue.trigger_dashboard") as mock_dashboard:
             processor = DiscordQueueProcessor(bot)
             await processor._handle_ticket_created_web(task.typed_payload())
 

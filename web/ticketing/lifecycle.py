@@ -66,14 +66,14 @@ def _record(
     TicketHistory.objects.create(ticket=ticket, action=action, actor=actor, details=details)
     DiscordTask.enqueue(
         PostTicketUpdate(
+            ticket_id=ticket.id,
             action=announce_as or action,
             actor=actor_username,
             assignee=assignee,
             resolution_notes=resolution_notes,
             points_charged=points_charged,
             reason=reason,
-        ),
-        ticket=ticket,
+        )
     )
 
 
@@ -85,7 +85,9 @@ def _invite(ticket: Ticket, assignee: User, discord_id: int | None) -> None:
         link = DiscordLink.objects.filter(user=assignee, is_active=True).first()
         discord_id = link.discord_id if link else None
     if discord_id:
-        DiscordTask.enqueue(AddUserToThread(discord_id=discord_id, thread_id=ticket.discord_thread_id), ticket=ticket)
+        DiscordTask.enqueue(
+            AddUserToThread(ticket_id=ticket.id, discord_id=discord_id, thread_id=ticket.discord_thread_id)
+        )
 
 
 def _give(

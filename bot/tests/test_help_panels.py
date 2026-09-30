@@ -98,7 +98,7 @@ async def test_help_panel_ticket_gets_thread_and_no_malformed_task(
     mock_interaction.guild.get_member = Mock(return_value=None)
     mock_interaction.client = mock_bot
 
-    with patch("bot.ticket_dashboard.post_ticket_to_dashboard") as dashboard:
+    with patch("bot.ticket_dashboard.trigger_dashboard") as dashboard:
         await create_ticket(mock_interaction, category_id=str(consult.pk), description="help with dns")
 
     ticket = await Ticket.objects.aget(team=team)

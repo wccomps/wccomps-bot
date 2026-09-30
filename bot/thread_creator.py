@@ -78,7 +78,7 @@ async def publish_new_ticket(bot: discord.Client, guild: discord.Guild | None, t
     ``ticket.team`` must be loaded. Thread failures are logged, not raised: the
     ticket already exists and still belongs on the dashboard.
     """
-    from bot.ticket_dashboard import post_ticket_to_dashboard
+    from bot.ticket_dashboard import trigger_dashboard
 
     if guild is None:
         logger.warning(f"No guild available; ticket {ticket.ticket_number} will have no thread")
@@ -87,4 +87,4 @@ async def publish_new_ticket(bot: discord.Client, guild: discord.Guild | None, t
             await create_ticket_thread(guild=guild, ticket=ticket, team=ticket.team, pin_message=True)
         except Exception:
             logger.exception(f"Failed to create thread for ticket {ticket.ticket_number}")
-    post_ticket_to_dashboard(bot, ticket)
+    trigger_dashboard(bot)

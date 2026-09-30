@@ -5,7 +5,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from core.auth_utils import require_permission
-from core.discord_tasks import BroadcastMessage, SyncRoles
+from core.discord_tasks import BroadcastMessage, SyncRoles, SyncRolesResult
 from core.forms import BroadcastForm, SyncRolesForm
 from core.models import AuditLog, DiscordTask
 from core.utils import role_sync_summary
@@ -120,9 +120,10 @@ def admin_task_status(request: HttpRequest, task_id: int) -> HttpResponse:
 
     if task.status == "completed":
         if task.task_type == "sync_roles":
-            result = cast(dict[str, object], task.result)
-            response["message"] = role_sync_summary(result, dry_run=bool(result.get("dry_run")))
-            response["changes"] = result.get("changes", [])
+            # The previous release's bot kept its result in the payload; a task it finished mid-deploy has it there
+            result = cast(SyncRolesResult, task.result if task.result is not None else task.payload["result"])
+            response["message"] = role_sync_summary(result, dry_run=cast(SyncRoles, task.typed_payload()).dry_run)
+            response["changes"] = result["changes"]
         else:
             response["message"] = "Task completed"
     elif task.status == "failed":

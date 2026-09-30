@@ -120,10 +120,16 @@ class UnifiedDashboard:
         await self._update_dashboard()
 
     async def _check_and_update(self) -> None:
-        # DB errors propagate so the loop skips its heartbeat.
-        if self._needs_update:
-            self._needs_update = False
+        if not self._needs_update:
+            return
+        # Cleared first so a trigger during the refresh isn't lost; a refresh that fails on the DB is
+        # retried next pass, and the error propagates so the loop skips its heartbeat.
+        self._needs_update = False
+        try:
             await self._update_dashboard()
+        except Exception:
+            self._needs_update = True
+            raise
 
     def _get_stale_indicator(self, ticket: Ticket) -> str:
         """Get progressive stale indicator based on time claimed."""

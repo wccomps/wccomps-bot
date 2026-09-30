@@ -161,8 +161,21 @@ class TestUnifiedDashboard:
 
         mock_update.assert_not_awaited()
 
+    async def test_failed_refresh_is_retried_next_pass(self) -> None:
+        dashboard = UnifiedDashboard(AsyncMock(spec=discord.Client))
+        dashboard.trigger_update()
+
+        fails_once = AsyncMock(side_effect=[RuntimeError("db down"), None])
+        with patch.object(dashboard, "_update_dashboard", fails_once) as update:
+            with pytest.raises(RuntimeError):
+                await dashboard._check_and_update()
+            await dashboard._check_and_update()
+            await dashboard._check_and_update()
+
+        assert update.await_count == 2
+
     async def test_db_error_while_updating_propagates(self) -> None:
-        """The loop skips its heartbeat only if the refresh lets DB errors through."""
+        """A pass with a pending refresh lets DB errors through, so the loop skips its heartbeat."""
         channel = MagicMock(spec=discord.TextChannel)
         channel.fetch_message = AsyncMock()
         bot = MagicMock(spec=discord.Client)

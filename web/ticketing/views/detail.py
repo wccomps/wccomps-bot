@@ -158,7 +158,7 @@ def ticket_comment(request: HttpRequest, ticket_number: str) -> HttpResponse:
         comment_text=comment_text,
     )
 
-    DiscordTask.enqueue(PostComment(ticket_id=ticket.id, comment_id=comment.id), ticket=ticket)
+    DiscordTask.enqueue(PostComment(ticket_id=ticket.id, comment_id=comment.id))
 
     logger.info(f"Comment posted on ticket {ticket.ticket_number} by {authentik_username} (web)")
 

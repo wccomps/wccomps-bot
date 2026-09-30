@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from bot.role_sync import AuthentikRoleSyncManager, RoleSyncStats
+from bot.role_sync import AuthentikRoleSyncManager
+from core.discord_tasks import SyncRolesResult
 
 ROLE_ID = 4242
 IN_GROUP_LINKED = 1  # linked, in the Authentik group
@@ -43,11 +44,11 @@ def guild():
     return g
 
 
-def _stats() -> RoleSyncStats:
+def _stats() -> SyncRolesResult:
     return {"roles_added": 0, "roles_removed": 0, "errors": 0, "extra_linked": 0, "unlinked_holders": 0, "changes": []}
 
 
-async def _run(guild, *, dry_run: bool, role_id: int = ROLE_ID) -> RoleSyncStats:
+async def _run(guild, *, dry_run: bool, role_id: int = ROLE_ID) -> SyncRolesResult:
     stats = _stats()
     manager = AuthentikRoleSyncManager.__new__(AuthentikRoleSyncManager)
     await manager._sync_authentik_group(

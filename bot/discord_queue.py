@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from datetime import timedelta
 from typing import assert_never
 
@@ -14,7 +15,7 @@ from django.utils import timezone
 from bot.discord_manager import DiscordManager
 from bot.heartbeat import record as record_heartbeat
 from bot.thread_creator import publish_new_ticket
-from bot.ticket_dashboard import post_ticket_to_dashboard, update_ticket_dashboard
+from bot.ticket_dashboard import trigger_dashboard
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection, team_chat_channel
 from core.discord_tasks import (
     PAYLOAD_TYPES,
@@ -29,6 +30,7 @@ from core.discord_tasks import (
     RemoveRole,
     SetupTeamInfrastructure,
     SyncRoles,
+    SyncRolesResult,
     TaskPayload,
     TicketCreatedWeb,
 )
@@ -142,13 +144,13 @@ class DiscordQueueProcessor:
                 task.error_message = f"Unknown task type: {task.task_type}"
                 await task.asave()
                 return
-            task_result = await self._dispatch(task.typed_payload(), task)
+            task_result = await self._dispatch(task.typed_payload())
 
             @sync_to_async
             def mark_completed() -> None:
                 task.status = "completed"
                 task.completed_at = timezone.now()
-                task.result = task_result
+                task.result = dict(task_result) if task_result is not None else None
                 task.save()
 
             await mark_completed()
@@ -202,7 +204,7 @@ class DiscordQueueProcessor:
             else:
                 logger.warning(f"Task {task.id} failed (attempt {task.retry_count}), retrying in {value}s")
 
-    async def _dispatch(self, payload: TaskPayload, task: DiscordTask) -> dict[str, object] | None:
+    async def _dispatch(self, payload: TaskPayload) -> Mapping[str, object] | None:
         """Run the handler for payload; what it returns is stored as the task's result."""
         match payload:
             case AssignRole():
@@ -222,7 +224,7 @@ class DiscordQueueProcessor:
             case PostComment():
                 await self._handle_post_comment(payload)
             case PostTicketUpdate():
-                await self._handle_post_ticket_update(payload, task.ticket_id)
+                await self._handle_post_ticket_update(payload)
             case AddUserToThread():
                 await self._handle_add_user_to_thread(payload)
             case SyncRoles():
@@ -363,7 +365,7 @@ class DiscordQueueProcessor:
 
         # A retry after a partial failure must not create a second thread.
         if ticket.discord_thread_id:
-            post_ticket_to_dashboard(self.bot, ticket)
+            trigger_dashboard(self.bot)
             return
 
         guild = self.discord_manager.guild if self.discord_manager else None
@@ -412,15 +414,13 @@ class DiscordQueueProcessor:
 
         logger.info(f"Posted comment {comment_id} to thread {thread.id} (message {message.id})")
 
-    async def _handle_post_ticket_update(self, payload: PostTicketUpdate, ticket_id: int | None) -> None:
+    async def _handle_post_ticket_update(self, payload: PostTicketUpdate) -> None:
         """Post a ticket status update (resolve/claim/unclaim/reopen) to the Discord thread."""
         action = payload.action
         actor = payload.actor
 
-        if ticket_id is None:
-            raise ValueError("No ticket linked to task")
-        ticket = await Ticket.objects.aget(id=ticket_id)
-        update_ticket_dashboard(self.bot, ticket)
+        ticket = await Ticket.objects.aget(id=payload.ticket_id)
+        trigger_dashboard(self.bot)
 
         if not ticket.discord_thread_id:
             logger.info(f"Ticket {ticket.ticket_number} has no Discord thread; update '{action}' not mirrored")
@@ -491,8 +491,8 @@ class DiscordQueueProcessor:
 
         logger.info(f"Added user {discord_id} to thread {thread_id}")
 
-    async def _handle_sync_roles(self, payload: SyncRoles) -> dict[str, object]:
-        """Run the Authentik role sync; returns the counts the web Sync Roles page shows."""
+    async def _handle_sync_roles(self, payload: SyncRoles) -> SyncRolesResult:
+        """Run the Authentik role sync; its result is what the web Sync Roles page shows."""
         from bot.role_sync import AuthentikRoleSyncManager
         from bot.utils import log_to_ops_channel
 
@@ -509,16 +509,7 @@ class DiscordQueueProcessor:
         await log_to_ops_channel(self.bot, summary)
 
         logger.info(f"Role sync completed: {summary}")
-        return {
-            "roles_added": stats["roles_added"],
-            "roles_removed": stats["roles_removed"],
-            "extra_linked": stats.get("extra_linked", 0),
-            "unlinked_holders": stats.get("unlinked_holders", 0),
-            "errors": stats["errors"],
-            "changes_count": len(stats["changes"]),
-            "changes": stats["changes"],
-            "dry_run": dry_run,
-        }
+        return stats
 
     async def _handle_broadcast_message(self, payload: BroadcastMessage) -> dict[str, object]:
         """Broadcast a message to announcement channel or team channels."""

@@ -84,9 +84,11 @@ async def test_updates_for_threadless_ticket_complete_and_refresh_dashboard(clai
     processor = DiscordQueueProcessor(bot)
 
     update = await DiscordTask.objects.acreate(
-        task_type="post_ticket_update", ticket=claimed_ticket, payload={"action": "claimed", "actor": "v"}
+        task_type="post_ticket_update",
+        ticket=claimed_ticket,
+        payload={"ticket_id": claimed_ticket.id, "action": "claimed", "actor": "v"},
     )
-    await processor._handle_post_ticket_update(update.typed_payload(), update.ticket_id)
+    await processor._handle_post_ticket_update(update.typed_payload())
     bot.unified_dashboard.trigger_update.assert_called_once()
 
     comment = await claimed_ticket.comments.acreate(comment_text="hi")

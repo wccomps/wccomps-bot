@@ -81,18 +81,10 @@ def format_ticket_embed(ticket: Ticket) -> discord.Embed:
     return embed
 
 
-def post_ticket_to_dashboard(bot: discord.Client, ticket: Ticket) -> None:
-    """Trigger unified dashboard update for new ticket."""
+def trigger_dashboard(bot: discord.Client) -> None:
+    """Refresh the unified ticket dashboard on its next pass (a no-op before it has started)."""
     if hasattr(bot, "unified_dashboard") and bot.unified_dashboard:
         bot.unified_dashboard.trigger_update()
-        logger.info(f"Triggered dashboard update for new ticket {ticket.ticket_number}")
-
-
-def update_ticket_dashboard(bot: discord.Client, ticket: Ticket) -> None:
-    """Trigger unified dashboard update for ticket changes."""
-    if hasattr(bot, "unified_dashboard") and bot.unified_dashboard:
-        bot.unified_dashboard.trigger_update()
-        logger.debug(f"Triggered dashboard update for ticket {ticket.ticket_number}")
 
 
 class TicketActionView(discord.ui.View):

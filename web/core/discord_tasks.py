@@ -6,7 +6,7 @@ payload type the bot cannot handle.
 """
 
 from dataclasses import dataclass
-from typing import ClassVar, get_args
+from typing import ClassVar, TypedDict, get_args
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -74,6 +74,7 @@ class PostTicketUpdate:
 
     task_type: ClassVar = "post_ticket_update"
     label: ClassVar = "Post Ticket Update to Thread"
+    ticket_id: int
     action: str
     actor: str
     assignee: str = ""
@@ -89,16 +90,22 @@ class TicketCreatedWeb:
     task_type: ClassVar = "ticket_created_web"
     label: ClassVar = "Ticket Created via Web"
     ticket_id: int
-    ticket_number: str
-    team_number: int
-    category: str
-    title: str
-    created_by: str
+
+
+class SyncRolesResult(TypedDict):
+    """What a role sync did: written by the bot, shown by the web Sync Roles page."""
+
+    roles_added: int
+    roles_removed: int
+    errors: int
+    extra_linked: int  # linked users holding a role their Authentik groups don't grant
+    unlinked_holders: int  # unlinked users holding a synced role (can't verify)
+    changes: list[str]
 
 
 @dataclass(frozen=True, kw_only=True)
 class SyncRoles:
-    """Add roles from Authentik groups to linked users; the counts land in DiscordTask.result."""
+    """Sync competition-guild roles from Authentik groups; the SyncRolesResult lands in DiscordTask.result."""
 
     task_type: ClassVar = "sync_roles"
     label: ClassVar = "Sync Roles from Authentik Groups"
@@ -110,6 +117,7 @@ class SyncRoles:
 class AddUserToThread:
     task_type: ClassVar = "add_user_to_thread"
     label: ClassVar = "Add User to Thread"
+    ticket_id: int
     discord_id: int
     thread_id: int
 

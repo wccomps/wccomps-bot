@@ -9,7 +9,7 @@ from discord.ext import commands
 
 from bot.permissions import permission_check
 from bot.thread_creator import publish_new_ticket
-from bot.ticket_dashboard import update_ticket_dashboard
+from bot.ticket_dashboard import trigger_dashboard
 from bot.utils import (
     ConfirmView,
     get_team_or_respond,
@@ -299,7 +299,7 @@ class AdminTicketsCog(commands.Cog):
 
         old_cat_info = await sync_to_async(get_category_config)(old_category_id) or {}
         new_cat_info = await sync_to_async(get_category_config)(new_category_id) or {}
-        update_ticket_dashboard(self.bot, ticket)
+        trigger_dashboard(self.bot)
 
         old_cat_name = old_cat_info.get("display_name", str(old_category_id))
         new_cat_name = new_cat_info.get("display_name", str(new_category_id))

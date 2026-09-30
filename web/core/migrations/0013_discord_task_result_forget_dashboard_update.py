@@ -13,6 +13,17 @@ def move_results_out_of_payload(apps, schema_editor):
         task.save(update_fields=['payload', 'result'])
 
 
+def give_ticket_tasks_their_ticket_id(apps, schema_editor):
+    """These payloads used to leave the ticket to the row's FK; the payload now names it."""
+    DiscordTask = apps.get_model('core', 'DiscordTask')
+    ticket_tasks = DiscordTask.objects.filter(
+        task_type__in=['post_ticket_update', 'add_user_to_thread'], ticket__isnull=False
+    )
+    for task in ticket_tasks:
+        task.payload.setdefault('ticket_id', task.ticket_id)
+        task.save(update_fields=['payload'])
+
+
 def move_results_into_payload(apps, schema_editor):
     DiscordTask = apps.get_model('core', 'DiscordTask')
     for task in DiscordTask.objects.filter(result__isnull=False):
@@ -38,4 +49,5 @@ class Migration(migrations.Migration):
             field=models.JSONField(blank=True, null=True),
         ),
         migrations.RunPython(move_results_out_of_payload, move_results_into_payload),
+        migrations.RunPython(give_ticket_tasks_their_ticket_id, migrations.RunPython.noop),
     ]

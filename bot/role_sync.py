@@ -3,24 +3,16 @@
 import asyncio
 import logging
 import time
-from typing import TypedDict
 
 import discord
 from asgiref.sync import sync_to_async
 from django.conf import settings
 
+from core.discord_tasks import SyncRolesResult
+
 logger = logging.getLogger(__name__)
 
 GUILD_CHUNK_TIMEOUT = 30.0
-
-
-class RoleSyncStats(TypedDict, total=False):
-    roles_added: int
-    roles_removed: int
-    errors: int
-    extra_linked: int  # linked users holding a role their Authentik groups don't grant
-    unlinked_holders: int  # unlinked users holding a synced role (can't verify)
-    changes: list[str]
 
 
 class AuthentikRoleSyncManager:
@@ -37,16 +29,23 @@ class AuthentikRoleSyncManager:
             logger.error(f"Competition guild {self.competition_guild_id} not found")
         return guild
 
-    async def sync_roles(self, dry_run: bool = False) -> RoleSyncStats:
+    async def sync_roles(self, dry_run: bool = False) -> SyncRolesResult:
         """Add roles from Authentik groups (UserGroups) to linked users in the competition guild.
 
         Add-only: roles a user shouldn't have are counted (extra_linked, unlinked_holders), never removed.
         """
         competition_guild = self._get_competition_guild()
         if not competition_guild:
-            return {"roles_added": 0, "roles_removed": 0, "errors": 1, "changes": []}
+            return {
+                "roles_added": 0,
+                "roles_removed": 0,
+                "errors": 1,
+                "extra_linked": 0,
+                "unlinked_holders": 0,
+                "changes": [],
+            }
 
-        stats: RoleSyncStats = {
+        stats: SyncRolesResult = {
             "roles_added": 0,
             "roles_removed": 0,
             "errors": 0,
@@ -149,7 +148,7 @@ class AuthentikRoleSyncManager:
         role_id: int,
         should_have_role_discord_ids: set[int],
         linked_discord_ids: set[int],
-        stats: RoleSyncStats,
+        stats: SyncRolesResult,
         dry_run: bool,
     ) -> None:
         """Sync one Authentik group to its Discord role. Only ever ADDS the role.

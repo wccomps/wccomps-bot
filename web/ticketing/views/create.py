@@ -151,16 +151,7 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
                     actor_username=authentik_username,
                     enforce_team_limit=not is_admin,
                 )
-                DiscordTask.enqueue(
-                    TicketCreatedWeb(
-                        ticket_id=ticket.id,
-                        ticket_number=ticket.ticket_number,
-                        team_number=team.team_number,
-                        category=category_obj.display_name,
-                        title=title,
-                        created_by=authentik_username,
-                    )
-                )
+                DiscordTask.enqueue(TicketCreatedWeb(ticket_id=ticket.id))
 
             logger.info(f"Ticket {ticket.ticket_number} created via web by {authentik_username} for {team.team_name}")
 

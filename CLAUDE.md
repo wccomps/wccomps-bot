@@ -44,9 +44,11 @@ the unparenthesized form is used intentionally throughout.
 - `WCComps_Discord_Admin` grants access to everything
 
 ### Discord Task Queue
-- Views queue work with `DiscordTask.enqueue(<payload>)`; the bot's `DiscordQueueProcessor` consumes it
+- Web code queues work with `DiscordTask.enqueue(<payload>)`; the bot's `DiscordQueueProcessor` consumes it
 - Each task type is a payload dataclass in `core/discord_tasks.py` (the `TaskPayload` union); a new
-  one also needs a `case` in `DiscordQueueProcessor._dispatch`, which mypy checks is exhaustive
+  one also needs a `case` in `DiscordQueueProcessor._dispatch`, which mypy checks is exhaustive, and a
+  migration, since `DiscordTask.task_type`'s choices come from the union
+- A payload's `ticket_id` also sets the task's ticket FK, so deleting a ticket drops its pending tasks
 - A handler's return value is stored in `DiscordTask.result`; the payload is input only
 
 ### UI Components
