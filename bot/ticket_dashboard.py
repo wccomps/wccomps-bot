@@ -159,9 +159,9 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        from ticketing.utils import aclaim_ticket_atomic
+        from ticketing.lifecycle import aclaim_ticket
 
-        ticket, error = await aclaim_ticket_atomic(
+        ticket, error = await aclaim_ticket(
             ticket_id=ticket_id,
             actor_username=str(interaction.user),
             discord_id=interaction.user.id,
@@ -171,18 +171,6 @@ class TicketActionView(discord.ui.View):
         if error or ticket is None:
             await interaction.response.send_message(error or "Failed to claim ticket.", ephemeral=True)
             return
-
-        await update_ticket_dashboard(interaction.client, ticket)
-
-        if ticket.discord_thread_id:
-            try:
-                thread = interaction.client.get_channel(ticket.discord_thread_id)
-                if not thread:
-                    thread = await interaction.client.fetch_channel(ticket.discord_thread_id)
-                if thread and isinstance(thread, discord.Thread):
-                    await thread.add_user(interaction.user)
-            except Exception as e:
-                logger.warning(f"Failed to add user {interaction.user.id} to thread {ticket.discord_thread_id}: {e}")
 
         await interaction.response.send_message(
             f"You have claimed ticket {ticket.ticket_number}.",
@@ -222,8 +210,10 @@ class TicketActionView(discord.ui.View):
             await interaction.response.send_message("Ticket not found.", ephemeral=True)
             return
 
-        if ticket.status == "resolved":
-            await interaction.response.send_message("This ticket is already resolved.", ephemeral=True)
+        from ticketing.lifecycle import refusal
+
+        if error := refusal(ticket, "resolve"):
+            await interaction.response.send_message(error, ephemeral=True)
             return
 
         cat_info = await sync_to_async(get_category_config)(ticket.category_id) or {}
@@ -282,14 +272,12 @@ class TicketActionView(discord.ui.View):
             await interaction.response.send_message("This ticket does not belong to your team.", ephemeral=True)
             return
 
-        from ticketing.utils import acancel_ticket_atomic
+        from ticketing.lifecycle import acancel_ticket
 
-        cancelled, error = await acancel_ticket_atomic(ticket_id=ticket.id, actor_username=str(interaction.user))
+        cancelled, error = await acancel_ticket(ticket_id=ticket.id, actor_username=str(interaction.user))
         if error or cancelled is None:
             await interaction.response.send_message(error or "Failed to cancel ticket.", ephemeral=True)
             return
-
-        await update_ticket_dashboard(interaction.client, cancelled)
 
         await interaction.response.send_message(
             f"Ticket {cancelled.ticket_number} has been cancelled (no point penalty).",
@@ -343,9 +331,9 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
                 await interaction.response.send_message("Invalid point value. Must be a number.", ephemeral=True)
                 return
 
-        from ticketing.utils import aresolve_ticket_atomic
+        from ticketing.lifecycle import aresolve_ticket
 
-        ticket, error = await aresolve_ticket_atomic(
+        ticket, error = await aresolve_ticket(
             ticket_id=self.ticket.id,
             actor_username=str(interaction.user),
             resolution_notes=self.notes.value,
@@ -357,8 +345,6 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
         if error or ticket is None:
             await interaction.response.send_message(error or "Failed to resolve ticket.", ephemeral=True)
             return
-
-        await update_ticket_dashboard(interaction.client, ticket)
 
         await interaction.response.send_message(
             f"Ticket {ticket.ticket_number} resolved with {ticket.points_charged} point penalty.",

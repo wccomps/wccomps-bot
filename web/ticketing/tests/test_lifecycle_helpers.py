@@ -6,8 +6,9 @@ from django.urls import reverse
 
 from core.models import DiscordTask
 from team.models import Team
+from ticketing.lifecycle import cancel_ticket, reopen_ticket
 from ticketing.models import Ticket, TicketCategory, TicketHistory
-from ticketing.utils import cancel_ticket_atomic, change_ticket_category_atomic, reopen_ticket_atomic
+from ticketing.utils import change_ticket_category_atomic
 
 pytestmark = pytest.mark.django_db
 
@@ -31,29 +32,29 @@ def _ticket(team, status, **extra):
 def test_team_cannot_cancel_claimed_but_staff_can(team):
     ticket = _ticket(team, "claimed")
 
-    _, error = cancel_ticket_atomic(ticket.id, "team01")
+    _, error = cancel_ticket(ticket.id, "team01")
     assert error == "Claimed tickets can only be cancelled by ticketing staff."
 
-    cancelled, error = cancel_ticket_atomic(ticket.id, "admin", reason="duplicate", staff=True)
+    cancelled, error = cancel_ticket(ticket.id, "admin", reason="duplicate", staff=True)
     assert error is None
     assert (cancelled.status, cancelled.resolution_notes, cancelled.points_charged) == ("cancelled", "duplicate", 0)
 
 
 def test_cancel_schedules_thread_archive(team):
     ticket = _ticket(team, "open", discord_thread_id=555)
-    cancelled, _ = cancel_ticket_atomic(ticket.id, "team01")
+    cancelled, _ = cancel_ticket(ticket.id, "team01")
     assert cancelled.thread_archive_scheduled_at is not None
 
 
 def test_resolved_or_cancelled_ticket_cannot_be_cancelled(team):
     for status in ("resolved", "cancelled"):
-        _, error = cancel_ticket_atomic(_ticket(team, status).id, "admin", staff=True)
+        _, error = cancel_ticket(_ticket(team, status).id, "admin", staff=True)
         assert error == f"Cannot cancel ticket with status: {status}."
 
 
 def test_reopen_refunds_points(team):
     ticket = _ticket(team, "resolved", points_charged=60)
-    reopened, _ = reopen_ticket_atomic(ticket.id, "admin", reopen_reason="not fixed")
+    reopened, _ = reopen_ticket(ticket.id, "admin", reopen_reason="not fixed")
     assert (reopened.status, reopened.points_charged) == ("open", 0)
     assert TicketHistory.objects.get(ticket=ticket, action="reopened").details["refunded_points"] == 60
 

@@ -7,8 +7,8 @@ from django.urls import reverse
 
 from core.models import DiscordTask
 from team.models import Team
+from ticketing.lifecycle import assign_ticket
 from ticketing.models import Ticket, TicketCategory, TicketHistory
-from ticketing.utils import reassign_ticket_atomic
 
 pytestmark = pytest.mark.django_db
 
@@ -75,13 +75,16 @@ def test_reassigning_closed_ticket_changes_only_the_assignee(ticketing_admin_use
     assert TicketHistory.objects.filter(ticket=ticket, action="reassigned").exists()
 
 
-def test_shared_function_allows_closed_but_not_open(helper, team):
+def test_shared_function_reassigns_closed_and_claims_open(helper, team):
     resolved = _ticket(team, Ticket.STATUS_RESOLVED, number="T001-002")
     opened = _ticket(team, Ticket.STATUS_OPEN, number="T001-003")
 
-    assert reassign_ticket_atomic(resolved.id, "web:x", user=helper)[1] is None
-    _, error = reassign_ticket_atomic(opened.id, "web:x", user=helper)
-    assert error and "claim" in error.lower()
+    assert assign_ticket(resolved.id, "web:x", user=helper)[0].status == Ticket.STATUS_RESOLVED
+    assert assign_ticket(opened.id, "web:x", user=helper)[0].status == Ticket.STATUS_CLAIMED
+    assert list(TicketHistory.objects.order_by("ticket_id").values_list("action", flat=True)) == [
+        "reassigned",
+        "claimed",
+    ]
 
 
 def test_blue_team_cannot_assign(blue_team_user, helper, team):
