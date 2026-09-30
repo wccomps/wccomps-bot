@@ -75,3 +75,14 @@ def test_no_active_event_saves_school_info_only(client):
 
     assert SchoolInfo.objects.filter(team__team_number=4).exists()
     assert not EventTeamAssignment.objects.exists()
+
+
+def test_school_list_shows_the_secondary_email(client):
+    team = Team.objects.create(team_number=9, team_name="Team 09")
+    SchoolInfo.objects.create(
+        team=team, school_name="Example U", contact_email="captain@example.edu", secondary_email="coach@example.edu"
+    )
+
+    response = client.get(reverse("school_info"))
+
+    assert b"coach@example.edu" in response.content
