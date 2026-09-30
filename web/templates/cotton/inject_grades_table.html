@@ -24,7 +24,7 @@
                 {# djlint:on #}
                 <thead>
                     <tr role="row">
-                        <th scope="col">
+                        <th scope="col" class="action-checkbox-column">
                             <input type="checkbox"
                                    :checked="allSelected"
                                    :indeterminate="someSelected"
@@ -66,7 +66,7 @@
                     {% for grade in page_obj %}
                         <tr class="{% cycle 'row1' 'row2' %}{% if grade.is_outlier %} bg-warning-light{% endif %}"
                             role="row">
-                            <td>
+                            <td class="action-checkbox">
                                 {% if not grade.is_approved %}
                                     <input type="checkbox"
                                            name="grade_ids"

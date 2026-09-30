@@ -11,7 +11,7 @@
         <c-table id="result_list" aria_label="Incident reports list">
             <c-slot name="headers">
                 <tr role="row">
-                    <th scope="col" class="w-40">
+                    <th scope="col" class="action-checkbox-column">
                         <input type="checkbox"
                                :checked="allSelected"
                                :indeterminate="someSelected"
@@ -50,7 +50,7 @@
             </c-slot>
             {% for incident in page_obj %}
                 <tr class="{% cycle 'row1' 'row2' %}" role="row">
-                    <td>
+                    <td class="action-checkbox">
                         {% if not incident.is_approved %}
                             <input type="checkbox"
                                    name="incident_ids"
