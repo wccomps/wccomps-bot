@@ -102,8 +102,7 @@ async def test_claim_button_leaves_thread_join_to_the_queue(
     mock_interaction.user.id = mock_admin_user._discord_id
     mock_interaction.client, thread = _bot_client()
 
-    with patch("bot.permissions.can_support_tickets_async", new=AsyncMock(return_value=True)):
-        await TicketActionView(ticket.id).claim_button.callback(mock_interaction)
+    await TicketActionView(ticket.id).claim_button.callback(mock_interaction)
 
     assert await _effects(ticket) == (["claimed"], ["claimed"], [mock_admin_user._discord_id])
     thread.add_user.assert_not_awaited()
@@ -124,12 +123,12 @@ async def test_resolve_modal_queues_one_update(
 
 
 async def test_resolve_button_refuses_cancelled_ticket_before_the_modal(
-    team: Team, box_reset_category: TicketCategory, mock_interaction: Any
+    team: Team, box_reset_category: TicketCategory, mock_interaction: Any, mock_admin_user: Any
 ) -> None:
     ticket = await _ticket(team, box_reset_category, "cancelled")
+    mock_interaction.user.id = mock_admin_user._discord_id
 
-    with patch("bot.permissions.can_support_tickets_async", new=AsyncMock(return_value=True)):
-        await TicketActionView(ticket.id).resolve_button.callback(mock_interaction)
+    await TicketActionView(ticket.id).resolve_button.callback(mock_interaction)
 
     mock_interaction.response.send_modal.assert_not_awaited()
     mock_interaction.response.send_message.assert_awaited_once_with(
@@ -138,13 +137,13 @@ async def test_resolve_button_refuses_cancelled_ticket_before_the_modal(
 
 
 async def test_cancel_button_queues_one_update(
-    team: Team, box_reset_category: TicketCategory, mock_interaction: Any
+    team: Team, box_reset_category: TicketCategory, mock_interaction: Any, mock_admin_user: Any
 ) -> None:
     ticket = await _ticket(team, box_reset_category, "open")
+    mock_interaction.user.id = mock_admin_user._discord_id
     mock_interaction.client, _ = _bot_client()
 
-    with patch("bot.permissions.can_support_tickets_async", new=AsyncMock(return_value=True)):
-        await TicketActionView(ticket.id).cancel_button.callback(mock_interaction)
+    await TicketActionView(ticket.id).cancel_button.callback(mock_interaction)
 
     assert await _effects(ticket) == (["cancelled"], ["cancelled"], [])
 
