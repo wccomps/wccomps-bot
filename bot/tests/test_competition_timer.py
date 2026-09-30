@@ -1,5 +1,6 @@
 """Tests for competition timer background task."""
 
+import asyncio
 from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -16,51 +17,6 @@ from core.services.competition import CompetitionRunResult
 @pytest.mark.django_db(transaction=True)
 class TestCompetitionTimer:
     """Test competition timer functionality."""
-
-    async def test_check_loop_continues_while_running(self) -> None:
-        """Test that _check_loop continues checking while running is True."""
-        bot = AsyncMock(spec=discord.Client)
-        timer = CompetitionTimer(bot)
-        timer.running = True
-
-        check_count = 0
-
-        async def mock_check() -> None:
-            nonlocal check_count
-            check_count += 1
-            if check_count >= 2:
-                timer.running = False
-
-        with (
-            patch.object(timer, "_check_competition_times", side_effect=mock_check),
-            patch("asyncio.sleep", new_callable=AsyncMock),
-        ):
-            await timer._check_loop()
-
-        assert check_count == 2
-
-    async def test_check_loop_handles_exceptions(self) -> None:
-        """Test that _check_loop handles exceptions and continues."""
-        bot = AsyncMock(spec=discord.Client)
-        timer = CompetitionTimer(bot)
-        timer.running = True
-
-        call_count = 0
-
-        async def mock_check() -> None:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise RuntimeError("Test error")
-            timer.running = False
-
-        with (
-            patch.object(timer, "_check_competition_times", side_effect=mock_check),
-            patch("asyncio.sleep", new_callable=AsyncMock),
-        ):
-            await timer._check_loop()
-
-        assert call_count == 2
 
     async def test_check_competition_times_no_enable_needed(self) -> None:
         """Test _check_competition_times when applications should not be enabled."""
@@ -81,7 +37,6 @@ class TestCompetitionTimer:
 
         await config.arefresh_from_db()
         assert config.applications_enabled is False
-        assert config.last_check is not None
 
     async def test_check_competition_times_calls_start_competition(self) -> None:
         """Test _check_competition_times calls start_competition when scheduled."""
@@ -95,7 +50,6 @@ class TestCompetitionTimer:
                 "competition_start_time": timezone.now() - timedelta(minutes=5),
                 "applications_enabled": False,
                 "controlled_applications": ["app1"],
-                "last_check": timezone.now() - timedelta(hours=1),
             },
         )
 
@@ -121,7 +75,6 @@ class TestCompetitionTimer:
                 "competition_start_time": timezone.now() - timedelta(minutes=5),
                 "applications_enabled": False,
                 "controlled_applications": ["app1"],
-                "last_check": timezone.now() - timedelta(hours=1),
             },
         )
 
@@ -163,3 +116,60 @@ async def test_repeated_auto_start_failure_is_posted_once() -> None:
 
     assert start.await_count == 2
     ops.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("work_fails", [False, True])
+async def test_each_pass_recycles_then_beats_only_on_success(work_fails, monkeypatch) -> None:
+    """A pass never raises (tasks.loop would stop), and a failed one skips the liveness heartbeat."""
+    from bot import competition_timer
+
+    timer = CompetitionTimer(AsyncMock(spec=discord.Client))
+    calls: list[str] = []
+
+    async def work() -> None:
+        calls.append("work")
+        if work_fails:
+            raise RuntimeError("db down")
+
+    async def recycle() -> None:
+        calls.append("recycle")
+
+    monkeypatch.setattr(competition_timer, "recycle_db_connection", recycle)
+    monkeypatch.setattr(competition_timer, "record_heartbeat", lambda name, bot: calls.append(f"beat:{name}"))
+    monkeypatch.setattr(timer, "_check_competition_times", work)
+
+    await timer.check_loop()
+
+    assert calls == ["recycle", "work"] if work_fails else ["recycle", "work", "beat:timer"]
+
+
+@pytest.mark.asyncio
+async def test_config_read_failing_on_the_db_skips_the_beat(monkeypatch) -> None:
+    """The real work must let a DB error through, or the liveness probe never sees it."""
+    from bot import competition_timer
+
+    timer = CompetitionTimer(AsyncMock(spec=discord.Client))
+    beats: list[str] = []
+    monkeypatch.setattr(competition_timer, "recycle_db_connection", AsyncMock())
+    monkeypatch.setattr(competition_timer, "record_heartbeat", lambda name, bot: beats.append(name))
+
+    with patch("core.models.CompetitionConfig.get_config", side_effect=RuntimeError("db down")):
+        await timer.check_loop()
+
+    assert beats == []
+
+
+@pytest.mark.asyncio
+async def test_loop_waits_for_ready_and_stops_with_the_bot() -> None:
+    """Loaded like production: nothing runs before the gateway is ready, and closing the bot cancels the loop."""
+    from discord.ext import commands
+
+    async with commands.Bot(command_prefix="!", intents=discord.Intents.default()) as bot:
+        timer = CompetitionTimer(bot)
+        with patch.object(timer, "_check_competition_times", new_callable=AsyncMock) as work:
+            await bot.add_cog(timer)
+            assert timer.check_loop.is_running()
+            await asyncio.sleep(0.1)
+            work.assert_not_awaited()
+    assert not timer.check_loop.is_running()

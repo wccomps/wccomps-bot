@@ -431,6 +431,8 @@ class DiscordQueueProcessor:
             await thread.send(embed=embed)
         elif action == "claimed":
             await thread.send(f"Ticket claimed by **{actor}**")
+        elif action == "assigned":
+            await thread.send(f"Ticket assigned to **{task.payload.get('assignee')}** by **{actor}**")
         elif action == "unclaimed":
             await thread.send(f"Ticket unclaimed by **{actor}**")
         elif action == "cancelled":

@@ -1,12 +1,10 @@
 """Competition timer background task to enable/disable applications at scheduled times."""
 
-import asyncio
 import contextlib
 import logging
 
-import discord
 from asgiref.sync import sync_to_async
-from django.utils import timezone
+from discord.ext import commands, tasks
 
 from bot.competition_actions import run_competition, update_status_channel
 from bot.heartbeat import record as record_heartbeat
@@ -16,51 +14,43 @@ from core.models import CompetitionConfig
 logger = logging.getLogger(__name__)
 
 
-class CompetitionTimer:
+class CompetitionTimer(commands.Cog):
     """Background task to monitor competition start/end times."""
 
-    def __init__(self, bot: discord.Client) -> None:
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.task: asyncio.Task[None] | None = None
-        self.running = False
         # Last start/stop failure posted to ops, so a retry that fails the same way stays quiet.
         self._last_failure: str | None = None
 
-    def start(self) -> None:
-        if not self.running:
-            self.running = True
-            self.task = asyncio.create_task(self._check_loop())
-            logger.info("Competition timer started")
+    async def cog_load(self) -> None:
+        self.check_loop.start()
 
-    def stop(self) -> None:
-        self.running = False
-        if self.task:
-            self.task.cancel()
-            logger.info("Competition timer stopped")
+    async def cog_unload(self) -> None:
+        self.check_loop.cancel()
 
-    async def _check_loop(self) -> None:
-        while self.running:
-            try:
-                await recycle_db_connection()
-                await self._check_competition_times()
-                record_heartbeat("timer", self.bot)
-            except Exception as e:
-                logger.exception(f"Error in competition timer check: {e}")
+    @tasks.loop(seconds=60)
+    async def check_loop(self) -> None:
+        try:
+            await recycle_db_connection()
+            await self._check_competition_times()
+            record_heartbeat("timer", self.bot)
+        except Exception as e:
+            logger.exception(f"Error in competition timer check: {e}")
 
-            await asyncio.sleep(60)
+    @check_loop.before_loop
+    async def before_check(self) -> None:
+        await self.bot.wait_until_ready()
 
     async def _check_competition_times(self) -> None:
 
-        # Errors here propagate so _check_loop skips its heartbeat: a timer that can't read the
+        # Errors here propagate so check_loop skips its heartbeat: a timer that can't read the
         # config is not alive in any useful sense.
         @sync_to_async
-        def check_and_update() -> tuple[bool, bool]:
+        def check() -> tuple[bool, bool]:
             config = CompetitionConfig.get_config()
-            config.last_check = timezone.now()
-            config.save(update_fields=["last_check"])
             return config.should_enable_applications(), config.should_disable_applications()
 
-        should_start, should_stop = await check_and_update()
+        should_start, should_stop = await check()
         if not (should_start or should_stop):
             self._last_failure = None
             return

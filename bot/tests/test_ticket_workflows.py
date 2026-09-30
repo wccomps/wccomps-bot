@@ -173,7 +173,7 @@ class TestTicketResolutionWorkflow:
             status="claimed",
         )
 
-        with patch("bot.cogs.admin_tickets.update_ticket_dashboard", new_callable=AsyncMock):
+        with patch("bot.cogs.admin_tickets.log_to_ops_channel", new_callable=AsyncMock):
             cog = AdminTicketsCog(mock_bot)
             await cog.admin_ticket_resolve.callback(
                 cog,
@@ -217,7 +217,7 @@ class TestTicketResolutionWorkflow:
             status="open",
         )
 
-        with patch("bot.cogs.admin_tickets.update_ticket_dashboard", new_callable=AsyncMock):
+        with patch("bot.cogs.admin_tickets.log_to_ops_channel", new_callable=AsyncMock):
             cog = AdminTicketsCog(mock_bot)
             await cog.admin_ticket_resolve.callback(
                 cog,
@@ -235,10 +235,10 @@ class TestTicketResolutionWorkflow:
         assert history.details["notes"] == "All fixed"
         assert history.details["point_penalty"] == 10
 
-    async def test_ticket_resolution_calls_dashboard_update(
+    async def test_ticket_resolution_queues_one_thread_update(
         self, mock_interaction: Any, mock_admin_user: Any, mock_bot: Any, box_reset_category: Any
     ) -> None:
-        """Test that resolving ticket calls dashboard update."""
+        """The lifecycle queues the thread update (which refreshes the dashboard); the command adds none."""
         from bot.cogs.admin_tickets import AdminTicketsCog
 
         mock_interaction.user.id = mock_admin_user._discord_id
@@ -258,7 +258,7 @@ class TestTicketResolutionWorkflow:
             status="open",
         )
 
-        with patch("bot.cogs.admin_tickets.update_ticket_dashboard", new_callable=AsyncMock) as mock_dashboard:
+        with patch("bot.cogs.admin_tickets.log_to_ops_channel", new_callable=AsyncMock):
             cog = AdminTicketsCog(mock_bot)
             await cog.admin_ticket_resolve.callback(
                 cog,
@@ -268,9 +268,8 @@ class TestTicketResolutionWorkflow:
                 points=0,
             )
 
-            mock_dashboard.assert_called_once()
-            call_args = mock_dashboard.call_args
-            assert call_args[0][1] == ticket
+        tasks = [t async for t in DiscordTask.objects.filter(ticket=ticket)]
+        assert [(t.task_type, t.payload["action"]) for t in tasks] == [("post_ticket_update", "resolved")]
 
     async def test_cannot_resolve_already_resolved_ticket(
         self, mock_interaction: Any, mock_admin_user: Any, mock_bot: Any, box_reset_category: Any

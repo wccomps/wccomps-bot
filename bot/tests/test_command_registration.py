@@ -71,19 +71,12 @@ class TestCommandRegistration:
     @pytest_asyncio.fixture
     async def bot_with_cogs(self):
         """Create a bot and load all cogs (runs once for all tests)."""
-        bot = commands.Bot(command_prefix="!", intents=discord.Intents.default())
-
-        # Dynamically discover and load all cogs
-        cog_modules = discover_cogs()
-        for cog_module in cog_modules:
-            await bot.load_extension(cog_module)
-
-        yield bot
-
-        # Cleanup: unload cogs first so cog_unload() cancels task loops
-        for extension in list(bot.extensions.keys()):
-            await bot.unload_extension(extension)
-        await bot.close()
+        # Entered like production's login, so the cogs' loops wait for a ready that never comes
+        # instead of running; closing unloads the cogs, which cancels them.
+        async with commands.Bot(command_prefix="!", intents=discord.Intents.default()) as bot:
+            for cog_module in discover_cogs():
+                await bot.load_extension(cog_module)
+            yield bot
 
     @pytest.fixture
     def expected_cogs(self) -> dict[str, dict[str, Any]]:
