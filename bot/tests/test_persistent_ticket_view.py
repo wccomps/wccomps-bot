@@ -28,7 +28,7 @@ async def test_posted_buttons_are_routed_to_the_registered_view() -> None:
 
 
 async def test_registered_view_finds_the_ticket_from_the_posted_embed(db: Any) -> None:
-    team = await Team.objects.acreate(team_number=22, team_name="Team 22", max_members=5)
+    team = await Team.objects.acreate(team_number=22, team_name="Team 22")
     category = await TicketCategory.objects.acreate(pk=91, display_name="Box", sort_order=91)
     ticket = await Ticket.objects.acreate(
         ticket_number="T022-004", team=team, category=category, title="Web down: port 80", status="open"
