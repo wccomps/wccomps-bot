@@ -43,7 +43,7 @@
                             ID
                         </c-table_header>
                         <c-table_header sort_field="attack_type__name"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&team={{ selected_team }}&attack_type={{ selected_attack_type }}&submitter={{ selected_submitter }}&search={{ search_query }}">
                             Attack Type
                         </c-table_header>
@@ -57,7 +57,7 @@
                             Teams
                         </c-table_header>
                         <c-table_header sort_field="created_at"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&team={{ selected_team }}&attack_type={{ selected_attack_type }}&submitter={{ selected_submitter }}&search={{ search_query }}">
                             Submitted
                         </c-table_header>

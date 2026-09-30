@@ -23,12 +23,12 @@
                             Ticket
                         </c-table_header>
                         <c-table_header sort_field="team__team_number"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">
                             Team
                         </c-table_header>
                         <c-table_header sort_field="category"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">
                             Category
                         </c-table_header>
@@ -36,12 +36,12 @@
                             Resolved By
                         </c-table_header>
                         <c-table_header sort_field="points_charged"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">
                             Points
                         </c-table_header>
                         <c-table_header sort_field="resolved_at"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&team={{ team_filter }}&category={{ category_filter }}&search={{ search_query }}">
                             Resolved
                         </c-table_header>
