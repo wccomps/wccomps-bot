@@ -120,8 +120,7 @@ def admin_task_status(request: HttpRequest, task_id: int) -> HttpResponse:
 
     if task.status == "completed":
         if task.task_type == "sync_roles":
-            # The previous release's bot kept its result in the payload; a task it finished mid-deploy has it there
-            result = cast(SyncRolesResult, task.result if task.result is not None else task.payload["result"])
+            result = cast(SyncRolesResult, task.result)
             response["message"] = role_sync_summary(result, dry_run=cast(SyncRoles, task.typed_payload()).dry_run)
             response["changes"] = result["changes"]
         else:
