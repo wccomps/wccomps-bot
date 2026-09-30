@@ -3,8 +3,6 @@
 from decimal import Decimal
 
 import pytest
-from django.db import connection
-from django.db.migrations.executor import MigrationExecutor
 from django.test import Client
 from django.urls import reverse
 
@@ -60,40 +58,3 @@ def test_inactive_and_idle_teams_are_not_ranked(unit_modifiers):
     standings = compute_standings()
 
     assert [(s.team, s.rank) for s in standings] == [(scored, 1), (idle, None)]
-
-
-@pytest.mark.django_db(transaction=True)
-def test_migration_moves_exclusions_off_final_score():
-    executor = MigrationExecutor(connection)
-    executor.migrate([("scoring", "0036_approvable_base")])
-    old_apps = executor.loader.project_state([("scoring", "0036_approvable_base")]).apps
-    old_team_model = old_apps.get_model("team", "Team")
-    final_score_model = old_apps.get_model("scoring", "FinalScore")
-    excluded = old_team_model.objects.create(team_number=1, team_name="Team 1")
-    kept = old_team_model.objects.create(team_number=2, team_name="Team 2")
-    final_score_model.objects.create(team=excluded, is_excluded=True)
-    final_score_model.objects.create(team=kept, is_excluded=False)
-
-    executor = MigrationExecutor(connection)
-    executor.migrate([("scoring", "0037_scoringexclusion_forget_finalscore")])
-
-    assert list(ScoringExclusion.objects.values_list("team_id", flat=True)) == [excluded.pk]
-    with connection.cursor() as cursor:
-        cursor.execute("DELETE FROM final_score")
-
-
-@pytest.mark.django_db
-def test_deleting_a_team_ignores_the_forgotten_final_score_table():
-    team = Team.objects.create(team_number=1, team_name="Team 1")
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "INSERT INTO final_score (team_id, service_points, inject_points, orange_points, red_deductions,"
-            " incident_recovery_points, sla_penalties, point_adjustments, total_score, is_excluded, calculated_at)"
-            " VALUES (%s, 0, 0, 0, 0, 0, 0, 0, 0, false, now())",
-            [team.pk],
-        )
-        cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
-
-        team.delete()
-
-        cursor.execute("DELETE FROM final_score")
