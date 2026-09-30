@@ -342,19 +342,18 @@ class DiscordManager:
             return None
 
     async def assign_team_role(self, member: discord.Member, team_number: int) -> bool:
-        """Assign team role and Blueteam role to a member."""
+        """Assign team role and Blueteam role to a member, first setting up the team's role and category if missing."""
         team = await Team.objects.filter(team_number=team_number).afirst()
         if not team:
             logger.error(f"Team {team_number} not found")
             return False
 
-        if not team.discord_role_id:
-            logger.error(f"Team {team_number} has no Discord role")
-            return False
-
-        role = self.guild.get_role(team.discord_role_id)
+        role = self.guild.get_role(team.discord_role_id) if team.discord_role_id else None
+        if not role or not team.discord_category_id:
+            logger.info(f"Setting up infrastructure for team {team_number}")
+            role, _ = await self.setup_team_infrastructure(team_number)
         if not role:
-            logger.error(f"Role {team.discord_role_id} not found")
+            logger.error(f"Team {team_number} has no Discord role")
             return False
 
         try:

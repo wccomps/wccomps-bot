@@ -25,7 +25,9 @@ class RoleSyncStats(TypedDict, total=False):
 
 
 class AuthentikRoleSyncManager:
-    """Adds competition-guild roles to Discord-linked users (DiscordLink) from their Authentik groups (UserGroups)."""
+    """Adds competition-guild roles to Discord-linked users (DiscordLink): the roles their Authentik groups
+    (UserGroups) map to, and a team seat's team and Blueteam roles. Runs after every group refresh, so a
+    user who linked before joining the guild gets their roles on the next pass after they join."""
 
     def __init__(self, bot: discord.Client) -> None:
         self.bot = bot
@@ -43,7 +45,8 @@ class AuthentikRoleSyncManager:
         dry_run: bool = False,
         progress_callback: Callable[[int, int, str], Awaitable[None]] | None = None,
     ) -> RoleSyncStats:
-        """Add roles from Authentik groups (UserGroups) to linked users in the competition guild.
+        """Add roles from Authentik groups (UserGroups), and team seats' team and Blueteam roles, to linked users
+        in the competition guild.
 
         progress_callback, if given, is awaited with (current, total, role_name) per group mapping.
         Add-only: roles a user shouldn't have are counted (extra_linked, unlinked_holders), never removed.
@@ -62,46 +65,28 @@ class AuthentikRoleSyncManager:
         }
 
         mode = "DRY RUN" if dry_run else "LIVE"
-        logger.info("=" * 80)
-        logger.info(f"AUTHENTIK ROLE SYNC STARTED [{mode}]")
-        logger.info(f"Competition Guild: {competition_guild.name} (ID: {competition_guild.id})")
-        logger.info(f"Group->Role Mappings: {len(self.group_role_mapping)} configured")
-        for group_name, role_id in self.group_role_mapping.items():
-            logger.info(f"  - {group_name} -> {role_id}")
-        logger.info("=" * 80)
 
-        # Chunk competition guild once at the start to get all members
-        cached_member_count = len(competition_guild.members)
-        logger.info(
-            f"Fetching all members from competition guild "
-            f"(currently have {cached_member_count} cached, chunked={competition_guild.chunked})..."
-        )
         if not competition_guild.chunked:
             chunk_start = time.time()
             try:
                 await asyncio.wait_for(competition_guild.chunk(), timeout=GUILD_CHUNK_TIMEOUT)
-                chunk_duration = time.time() - chunk_start
-                logger.info(f"Guild chunk completed in {chunk_duration:.2f}s")
             except TimeoutError:
-                chunk_duration = time.time() - chunk_start
                 logger.warning(
-                    f"Guild chunk timed out after {chunk_duration:.2f}s, "
+                    f"Guild chunk timed out after {time.time() - chunk_start:.2f}s, "
                     f"using cached members ({len(competition_guild.members)} available)"
                 )
-        else:
-            logger.info("Guild already chunked, skipping chunk request")
-        logger.info(f"Competition guild has {len(competition_guild.members)} total members")
 
         @sync_to_async
-        def get_authentik_data() -> tuple[dict[str, set[int]], set[int]]:
-            """Get Authentik group name -> linked Discord IDs, plus every linked Discord ID."""
+        def get_authentik_data() -> tuple[dict[str, set[int]], set[int], dict[int, int]]:
+            """Authentik group name -> linked Discord IDs, every linked Discord ID, and Discord ID -> team seat."""
             from core.models import UserGroups
             from team.models import DiscordLink
 
             group_to_discord_ids: dict[str, set[int]] = {group_name: set() for group_name in self.group_role_mapping}
 
-            discord_links = DiscordLink.objects.filter(is_active=True).select_related("user")
+            discord_links = list(DiscordLink.objects.filter(is_active=True).select_related("user", "team"))
             linked_discord_ids = {link.discord_id for link in discord_links}
+            team_seats = {link.discord_id: link.team.team_number for link in discord_links if link.team}
 
             for link in discord_links:
                 try:
@@ -112,12 +97,9 @@ class AuthentikRoleSyncManager:
                 except UserGroups.DoesNotExist:
                     continue
 
-            return group_to_discord_ids, linked_discord_ids
+            return group_to_discord_ids, linked_discord_ids, team_seats
 
-        group_to_discord_ids, linked_discord_ids = await get_authentik_data()
-
-        for group_name, discord_ids in group_to_discord_ids.items():
-            logger.info(f"  {group_name}: {len(discord_ids)} linked Discord users")
+        group_to_discord_ids, linked_discord_ids, team_seats = await get_authentik_data()
 
         total_mappings = len(self.group_role_mapping)
         for idx, (group_name, role_id) in enumerate(self.group_role_mapping.items(), start=1):
@@ -144,16 +126,47 @@ class AuthentikRoleSyncManager:
                 )
                 stats["errors"] = stats["errors"] + 1
 
-        logger.info("=" * 80)
-        logger.info(f"AUTHENTIK ROLE SYNC COMPLETE [{mode}]")
-        logger.info(f"Roles Added: {stats['roles_added']}")
-        logger.info(f"Roles Removed: {stats['roles_removed']}")
-        logger.info(f"Errors: {stats['errors']}")
-        changes = stats.get("changes", [])
-        if isinstance(changes, list):
-            logger.info(f"Total Changes: {len(changes)}")
-        logger.info("=" * 80)
+        await self._sync_team_roles(competition_guild, team_seats, stats, dry_run)
+
+        summary = (
+            f"Role sync [{mode}]: {stats['roles_added']} added, {stats['errors']} errors, "
+            f"{stats.get('extra_linked', 0)} extra, {stats.get('unlinked_holders', 0)} unverified"
+        )
+        if dry_run or stats["roles_added"] or stats["errors"]:
+            logger.info(summary)
+        else:
+            logger.debug(summary)
         return stats
+
+    async def _sync_team_roles(
+        self, competition_guild: discord.Guild, team_seats: dict[int, int], stats: RoleSyncStats, dry_run: bool
+    ) -> None:
+        """Give each linked team member in the guild their team role and the Blueteam role, if either is missing."""
+        from bot.discord_manager import DiscordManager
+        from team.models import Team
+
+        role_ids = {
+            team.team_number: team.discord_role_id
+            async for team in Team.objects.filter(team_number__in=set(team_seats.values()))
+        }
+        # An unset or deleted Blueteam role can't be added, so it mustn't count as missing on every pass
+        blueteam_id = settings.BLUETEAM_ROLE_ID if competition_guild.get_role(settings.BLUETEAM_ROLE_ID) else None
+        manager = DiscordManager(competition_guild, self.bot)
+        prefix = "[DRY RUN] " if dry_run else ""
+        for discord_id, team_number in team_seats.items():
+            member = competition_guild.get_member(discord_id)
+            if not member:
+                continue
+            held = {role.id for role in member.roles}
+            if role_ids.get(team_number) in held and (blueteam_id is None or blueteam_id in held):
+                continue
+            who = f"{member.name} ({member.display_name})"
+            if not dry_run and not await manager.assign_team_role(member, team_number):
+                stats["errors"] = stats["errors"] + 1
+                stats["changes"].append(f"⚠ Could not assign team {team_number:02d} roles to {who}")
+                continue
+            stats["roles_added"] = stats["roles_added"] + 1
+            stats["changes"].append(f"{prefix}✓ Added team {team_number:02d} roles to {who}")
 
     async def _sync_authentik_group(
         self,
@@ -204,7 +217,7 @@ class AuthentikRoleSyncManager:
                     )
             except discord.errors.Forbidden as e:
                 error_msg = f"Missing permissions to modify roles for {member.name} (ID: {member.id}): {e}"
-                logger.exception(error_msg)
+                logger.warning(error_msg)
                 stats["errors"] = stats["errors"] + 1
                 stats["changes"].append(f"⚠ {error_msg}")
             except Exception as e:

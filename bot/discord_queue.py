@@ -216,21 +216,12 @@ class DiscordQueueProcessor:
 
                 logger.warning(
                     f"Member {username} not found in guild, skipping role assignment. "
-                    f"Role will be assigned when they join the server."
+                    f"The periodic role sync assigns it once they join."
                 )
                 return
             except Exception as e:
                 logger.exception(f"Failed to fetch member {discord_id}: {e}")
                 raise
-
-        @sync_to_async
-        def get_team() -> Team:
-            return Team.objects.get(team_number=team_number)
-
-        team = await get_team()
-        if not team.discord_role_id or not team.discord_category_id:
-            logger.info(f"Setting up infrastructure for team {team_number}")
-            await self.discord_manager.setup_team_infrastructure(team_number)
 
         success = await self.discord_manager.assign_team_role(member, team_number)
         if not success:
@@ -255,7 +246,10 @@ class DiscordQueueProcessor:
             try:
                 member = await guild.fetch_member(discord_id)
             except discord.NotFound:
-                logger.warning(f"Member {discord_id} not found in guild, skipping group role assignment")
+                logger.warning(
+                    f"Member {discord_id} not found in guild, skipping group role assignment; "
+                    "the periodic role sync assigns it once they join"
+                )
                 return
             except Exception as e:
                 logger.exception(f"Failed to fetch member {discord_id}: {e}")

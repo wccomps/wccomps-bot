@@ -324,32 +324,33 @@ class TestAssignTeamRole:
         assert result is False
         member.add_roles.assert_not_called()
 
-    async def test_assign_team_role_no_discord_role_id(self, team, mock_guild_with_base_roles):
-        """Test assigning role when team has no discord_role_id."""
+    async def test_assign_team_role_sets_up_a_team_without_a_role(self, team, mock_guild_with_base_roles):
+        """A member who joins before their team's infrastructure exists still gets the role."""
         manager = DiscordManager(mock_guild_with_base_roles)
         member = MagicMock(spec=discord.Member)
         member.add_roles = AsyncMock()
 
-        # Don't setup infrastructure, so team has no role ID
         result = await manager.assign_team_role(member, team.team_number)
 
-        assert result is False
-        member.add_roles.assert_not_called()
+        await team.arefresh_from_db()
+        assert result is True
+        assert team.discord_role_id is not None
+        assert member.add_roles.await_args.args[0].id == team.discord_role_id
 
-    async def test_assign_team_role_role_not_found_in_guild(self, team, mock_guild_with_base_roles):
-        """Test assigning role when Discord role doesn't exist in guild."""
+    async def test_assign_team_role_replaces_a_deleted_role(self, team, mock_guild_with_base_roles):
+        """A stored role ID the guild no longer has is set up again rather than failing forever."""
         manager = DiscordManager(mock_guild_with_base_roles)
         member = MagicMock(spec=discord.Member)
         member.add_roles = AsyncMock()
-
-        # Set role ID that doesn't exist in guild
         team.discord_role_id = 99999
         await team.asave()
 
         result = await manager.assign_team_role(member, team.team_number)
 
-        assert result is False
-        member.add_roles.assert_not_called()
+        await team.arefresh_from_db()
+        assert result is True
+        assert team.discord_role_id != 99999
+        assert member.add_roles.await_args.args[0].id == team.discord_role_id
 
     async def test_assign_team_role_permission_denied(self, team, mock_guild_with_base_roles):
         """Test handling Forbidden error when assigning role."""
