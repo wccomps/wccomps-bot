@@ -45,13 +45,7 @@ class AuthentikGroupsCog(commands.Cog):
 
     @refresh_task.before_loop
     async def before_refresh(self) -> None:
-        if self.bot.is_closed():
-            return
-        try:
-            await self.bot.wait_until_ready()
-        except RuntimeError:
-            # Bot was never logged in (e.g., during tests)
-            self.refresh_task.cancel()
+        await self.bot.wait_until_ready()
 
 
 async def setup(bot: commands.Bot) -> None:

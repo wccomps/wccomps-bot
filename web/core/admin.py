@@ -109,7 +109,7 @@ class CompetitionConfigAdmin(admin.ModelAdmin[CompetitionConfig]):
         "applications_enabled",
         "max_team_members",
     ]
-    readonly_fields = ["created_at", "updated_at", "last_check", "applications_enabled"]
+    readonly_fields = ["created_at", "updated_at", "applications_enabled"]
 
     fieldsets = (
         (
@@ -144,7 +144,7 @@ class CompetitionConfigAdmin(admin.ModelAdmin[CompetitionConfig]):
         (
             "System Info",
             {
-                "fields": ("created_at", "updated_at", "last_check"),
+                "fields": ("created_at", "updated_at"),
                 "description": "Audit and system information.",
             },
         ),

@@ -71,7 +71,6 @@ async def test_recycling_is_harmless_on_healthy_connection():
     ("module", "loop_attr", "work_attr"),
     [
         ("bot.discord_queue", "DiscordQueueProcessor", "_process_pending_tasks"),
-        ("bot.competition_timer", "CompetitionTimer", "_check_competition_times"),
         ("bot.unified_dashboard", "UnifiedDashboard", "_check_and_update"),
     ],
 )
@@ -100,7 +99,7 @@ async def test_each_loop_recycles_before_its_work(module, loop_attr, work_attr, 
     monkeypatch.setattr(mod.asyncio, "sleep", AsyncMock())
     obj.running = True
 
-    loop_method = next(getattr(obj, n) for n in ("_process_loop", "_check_loop", "_dashboard_loop") if hasattr(obj, n))
+    loop_method = next(getattr(obj, n) for n in ("_process_loop", "_dashboard_loop") if hasattr(obj, n))
     await loop_method()
 
     assert calls == ["recycle", "work"]

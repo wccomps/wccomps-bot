@@ -11,29 +11,31 @@ from core.models import BotState
 pytestmark = [pytest.mark.asyncio, pytest.mark.django_db(transaction=True)]
 
 
-async def _run_setup_hook(sync: AsyncMock) -> None:
+async def _run_setup_hook(sync: AsyncMock, settings: Any) -> None:
     from main import PortalBot
+
+    settings.COMPETITION_GUILD_ID = 1
+    settings.VOLUNTEER_GUILD_ID = 0
 
     bot = PortalBot()
     with (
         patch.object(bot, "load_extension", new_callable=AsyncMock),
+        patch.object(bot, "add_cog", new_callable=AsyncMock),
         patch.object(bot, "add_view"),
         patch.object(bot.tree, "sync", sync),
-        patch("bot.config.DISCORD_GUILD_ID", 1),
-        patch("bot.config.VOLUNTEER_GUILD_ID", 0),
     ):
         await bot.setup_hook()
 
 
-async def test_failed_sync_is_not_recorded(db: Any) -> None:
-    await _run_setup_hook(AsyncMock(side_effect=discord.HTTPException(MagicMock(status=500), "boom")))
+async def test_failed_sync_is_not_recorded(db: Any, settings: Any) -> None:
+    await _run_setup_hook(AsyncMock(side_effect=discord.HTTPException(MagicMock(status=500), "boom")), settings)
     assert not await BotState.objects.filter(key="command_hash").aexists()
 
 
-async def test_successful_sync_is_recorded_and_skipped_next_time(db: Any) -> None:
-    await _run_setup_hook(AsyncMock())
+async def test_successful_sync_is_recorded_and_skipped_next_time(db: Any, settings: Any) -> None:
+    await _run_setup_hook(AsyncMock(), settings)
     assert await BotState.objects.filter(key="command_hash").aexists()
 
     second = AsyncMock()
-    await _run_setup_hook(second)
+    await _run_setup_hook(second, settings)
     second.assert_not_awaited()
