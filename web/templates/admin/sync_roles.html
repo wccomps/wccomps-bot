@@ -11,11 +11,12 @@
                 Authentik Role Synchronization
             </c-slot>
             <div>
-                <p>Synchronize Discord roles based on Authentik group membership.</p>
+                <p>Synchronize competition Discord roles with Authentik groups and team seats.</p>
                 <ul class="text-muted mb-10">
-                    <li>Users in Authentik groups (e.g., WCComps_GoldTeam) will get corresponding Discord roles</li>
-                    <li>Users must have linked their Discord account to be synced</li>
-                    <li>Roles are only ever added. Anyone holding a role they shouldn't is listed for manual review, never removed</li>
+                    <li>Linked users get the Discord role for each of their Authentik groups (e.g., WCComps_GoldTeam); members linked to an active team get its team role and Blueteam</li>
+                    <li>Anyone else holding one of those roles loses it, including members who haven't linked; they get it back once they link and are in the group or on an active team</li>
+                    <li>Bots, and roles the bot can't manage, are left alone; problems are listed with the results</li>
+                    <li>This also runs automatically every few minutes</li>
                 </ul>
                 <c-button_row class="mt-20">
                     <c-button variant="primary" @click="requestSyncPreview" ::disabled="loading">
@@ -23,16 +24,16 @@
                         <span x-show="loading">Working...</span>
                     </c-button>
                     <c-button variant="default" @click="requestSyncLive" ::disabled="loading">
-                        Sync (Add Roles Only)
+                        Sync Roles Now
                     </c-button>
                 </c-button_row>
             </div>
         </c-module>
         <c-module class="mt-20">
             <c-slot name="title">
-                Alternative: Discord Command
+                Preview from Discord
             </c-slot>
-            <p>You can also sync roles via Discord:</p>
+            <p>The same preview (dry run, no changes) is available in Discord:</p>
             <code class="code-block">/admin sync-roles</code>
         </c-module>
         <c-toast />
@@ -65,7 +66,7 @@
                 async requestSync(dryRun) {
                     const confirmMsg = dryRun ?
                         'Preview role changes? No changes will be made.' :
-                        'Add missing Discord roles for linked users? Nothing is removed.';
+                        'Sync Discord roles now? Anyone holding a synced role their groups or team seat do not grant loses it, including members who have not linked. Run the preview first to see who.';
 
                     if (!confirm(confirmMsg)) {
                         return;

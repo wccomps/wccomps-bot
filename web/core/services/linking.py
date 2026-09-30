@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from django.contrib.auth.models import User
 from django.db import transaction
 
-from core.discord_tasks import AssignGroupRoles, AssignRole, LogToChannel
+from core.discord_tasks import LogToChannel, SetupTeamInfrastructure, SyncMemberRoles
 from core.models import DiscordTask
 from team.models import DiscordLink, LinkAttempt, LinkToken, Team
 
@@ -195,7 +195,6 @@ def finalize_link(
     discord_username: str,
     authentik_username: str,
     team: Team | None,
-    groups: list[str],
 ) -> None:
     """Mark token used, create audit records, and queue Discord tasks."""
     try:
@@ -214,10 +213,12 @@ def finalize_link(
         failure_reason="",
     )
 
-    DiscordTask.enqueue(AssignGroupRoles(discord_id=discord_id, authentik_groups=groups))
+    # The queue runs in order, so the team's role exists by the time the member sync looks for it
+    if team and team.is_active:
+        DiscordTask.enqueue(SetupTeamInfrastructure(team_number=team.team_number))
+    DiscordTask.enqueue(SyncMemberRoles(discord_id=discord_id))
 
     if team:
-        DiscordTask.enqueue(AssignRole(discord_id=discord_id, team_number=team.team_number))
         DiscordTask.enqueue(
             LogToChannel(message=f"User Linked: <@{discord_id}> ({discord_username}) → **{team.team_name}**")
         )

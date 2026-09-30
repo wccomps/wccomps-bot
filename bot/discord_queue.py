@@ -20,15 +20,13 @@ from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection, tea
 from core.discord_tasks import (
     PAYLOAD_TYPES,
     AddUserToThread,
-    AssignGroupRoles,
-    AssignRole,
     BroadcastMessage,
     CleanupCompetition,
     LogToChannel,
     PostComment,
     PostTicketUpdate,
-    RemoveRole,
     SetupTeamInfrastructure,
+    SyncMemberRoles,
     SyncRoles,
     SyncRolesResult,
     TaskPayload,
@@ -207,12 +205,8 @@ class DiscordQueueProcessor:
     async def _dispatch(self, payload: TaskPayload) -> Mapping[str, object] | None:
         """Run the handler for payload; what it returns is stored as the task's result."""
         match payload:
-            case AssignRole():
-                await self._handle_assign_role(payload)
-            case AssignGroupRoles():
-                await self._handle_assign_group_roles(payload)
-            case RemoveRole():
-                await self._handle_remove_role(payload)
+            case SyncMemberRoles():
+                await self._handle_sync_member_roles(payload)
             case SetupTeamInfrastructure():
                 await self._handle_setup_team_infrastructure(payload)
             case LogToChannel():
@@ -235,101 +229,29 @@ class DiscordQueueProcessor:
                 assert_never(payload)
         return None
 
-    async def _handle_assign_role(self, payload: AssignRole) -> None:
-        if not self.discord_manager:
-            raise RuntimeError("Discord manager not initialized")
+    async def _handle_sync_member_roles(self, payload: SyncMemberRoles) -> None:
+        from bot.role_sync import competition_guild, sync_member_roles
 
-        discord_id = payload.discord_id
-        team_number = payload.team_number
-
-        guild = self.discord_manager.guild
-        member = guild.get_member(discord_id)
-
+        guild = competition_guild(self.bot)
+        if not guild:
+            raise RuntimeError("Competition guild not found")
+        member = guild.get_member(payload.discord_id)
         if not member:
             try:
-                member = await guild.fetch_member(discord_id)
+                member = await guild.fetch_member(payload.discord_id)
             except discord.NotFound:
-                try:
-                    user = await self.bot.fetch_user(discord_id)
-                    username = f"{user.name} ({discord_id})"
-                except Exception:
-                    username = str(discord_id)
-
-                logger.warning(
-                    f"Member {username} not found in guild, skipping role assignment. "
-                    f"Role will be assigned when they join the server."
+                logger.info(
+                    f"Member {payload.discord_id} not in the guild; the periodic role sync covers them once they join"
                 )
                 return
-            except Exception as e:
-                logger.exception(f"Failed to fetch member {discord_id}: {e}")
-                raise
 
-        @sync_to_async
-        def get_team() -> Team:
-            return Team.objects.get(team_number=team_number)
-
-        team = await get_team()
-        if not team.discord_role_id or not team.discord_category_id:
-            logger.info(f"Setting up infrastructure for team {team_number}")
-            await self.discord_manager.setup_team_infrastructure(team_number)
-
-        success = await self.discord_manager.assign_team_role(member, team_number)
-        if not success:
-            raise RuntimeError(f"Failed to assign role to {member}")
-
-        logger.info(f"Assigned team {team_number} role to {member}")
-
-    async def _handle_assign_group_roles(self, payload: AssignGroupRoles) -> None:
-        if not self.discord_manager:
-            raise RuntimeError("Discord manager not initialized")
-
-        discord_id = payload.discord_id
-        authentik_groups = payload.authentik_groups
-
-        guild = self.discord_manager.guild
-        member = guild.get_member(discord_id)
-
-        if not member:
-            try:
-                member = await guild.fetch_member(discord_id)
-            except discord.NotFound:
-                logger.warning(f"Member {discord_id} not found in guild, skipping group role assignment")
-                return
-            except Exception as e:
-                logger.exception(f"Failed to fetch member {discord_id}: {e}")
-                raise
-
-        success = await self.discord_manager.assign_group_roles(member, authentik_groups)
-        if not success:
-            raise RuntimeError(f"Failed to assign group roles to {member}")
-
-        logger.info(f"Assigned group roles to {member}")
-
-    async def _handle_remove_role(self, payload: RemoveRole) -> None:
-        if not self.discord_manager:
-            raise RuntimeError("Discord manager not initialized")
-
-        discord_id = payload.discord_id
-        team_number = payload.team_number
-
-        guild = self.discord_manager.guild
-        member = guild.get_member(discord_id)
-
-        if not member:
-            try:
-                member = await guild.fetch_member(discord_id)
-            except discord.NotFound:
-                logger.warning(f"Member {discord_id} not in guild, skipping role removal")
-                return
-            except Exception as e:
-                logger.exception(f"Failed to fetch member {discord_id}: {e}")
-                raise
-
-        success = await self.discord_manager.remove_team_role(member, team_number)
-        if not success:
-            raise RuntimeError(f"Failed to remove role from {member}")
-
-        logger.info(f"Removed team {team_number} role from {member}")
+        # Problems are logged, not raised: retrying can't fix a missing permission or role, and the
+        # periodic sync retries this member anyway
+        stats = await sync_member_roles(guild, member)
+        logger.info(
+            f"Synced roles for {member}: {stats['roles_added']} added, {stats['roles_removed']} removed"
+            + (f"; problems: {'; '.join(c for c in stats['changes'] if c.startswith('⚠'))}" if stats["errors"] else "")
+        )
 
     async def _handle_cleanup_competition(self, payload: CleanupCompetition) -> None:
         """Run the competition cleanup requested from the ops page."""
@@ -493,14 +415,16 @@ class DiscordQueueProcessor:
 
     async def _handle_sync_roles(self, payload: SyncRoles) -> SyncRolesResult:
         """Run the Authentik role sync; its result is what the web Sync Roles page shows."""
-        from bot.role_sync import AuthentikRoleSyncManager
+        from bot.role_sync import competition_guild, sync_roles
         from bot.utils import log_to_ops_channel
 
         dry_run = payload.dry_run
-        sync_manager = AuthentikRoleSyncManager(self.bot)
+        guild = competition_guild(self.bot)
+        if not guild:
+            raise RuntimeError("Competition guild not found")
 
         try:
-            stats = await asyncio.wait_for(sync_manager.sync_roles(dry_run=dry_run), timeout=300.0)
+            stats = await asyncio.wait_for(sync_roles(guild, dry_run=dry_run), timeout=300.0)
         except TimeoutError:
             logger.error("Role sync timed out after 5 minutes")
             raise RuntimeError("Role sync timed out after 5 minutes") from None

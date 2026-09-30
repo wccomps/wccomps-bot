@@ -1,4 +1,4 @@
-"""Sync Roles page: live add-only runs are allowed, and results include the per-person list."""
+"""Sync Roles page: dry and live runs can be queued, and results include the per-person list."""
 
 import pytest
 from django.test import Client
@@ -34,32 +34,22 @@ def test_status_returns_summary_and_changes(admin_client):
         payload={"requested_by": "admin", "dry_run": True},
         result={
             "roles_added": 2,
-            "roles_removed": 0,
-            "extra_linked": 1,
-            "unlinked_holders": 3,
+            "roles_removed": 1,
             "errors": 0,
-            "changes": ["[DRY RUN] ✗ Extra: bob (Bob) has Gold Team but is not in WCComps_GoldTeam (not removed)"],
+            "changes": ["[DRY RUN] ✗ Removed Gold Team from bob (Bob) (not linked)"],
         },
     )
 
     data = admin_client.get(reverse("admin_task_status", args=[task.pk])).json()
 
     assert "2 would be added" in data["message"]
-    assert "1 linked users with extra roles" in data["message"]
-    assert "3 unlinked role holders" in data["message"]
+    assert "1 would be removed" in data["message"]
     assert data["changes"] == task.result["changes"]
 
 
 def test_status_reads_a_result_the_previous_release_left_in_the_payload(admin_client):
     """A sync the old bot finished during a rolling deploy has no result column value."""
-    result = {
-        "roles_added": 1,
-        "roles_removed": 0,
-        "extra_linked": 0,
-        "unlinked_holders": 0,
-        "errors": 0,
-        "changes": [],
-    }
+    result = {"roles_added": 1, "roles_removed": 0, "errors": 0, "changes": []}
     task = DiscordTask.objects.create(
         task_type="sync_roles",
         status="completed",

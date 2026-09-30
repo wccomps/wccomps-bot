@@ -55,15 +55,14 @@ async def unlink_team_members(
     guild: discord.Guild,
     team: Team,
     admin_user: str,
-    reason: str,
     audit_reason: str,
 ) -> int:
     """Unlink all active Discord members from a team.
 
-    Removes team role and Blueteam role, deactivates DiscordLinks, creates
-    per-member audit log entries.  Returns count of unlinked members.
+    Deactivates the DiscordLinks, syncs each member's roles so they lose what the link granted, and
+    creates per-member audit log entries. Returns count of unlinked members.
     """
-    from bot.utils import remove_blueteam_role, safe_remove_role
+    from bot.role_sync import sync_member_roles
 
     members = [m async for m in team.members.filter(is_active=True).select_related("user")]
     unlinked_count = 0
@@ -71,18 +70,13 @@ async def unlink_team_members(
     for link in members:
         member = guild.get_member(link.discord_id)
 
-        if member:
-            if team.discord_role_id:
-                role = guild.get_role(team.discord_role_id)
-                if role:
-                    await safe_remove_role(member, role, reason=reason)
-
-            await remove_blueteam_role(member, guild, reason=reason)
-
         link.is_active = False
         link.unlinked_at = timezone.now()
         await link.asave()
         unlinked_count += 1
+
+        if member:
+            await sync_member_roles(guild, member)
 
         await AuditLog.objects.acreate(
             action="user_unlinked",
@@ -340,135 +334,6 @@ class DiscordManager:
         except Exception as e:
             logger.exception(f"Error creating category: {e}")
             return None
-
-    async def assign_team_role(self, member: discord.Member, team_number: int) -> bool:
-        """Assign team role and Blueteam role to a member."""
-        team = await Team.objects.filter(team_number=team_number).afirst()
-        if not team:
-            logger.error(f"Team {team_number} not found")
-            return False
-
-        if not team.discord_role_id:
-            logger.error(f"Team {team_number} has no Discord role")
-            return False
-
-        role = self.guild.get_role(team.discord_role_id)
-        if not role:
-            logger.error(f"Role {team.discord_role_id} not found")
-            return False
-
-        try:
-            roles_to_add = [role]
-
-            blueteam_role = self.guild.get_role(settings.BLUETEAM_ROLE_ID)
-            if blueteam_role:
-                roles_to_add.append(blueteam_role)
-            else:
-                logger.warning(f"Blueteam role {settings.BLUETEAM_ROLE_ID} not found in guild")
-
-            await member.add_roles(*roles_to_add, reason="WCComps team assignment")
-            logger.info(f"Assigned {', '.join([r.name for r in roles_to_add])} to {member}")
-            return True
-        except discord.errors.Forbidden:
-            logger.exception(f"No permission to assign role to {member}")
-            return False
-        except Exception as e:
-            logger.exception(f"Error assigning team role to {member}: {e}")
-            return False
-
-    async def assign_group_roles(self, member: discord.Member, authentik_groups: list[str]) -> bool:
-        """Assign the Discord roles mapped from the member's Authentik groups (GROUP_ROLE_MAPPING)."""
-        roles_to_add = []
-
-        for group_name, role_id in settings.GROUP_ROLE_MAPPING.items():
-            if group_name in authentik_groups:
-                role = self.guild.get_role(role_id)
-                if role:
-                    roles_to_add.append(role)
-                else:
-                    logger.warning(f"Role {role_id} for group {group_name} not found in guild")
-
-        if not roles_to_add:
-            return True
-
-        try:
-            await member.add_roles(*roles_to_add, reason="WCComps Authentik group assignment")
-            logger.info(f"Assigned {', '.join([r.name for r in roles_to_add])} to {member}")
-            return True
-        except discord.errors.Forbidden:
-            logger.exception(f"No permission to assign roles to {member}")
-            return False
-        except Exception as e:
-            logger.exception(f"Error assigning group roles to {member}: {e}")
-            return False
-
-    async def remove_team_role(self, member: discord.Member, team_number: int) -> bool:
-        """Remove team role and Blueteam role from a member."""
-        team = await Team.objects.filter(team_number=team_number).afirst()
-        if not team:
-            return False
-
-        if not team.discord_role_id:
-            return False
-
-        role = self.guild.get_role(team.discord_role_id)
-        if not role:
-            return False
-
-        try:
-            roles_to_remove = [role]
-
-            blueteam_role = self.guild.get_role(settings.BLUETEAM_ROLE_ID)
-            if blueteam_role and blueteam_role in member.roles:
-                roles_to_remove.append(blueteam_role)
-
-            await member.remove_roles(*roles_to_remove, reason="WCComps team removal")
-            logger.info(f"Removed {', '.join([r.name for r in roles_to_remove])} from {member}")
-            return True
-        except discord.errors.Forbidden:
-            logger.exception(f"No permission to remove role from {member}")
-            return False
-
-    async def remove_all_team_roles(self) -> int:
-        """Remove team roles and Blueteam role from all members."""
-        teams = [t async for t in Team.objects.all()]
-        removed_count = 0
-        blueteam_role = self.guild.get_role(settings.BLUETEAM_ROLE_ID)
-
-        for team in teams:
-            if not team.discord_role_id:
-                continue
-
-            role = self.guild.get_role(team.discord_role_id)
-            if not role:
-                continue
-
-            for member in role.members:
-                try:
-                    roles_to_remove = [role]
-                    if blueteam_role and blueteam_role in member.roles:
-                        roles_to_remove.append(blueteam_role)
-
-                    await member.remove_roles(*roles_to_remove, reason="Competition ended")
-                    removed_count += 1
-                except discord.errors.Forbidden:
-                    logger.exception(f"No permission to remove role from {member}")
-
-            if role.members:
-                logger.info(f"Removed {role.name} from members")
-
-        if blueteam_role and blueteam_role.members:
-            blueteam_count = 0
-            logger.info(f"Removing Blueteam from {len(blueteam_role.members)} members")
-            for member in blueteam_role.members:
-                try:
-                    await member.remove_roles(blueteam_role, reason="Competition ended")
-                    blueteam_count += 1
-                except discord.errors.Forbidden:
-                    logger.exception(f"No permission to remove Blueteam from {member}")
-            logger.info(f"Removed Blueteam from {blueteam_count} members")
-
-        return removed_count
 
     async def _deliver_queued_announcements(self, team_number: int, channel: discord.TextChannel) -> int:
         from django.utils import timezone

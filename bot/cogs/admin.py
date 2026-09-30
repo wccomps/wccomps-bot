@@ -9,6 +9,7 @@ from discord.ext import commands
 from bot.permissions import permission_check
 from bot.utils import log_to_ops_channel, send_lines
 from core.models import AuditLog
+from core.utils import role_sync_summary
 
 logger = logging.getLogger(__name__)
 
@@ -27,40 +28,30 @@ class AdminCog(commands.Cog):
     )
     @app_commands.check(permission_check("admin"))
     async def admin_sync_roles(self, interaction: discord.Interaction) -> None:
-        """Preview the Authentik-group role sync for the competition guild (dry run only).
-
-        Preview only; the live add-only sync runs from the portal Sync Roles page.
-        """
-        from bot.role_sync import AuthentikRoleSyncManager
+        """Preview the role sync for the competition guild; the live sync runs every few minutes and from
+        the portal Sync Roles page."""
+        from bot.role_sync import competition_guild, sync_roles
 
         await interaction.response.defer(ephemeral=True)
 
         try:
-            role_sync = AuthentikRoleSyncManager(self.bot)
+            guild = competition_guild(self.bot)
+            if not guild:
+                await interaction.followup.send("Competition guild not found.", ephemeral=True)
+                return
 
             await interaction.followup.send(
                 "Starting role synchronization preview (dry run)...\n"
-                "No changes will be made. Run the add-only sync from the portal's Sync Roles page.",
+                "No changes will be made. The live sync runs every few minutes, or from the portal's Sync Roles page.",
                 ephemeral=True,
             )
 
-            stats = await role_sync.sync_roles(dry_run=True)
-
-            result_parts = ["**Role sync preview complete (dry run)**"]
-            if stats["roles_added"]:
-                result_parts.append(f"• Would add roles: {stats['roles_added']}")
-            if stats.get("extra_linked"):
-                result_parts.append(f"• Linked users with extra roles (not removed): {stats['extra_linked']}")
-            if stats.get("unlinked_holders"):
-                result_parts.append(f"• Unlinked role holders (not removed): {stats['unlinked_holders']}")
-            if stats["errors"]:
-                result_parts.append(f"• Errors: {stats['errors']}")
-
-            changes = stats.get("changes", [])
-            changes_list = [str(c) for c in changes] if isinstance(changes, list) else []
+            stats = await sync_roles(guild, dry_run=True)
+            summary = role_sync_summary(stats, dry_run=True)
+            changes_list = stats["changes"]
             await send_lines(
                 interaction,
-                "\n".join(result_parts),
+                f"**{summary}**",
                 changes_list,
                 title="Changes",
                 filename="role_sync_preview.txt",
@@ -79,11 +70,7 @@ class AdminCog(commands.Cog):
                 },
             )
 
-            summary = "\n".join(result_parts)
-            ops_msg = (
-                f"Role sync preview by {interaction.user.mention}\n{summary}\n• Changes listed: {len(changes_list)}"
-            )
-            await log_to_ops_channel(self.bot, ops_msg)
+            await log_to_ops_channel(self.bot, f"Role sync preview by {interaction.user.mention}: {summary}")
 
         except Exception as e:
             logger.error(f"Role sync failed: {e}", exc_info=True)

@@ -48,12 +48,23 @@ async def competition(db: Any) -> Team:
 
 async def test_tears_down_discord_and_database(competition: Team) -> None:
     guild = _guild("Team 03", "Staff")
+    at_sync: dict[str, object] = {}
+
+    async def record_sync(synced_guild: Any) -> dict[str, object]:
+        # The sync only removes team roles it still knows about, and only from members no longer linked
+        at_sync["team_role"] = (await Team.objects.aget(pk=competition.pk)).discord_role_id
+        at_sync["team_linked"] = await DiscordLink.objects.filter(discord_id=1, is_active=True).aexists()
+        return {"roles_added": 0, "roles_removed": 4, "errors": 0, "changes": []}
+
     with (
         patch("bot.competition_actions.log_to_ops_channel", new_callable=AsyncMock),
         patch("bot.competition_actions.update_status_channel", new_callable=AsyncMock),
-        patch("bot.discord_manager.DiscordManager.remove_all_team_roles", new=AsyncMock(return_value=4)),
+        patch("bot.role_sync.sync_roles", side_effect=record_sync) as sync,
     ):
         await run_competition_cleanup(MagicMock(), guild, "web:admin")
+
+    sync.assert_awaited_once_with(guild)
+    assert at_sync == {"team_role": 11, "team_linked": False}
 
     guild.categories[0].delete.assert_awaited_once()
     guild.categories[1].delete.assert_not_awaited()

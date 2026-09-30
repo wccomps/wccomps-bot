@@ -45,10 +45,9 @@ async def test_sync_roles_preview_with_many_changes(mock_interaction: Any, mock_
     from bot.cogs.admin import AdminCog
 
     stats = {"roles_added": 2, "roles_removed": 0, "errors": 0, "changes": LONG_LINES}
-    manager = MagicMock()
-    manager.return_value.sync_roles = AsyncMock(return_value=stats)
     with (
-        patch("bot.role_sync.AuthentikRoleSyncManager", manager),
+        patch("bot.role_sync.competition_guild", return_value=MagicMock()),
+        patch("bot.role_sync.sync_roles", new=AsyncMock(return_value=stats)),
         patch("bot.cogs.admin.log_to_ops_channel", new_callable=AsyncMock),
     ):
         cog = AdminCog(mock_bot)

@@ -8,7 +8,7 @@ from django.utils import timezone
 from core.auth_utils import require_permission
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import reset_team_password
-from core.discord_tasks import RemoveRole, SetupTeamInfrastructure
+from core.discord_tasks import SetupTeamInfrastructure, SyncMemberRoles
 from core.forms import TeamActionForm, TeamsBulkActionForm
 from core.models import AuditLog, DiscordTask
 from team.models import DiscordLink, Team, team_username
@@ -89,7 +89,12 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             target_id=team_number,
             details={"team_name": team.team_name},
         )
-        return JsonResponse({"success": True, "message": f"Team {team_number} activated"})
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Team {team_number} activated; its members get their team roles within a few minutes",
+            }
+        )
 
     elif action == "deactivate":
         team.is_active = False
@@ -101,7 +106,12 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             target_id=team_number,
             details={"team_name": team.team_name},
         )
-        return JsonResponse({"success": True, "message": f"Team {team_number} deactivated"})
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Team {team_number} deactivated; its members lose their team roles within a few minutes",
+            }
+        )
 
     elif action == "unlink_user":
         discord_id = form.cleaned_data.get("discord_id")
@@ -113,7 +123,7 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             link.is_active = False
             link.unlinked_at = timezone.now()
             link.save()
-            DiscordTask.enqueue(RemoveRole(discord_id=link.discord_id, team_number=team_number))
+            DiscordTask.enqueue(SyncMemberRoles(discord_id=link.discord_id))
 
             AuditLog.objects.create(
                 action="user_unlinked",
@@ -138,7 +148,7 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
             link.is_active = False
             link.unlinked_at = timezone.now()
             link.save()
-            DiscordTask.enqueue(RemoveRole(discord_id=link.discord_id, team_number=team_number))
+            DiscordTask.enqueue(SyncMemberRoles(discord_id=link.discord_id))
             unlinked += 1
 
         password, error = reset_team_password(team_number)
@@ -220,7 +230,12 @@ def admin_teams_bulk_action(request: HttpRequest) -> HttpResponse:
             target_id=0,
             details={"team_numbers": team_numbers, "updated_count": updated},
         )
-        return JsonResponse({"success": True, "message": f"Activated {updated} teams"})
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Activated {updated} teams; their members get their team roles within a few minutes",
+            }
+        )
 
     elif action == "deactivate":
         updated = Team.objects.filter(team_number__in=team_numbers).update(is_active=False)
@@ -231,7 +246,12 @@ def admin_teams_bulk_action(request: HttpRequest) -> HttpResponse:
             target_id=0,
             details={"team_numbers": team_numbers, "updated_count": updated},
         )
-        return JsonResponse({"success": True, "message": f"Deactivated {updated} teams"})
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Deactivated {updated} teams; their members lose their team roles within a few minutes",
+            }
+        )
 
     elif action == "recreate":
         for team_number in team_numbers:

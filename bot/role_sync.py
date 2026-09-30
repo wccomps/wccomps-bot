@@ -1,200 +1,163 @@
-"""Discord roles in the competition guild, synced from Authentik group membership."""
+"""Discord roles in the competition guild, kept in line with Authentik groups and team seats.
+
+The synced roles are the ones mapped from Authentik groups (GROUP_ROLE_MAPPING), the teams' roles and
+Blueteam. Each belongs to exactly the members whose active DiscordLink grants it; everyone else holding it
+loses it, including members who haven't linked. Bots, and roles the bot can't manage, are left alone.
+"""
 
 import asyncio
 import logging
 import time
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 import discord
 from asgiref.sync import sync_to_async
 from django.conf import settings
 
 from core.discord_tasks import SyncRolesResult
+from core.utils import role_sync_summary
 
 logger = logging.getLogger(__name__)
 
 GUILD_CHUNK_TIMEOUT = 30.0
 
 
-class AuthentikRoleSyncManager:
-    """Adds competition-guild roles to Discord-linked users (DiscordLink) from their Authentik groups (UserGroups)."""
+@dataclass(frozen=True)
+class RoleGrants:
+    """Synced role IDs, and the ones each linked Discord user should hold."""
 
-    def __init__(self, bot: discord.Client) -> None:
-        self.bot = bot
-        self.competition_guild_id = settings.COMPETITION_GUILD_ID
-        self.group_role_mapping = settings.GROUP_ROLE_MAPPING
+    managed: frozenset[int]
+    by_member: dict[int, frozenset[int]]
 
-    def _get_competition_guild(self) -> discord.Guild | None:
-        guild = self.bot.get_guild(self.competition_guild_id)
-        if not guild:
-            logger.error(f"Competition guild {self.competition_guild_id} not found")
-        return guild
 
-    async def sync_roles(self, dry_run: bool = False) -> SyncRolesResult:
-        """Add roles from Authentik groups (UserGroups) to linked users in the competition guild.
+def role_grants(discord_ids: set[int] | None = None) -> RoleGrants:
+    """What active DiscordLinks grant: the role mapped from each of the account's Authentik groups, and
+    for a seat on an active team, that team's role and Blueteam. Limited to discord_ids when given."""
+    from team.models import DiscordLink, Team
 
-        Add-only: roles a user shouldn't have are counted (extra_linked, unlinked_holders), never removed.
-        """
-        competition_guild = self._get_competition_guild()
-        if not competition_guild:
-            return {
-                "roles_added": 0,
-                "roles_removed": 0,
-                "errors": 1,
-                "extra_linked": 0,
-                "unlinked_holders": 0,
-                "changes": [],
-            }
+    mapped = settings.GROUP_ROLE_MAPPING
+    team_roles = set(Team.objects.exclude(discord_role_id=None).values_list("discord_role_id", flat=True))
+    managed = frozenset(role_id for role_id in {*mapped.values(), *team_roles, settings.BLUETEAM_ROLE_ID} if role_id)
 
-        stats: SyncRolesResult = {
-            "roles_added": 0,
-            "roles_removed": 0,
-            "errors": 0,
-            "extra_linked": 0,
-            "unlinked_holders": 0,
-            "changes": [],
-        }
+    links = DiscordLink.objects.filter(is_active=True).select_related("user__usergroups", "team")
+    if discord_ids is not None:
+        links = links.filter(discord_id__in=discord_ids)
+    by_member: dict[int, frozenset[int]] = {}
+    for link in links:
+        user_groups = getattr(link.user, "usergroups", None)
+        groups = set(user_groups.groups) if user_groups else set()
+        roles = [role_id for group, role_id in mapped.items() if group in groups]
+        if link.team and link.team.is_active:
+            roles += [link.team.discord_role_id or 0, settings.BLUETEAM_ROLE_ID]
+        by_member[link.discord_id] = frozenset(role_id for role_id in roles if role_id)
+    return RoleGrants(managed, by_member)
 
-        mode = "DRY RUN" if dry_run else "LIVE"
-        logger.info("=" * 80)
-        logger.info(f"AUTHENTIK ROLE SYNC STARTED [{mode}]")
-        logger.info(f"Competition Guild: {competition_guild.name} (ID: {competition_guild.id})")
-        logger.info(f"Group->Role Mappings: {len(self.group_role_mapping)} configured")
-        for group_name, role_id in self.group_role_mapping.items():
-            logger.info(f"  - {group_name} -> {role_id}")
-        logger.info("=" * 80)
 
-        # Chunk competition guild once at the start to get all members
-        cached_member_count = len(competition_guild.members)
-        logger.info(
-            f"Fetching all members from competition guild "
-            f"(currently have {cached_member_count} cached, chunked={competition_guild.chunked})..."
-        )
-        if not competition_guild.chunked:
-            chunk_start = time.time()
-            try:
-                await asyncio.wait_for(competition_guild.chunk(), timeout=GUILD_CHUNK_TIMEOUT)
-                chunk_duration = time.time() - chunk_start
-                logger.info(f"Guild chunk completed in {chunk_duration:.2f}s")
-            except TimeoutError:
-                chunk_duration = time.time() - chunk_start
-                logger.warning(
-                    f"Guild chunk timed out after {chunk_duration:.2f}s, "
-                    f"using cached members ({len(competition_guild.members)} available)"
-                )
+def competition_guild(bot: discord.Client) -> discord.Guild | None:
+    guild = bot.get_guild(settings.COMPETITION_GUILD_ID)
+    if not guild:
+        logger.error(f"Competition guild {settings.COMPETITION_GUILD_ID} not found")
+    return guild
+
+
+async def sync_roles(guild: discord.Guild, *, dry_run: bool = False) -> SyncRolesResult:
+    """Give every member in the guild's cache the synced roles granted to them and take away the ones not."""
+    if not guild.chunked:
+        chunk_start = time.time()
+        try:
+            await asyncio.wait_for(guild.chunk(), timeout=GUILD_CHUNK_TIMEOUT)
+        except TimeoutError:
+            logger.warning(
+                f"Guild chunk timed out after {time.time() - chunk_start:.2f}s, "
+                f"using cached members ({len(guild.members)} available)"
+            )
+    stats = await _reconcile(guild, guild.members, dry_run=dry_run, recheck=True)
+    summary = role_sync_summary(stats, dry_run=dry_run)
+    if dry_run or stats["roles_added"] or stats["roles_removed"] or stats["errors"]:
+        logger.info(summary)
+    else:
+        logger.debug(summary)
+    return stats
+
+
+async def sync_member_roles(guild: discord.Guild, member: discord.Member, *, dry_run: bool = False) -> SyncRolesResult:
+    """Sync one member, e.g. right after they link or unlink, instead of waiting for the next full pass."""
+    return await _reconcile(guild, [member], dry_run=dry_run, recheck=False)
+
+
+async def _reconcile(
+    guild: discord.Guild, members: Sequence[discord.Member], *, dry_run: bool, recheck: bool
+) -> SyncRolesResult:
+    stats: SyncRolesResult = {"roles_added": 0, "roles_removed": 0, "errors": 0, "changes": []}
+    grants = await sync_to_async(role_grants)(None if recheck else {m.id for m in members})
+    roles = _manageable_roles(guild, grants.managed, stats)
+    prefix = "[DRY RUN] " if dry_run else ""
+
+    for member in members:
+        if member.bot:
+            continue
+        granted = grants.by_member.get(member.id)
+        add, remove = _changes(member, roles, granted or frozenset())
+        if not add and not remove:
+            continue
+        if recheck:
+            # A whole-guild pass works from a snapshot; re-read this member's grant so a link made or
+            # ended since the pass began isn't undone
+            granted = (await sync_to_async(role_grants)({member.id})).by_member.get(member.id)
+            add, remove = _changes(member, roles, granted or frozenset())
+        who = f"{member.name} ({member.display_name})"
+        reason = "not granted by their Authentik groups or team seat" if granted is not None else "not linked"
+        try:
+            if add and not dry_run:
+                await member.add_roles(*add, reason="Authentik sync: granted")
+            if remove and not dry_run:
+                await member.remove_roles(*remove, reason=f"Authentik sync: {reason}")
+        except discord.HTTPException as e:
+            logger.warning(f"Could not update roles for {who}: {e}")
+            stats["errors"] += 1
+            stats["changes"].append(f"⚠ Could not update roles for {who}: {e}")
+            continue
+        stats["roles_added"] += len(add)
+        stats["roles_removed"] += len(remove)
+        stats["changes"] += [f"{prefix}✓ Added {role.name} to {who}" for role in add]
+        stats["changes"] += [f"{prefix}✗ Removed {role.name} from {who} ({reason})" for role in remove]
+    return stats
+
+
+def _manageable_roles(
+    guild: discord.Guild, role_ids: frozenset[int], stats: SyncRolesResult
+) -> dict[int, discord.Role]:
+    """The synced roles the bot can assign; each problem is reported once rather than failing per member."""
+    if not guild.me.guild_permissions.manage_roles:
+        _report(stats, "Bot lacks the Manage Roles permission, so no roles were synced")
+        return {}
+    roles: dict[int, discord.Role] = {}
+    for role_id in sorted(role_ids):
+        role = guild.get_role(role_id)
+        if role is None:
+            _report(stats, f"Role {role_id} is configured but not in the guild")
+        elif not role.is_assignable():
+            _report(
+                stats,
+                f"Bot can't assign {role.name}: it is @everyone, managed by an integration, "
+                "or at or above the bot's top role",
+            )
         else:
-            logger.info("Guild already chunked, skipping chunk request")
-        logger.info(f"Competition guild has {len(competition_guild.members)} total members")
+            roles[role_id] = role
+    return roles
 
-        @sync_to_async
-        def get_authentik_data() -> tuple[dict[str, set[int]], set[int]]:
-            """Get Authentik group name -> linked Discord IDs, plus every linked Discord ID."""
-            from core.models import UserGroups
-            from team.models import DiscordLink
 
-            group_to_discord_ids: dict[str, set[int]] = {group_name: set() for group_name in self.group_role_mapping}
+def _report(stats: SyncRolesResult, problem: str) -> None:
+    logger.warning(problem)
+    stats["errors"] += 1
+    stats["changes"].append(f"⚠ {problem}")
 
-            discord_links = DiscordLink.objects.filter(is_active=True).select_related("user")
-            linked_discord_ids = {link.discord_id for link in discord_links}
 
-            for link in discord_links:
-                try:
-                    user_groups = UserGroups.objects.get(user=link.user)
-                    for group_name in self.group_role_mapping:
-                        if group_name in user_groups.groups:
-                            group_to_discord_ids[group_name].add(link.discord_id)
-                except UserGroups.DoesNotExist:
-                    continue
-
-            return group_to_discord_ids, linked_discord_ids
-
-        group_to_discord_ids, linked_discord_ids = await get_authentik_data()
-
-        for group_name, discord_ids in group_to_discord_ids.items():
-            logger.info(f"  {group_name}: {len(discord_ids)} linked Discord users")
-
-        for group_name, role_id in self.group_role_mapping.items():
-            try:
-                await self._sync_authentik_group(
-                    competition_guild,
-                    group_name,
-                    role_id,
-                    group_to_discord_ids[group_name],
-                    linked_discord_ids,
-                    stats,
-                    dry_run,
-                )
-            except Exception as e:
-                logger.error(
-                    f"Error syncing group {group_name} -> role {role_id}: {e}",
-                    exc_info=True,
-                )
-                stats["errors"] = stats["errors"] + 1
-
-        logger.info("=" * 80)
-        logger.info(f"AUTHENTIK ROLE SYNC COMPLETE [{mode}]")
-        logger.info(f"Roles Added: {stats['roles_added']}")
-        logger.info(f"Roles Removed: {stats['roles_removed']}")
-        logger.info(f"Errors: {stats['errors']}")
-        changes = stats.get("changes", [])
-        if isinstance(changes, list):
-            logger.info(f"Total Changes: {len(changes)}")
-        logger.info("=" * 80)
-        return stats
-
-    async def _sync_authentik_group(
-        self,
-        competition_guild: discord.Guild,
-        group_name: str,
-        role_id: int,
-        should_have_role_discord_ids: set[int],
-        linked_discord_ids: set[int],
-        stats: SyncRolesResult,
-        dry_run: bool,
-    ) -> None:
-        """Sync one Authentik group to its Discord role. Only ever ADDS the role.
-
-        Most volunteers haven't linked yet, so removing roles from everyone not proven to be in
-        the group would strip real staff. Holders who shouldn't have the role are reported instead:
-        linked users outside the group (extra permissions) and unlinked users (can't verify yet).
-        """
-        competition_role = competition_guild.get_role(role_id)
-        if not competition_role:
-            msg = f"Discord role for {group_name} is not configured or not found (role ID {role_id})"
-            logger.warning(msg)
-            stats["errors"] = stats["errors"] + 1
-            stats["changes"].append(f"⚠ {msg}")
-            return
-
-        prefix = "[DRY RUN] " if dry_run else ""
-        for member in competition_guild.members:
-            if member.bot:
-                continue
-            try:
-                has_role = competition_role in member.roles
-                who = f"{member.name} ({member.display_name})"
-                if member.id in should_have_role_discord_ids:
-                    if not has_role:
-                        if not dry_run:
-                            await member.add_roles(competition_role, reason=f"Authentik sync: member of {group_name}")
-                        stats["roles_added"] = stats["roles_added"] + 1
-                        stats["changes"].append(f"{prefix}✓ Added {competition_role.name} to {who}")
-                elif has_role and member.id in linked_discord_ids:
-                    stats["extra_linked"] = stats.get("extra_linked", 0) + 1
-                    stats["changes"].append(
-                        f"{prefix}✗ Extra: {who} has {competition_role.name} but is not in {group_name} (not removed)"
-                    )
-                elif has_role:
-                    stats["unlinked_holders"] = stats.get("unlinked_holders", 0) + 1
-                    stats["changes"].append(
-                        f"{prefix}? Unverified: {who} has {competition_role.name} but has not linked (not removed)"
-                    )
-            except discord.errors.Forbidden as e:
-                error_msg = f"Missing permissions to modify roles for {member.name} (ID: {member.id}): {e}"
-                logger.exception(error_msg)
-                stats["errors"] = stats["errors"] + 1
-                stats["changes"].append(f"⚠ {error_msg}")
-            except Exception as e:
-                error_msg = f"Error syncing role for {member.name} (ID: {member.id}): {e}"
-                logger.error(error_msg, exc_info=True)
-                stats["errors"] = stats["errors"] + 1
-                stats["changes"].append(f"⚠ {error_msg}")
+def _changes(
+    member: discord.Member, roles: dict[int, discord.Role], granted: frozenset[int]
+) -> tuple[list[discord.Role], list[discord.Role]]:
+    held = {role.id for role in member.roles}
+    add = [role for role_id, role in roles.items() if role_id in granted and role_id not in held]
+    remove = [role for role_id, role in roles.items() if role_id not in granted and role_id in held]
+    return add, remove

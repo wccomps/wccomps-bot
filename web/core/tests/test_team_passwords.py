@@ -72,7 +72,7 @@ def test_authentik_reset_leaves_the_account_disabled():
 
 
 @pytest.mark.parametrize("action", ["unlink_user", "reset"])
-def test_web_unlink_queues_discord_role_removal(admin_user, action):
+def test_web_unlink_queues_a_role_sync_for_the_member(admin_user, action):
     team = Team.objects.create(team_number=8, team_name="Team 08")
     member = User.objects.create(username="member08")
     DiscordLink.objects.create(user=member, discord_id=4242, discord_username="m", team=team, is_active=True)
@@ -86,5 +86,6 @@ def test_web_unlink_queues_discord_role_removal(admin_user, action):
         manager.return_value.revoke_user_sessions.return_value = (True, "", 0)
         client.post(reverse("admin_team_action", args=[8]), {"action": action, "discord_id": 4242})
 
-    task = DiscordTask.objects.get(task_type="remove_role")
-    assert task.payload == {"discord_id": 4242, "team_number": 8}
+    task = DiscordTask.objects.get(task_type="sync_member_roles")
+    assert task.payload == {"discord_id": 4242}
+    assert not DiscordLink.objects.filter(discord_id=4242, is_active=True).exists()

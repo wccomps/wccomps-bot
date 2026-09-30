@@ -95,6 +95,17 @@ def test_empty_authentik_listing_changes_nothing():
     assert _groups("a") == ["WCComps_Discord_Admin"]
 
 
+@pytest.mark.parametrize("groups", [[], [g for g in GROUPS if g["pk"] != "g-gold"], GROUPS[1:]])
+def test_incomplete_group_listing_changes_nothing(groups):
+    """Users are listed but their groups (or a parent) are missing, e.g. an empty or short groups page."""
+    _stored("a", ["WCComps_Discord_Admin", "WCComps_GoldTeam", "WCComps_Ticketing_Admin"])
+
+    with pytest.raises(GroupRefreshAbortedError, match="missing"):
+        refresh_user_groups(_manager([_authentik_user("a", ["g-gold", "g-tadmin"])], groups=groups))
+
+    assert _groups("a") == ["WCComps_Discord_Admin", "WCComps_GoldTeam", "WCComps_Ticketing_Admin"]
+
+
 def test_mostly_unrecognised_ids_change_nothing():
     """If most users with groups aren't found (e.g. the provider's subject mode changed), stop."""
     for uid in ("a", "b", "c"):

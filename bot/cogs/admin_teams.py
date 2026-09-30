@@ -11,13 +11,8 @@ from django.utils import timezone
 
 from bot.discord_manager import delete_team_infrastructure, unlink_team_members
 from bot.permissions import permission_check
-from bot.utils import (
-    get_team_or_respond,
-    log_to_ops_channel,
-    remove_blueteam_role,
-    safe_remove_role,
-    send_lines,
-)
+from bot.role_sync import sync_member_roles
+from bot.utils import get_team_or_respond, log_to_ops_channel, send_lines
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog, CompetitionConfig
@@ -163,20 +158,7 @@ class AdminTeamsCog(commands.Cog):
                 await link.asave()
 
                 if member:
-                    if team.discord_role_id:
-                        role = interaction.guild.get_role(team.discord_role_id)
-                        if role:
-                            await safe_remove_role(
-                                member,
-                                role,
-                                reason=f"Unlinked by {interaction.user}",
-                            )
-
-                    await remove_blueteam_role(
-                        member,
-                        interaction.guild,
-                        reason=f"Unlinked by {interaction.user}",
-                    )
+                    await sync_member_roles(interaction.guild, member)
 
                 await AuditLog.objects.acreate(
                     action="user_unlinked",
@@ -248,7 +230,6 @@ class AdminTeamsCog(commands.Cog):
             guild,
             team,
             str(interaction.user),
-            reason=f"Team {team_number} removed by {interaction.user}",
             audit_reason="team_removed",
         )
 
@@ -320,7 +301,6 @@ class AdminTeamsCog(commands.Cog):
             guild,
             team,
             str(interaction.user),
-            reason=f"Team {team_number} reset by {interaction.user}",
             audit_reason="team_reset",
         )
 
@@ -511,7 +491,8 @@ class AdminTeamsCog(commands.Cog):
         )
 
         summary = "**Team Deactivation Results**\n\n"
-        summary += f"✓ Deactivated: {success_count}/{len(team_numbers)}\n\n"
+        summary += f"✓ Deactivated: {success_count}/{len(team_numbers)}\n"
+        summary += "Their members lose their team roles within a few minutes; reactivating restores them.\n\n"
 
         await send_lines(interaction, summary.rstrip(), results, title="Details", filename="results.txt")
 

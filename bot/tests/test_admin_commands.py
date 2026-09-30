@@ -130,7 +130,7 @@ class TestAdminCommands:
         mock_admin_user: Any,
         mock_bot: Any,
     ) -> None:
-        """Test /admin remove-team removes roles BEFORE deactivating links and creates audit log."""
+        """/admin remove-team unlinks the members, syncs their roles away, deletes the team's Discord objects."""
         mock_interaction.user.id = mock_admin_user._discord_id
 
         team_number = 13
@@ -190,25 +190,15 @@ class TestAdminCommands:
         category.delete = AsyncMock()
         team_role.delete = AsyncMock()
 
-        mock_safe_remove_role = AsyncMock()
-        mock_remove_blueteam = AsyncMock()
+        synced: list[tuple[int, bool]] = []
 
-        # Track call order to verify roles are removed BEFORE links deactivated
-        call_order = []
-
-        async def track_role_removal(*args, **kwargs):
-            call_order.append(("role_removed", args[1].name if args else "unknown"))
-
-        async def track_blueteam_removal(*args, **kwargs):
-            call_order.append(("blueteam_removed", args[0].id))
-
-        mock_safe_remove_role.side_effect = track_role_removal
-        mock_remove_blueteam.side_effect = track_blueteam_removal
+        async def record_sync(guild: Any, member: Any) -> None:
+            still_linked = await DiscordLink.objects.filter(discord_id=member.id, is_active=True).aexists()
+            synced.append((member.id, still_linked))
 
         callback = AdminTeamsCog.admin_remove_team.callback
         with (
-            patch("bot.utils.safe_remove_role", mock_safe_remove_role),
-            patch("bot.utils.remove_blueteam_role", mock_remove_blueteam),
+            patch("bot.role_sync.sync_member_roles", side_effect=record_sync),
             patch_globals(callback, {"log_to_ops_channel": AsyncMock()}),
         ):
             cog = AdminTeamsCog(mock_bot)
@@ -220,17 +210,14 @@ class TestAdminCommands:
             send_call_args = mock_interaction.followup.send.call_args
             assert "Removed" in send_call_args.args[0]
 
-            # Verify links were deactivated AFTER role removal
+            # Each member's roles are synced once their link is already inactive, so they lose them
+            assert sorted(synced) == [(111111111, False), (222222222, False)]
             await member1_link.arefresh_from_db()
             await member2_link.arefresh_from_db()
             assert member1_link.is_active is False
             assert member2_link.is_active is False
             assert member1_link.unlinked_at is not None
             assert member2_link.unlinked_at is not None
-
-            # Verify role removal was called for each member
-            assert mock_safe_remove_role.call_count >= 2
-            assert mock_remove_blueteam.call_count >= 2
 
             # Verify category and role were deleted
             category.delete.assert_called_once()
@@ -262,7 +249,7 @@ class TestAdminCommands:
     async def test_admin_unlink_deactivates_link_and_removes_roles(
         self, mock_interaction: Any, mock_admin_user: Any, mock_bot: Any
     ) -> None:
-        """Test that admin_unlink deactivates the Discord link and removes roles."""
+        """admin_unlink deactivates the Discord link, then syncs the member's roles."""
         mock_interaction.user.id = mock_admin_user._discord_id
         mock_interaction.user.name = "admin_user"
         mock_interaction.user.mention = "<@211533935144992768>"
@@ -306,37 +293,28 @@ class TestAdminCommands:
         # Mock guild.get_member to return the member
         mock_interaction.guild.get_member.return_value = member_mock
 
-        mock_safe_remove = AsyncMock()
-        mock_remove_blueteam = AsyncMock()
         mock_log_ops = AsyncMock()
+        still_linked_at_sync: list[bool] = []
+
+        async def record_sync(guild: Any, member: Any) -> None:
+            still_linked_at_sync.append(
+                await DiscordLink.objects.filter(discord_id=member.id, is_active=True).aexists()
+            )
+
+        mock_sync = AsyncMock(side_effect=record_sync)
 
         callback = AdminTeamsCog.admin_unlink.callback
-        with patch_globals(
-            callback,
-            {
-                "safe_remove_role": mock_safe_remove,
-                "remove_blueteam_role": mock_remove_blueteam,
-                "log_to_ops_channel": mock_log_ops,
-            },
-        ):
+        with patch_globals(callback, {"sync_member_roles": mock_sync, "log_to_ops_channel": mock_log_ops}):
             cog = AdminTeamsCog(mock_bot)
             await cog.admin_unlink.callback(cog, mock_interaction, str(member_id))
 
-            # Verify link was deactivated
             updated_link = await DiscordLink.objects.aget(discord_id=member_id)
             assert updated_link.is_active is False
             assert updated_link.unlinked_at is not None
 
-            # Verify role removal was called
-            mock_safe_remove.assert_called_once()
-            call_args = mock_safe_remove.call_args
-            assert call_args[0][0] == member_mock
-            assert call_args[0][1] == team_role
-
-            mock_remove_blueteam.assert_called_once()
-            call_args = mock_remove_blueteam.call_args
-            assert call_args[0][0] == member_mock
-            assert call_args[0][1] == mock_interaction.guild
+            # The member's roles are synced after the link ends, so every synced role goes at once
+            mock_sync.assert_awaited_once_with(mock_interaction.guild, member_mock)
+            assert still_linked_at_sync == [False]
 
             # Verify audit log was created
             audit_logs = [log async for log in AuditLog.objects.filter(action="user_unlinked")]
