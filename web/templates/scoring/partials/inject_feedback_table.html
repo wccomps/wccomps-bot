@@ -9,7 +9,7 @@
             <c-table id="inject_feedback" aria_label="Inject feedback review">
                 <c-slot name="headers">
                     <tr>
-                        <th scope="col" class="w-40">
+                        <th scope="col" class="action-checkbox-column">
                             <input type="checkbox"
                                    :checked="allSelected"
                                    :indeterminate="someSelected"
@@ -41,7 +41,7 @@
                 </c-slot>
                 {% for score in scores %}
                     <tr>
-                        <td>
+                        <td class="action-checkbox">
                             {% if not score.feedback_approved %}
                                 <input type="checkbox"
                                        name="score_ids"

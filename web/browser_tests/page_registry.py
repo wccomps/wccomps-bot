@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 class PageDef:
     url_name: str
     url_kwargs: dict[str, str | int] = field(default_factory=dict)
-    needs_data: str | None = None  # "ticket", "team" — keys into test_data dict
+    needs_data: str | None = None  # "ticket", "team", "orange_check", "packet" — keys into test_data dict
     allowed_roles: list[str] = field(default_factory=list)
     denied_roles: list[str] = field(default_factory=list)
     expect_redirect: bool = False  # True if page redirects (e.g., home)
@@ -191,6 +191,12 @@ PAGES: list[PageDef] = [
         allowed_roles=["gold_team", "admin"],
         denied_roles=["blue_team", "red_team", "unauthenticated"],
     ),
+    PageDef(
+        url_name="scoring:scorecard",
+        needs_data="team",
+        allowed_roles=["gold_team", "white_team", "red_team", "ticketing_admin", "admin"],
+        denied_roles=["blue_team", "orange_team", "unauthenticated"],
+    ),
     # =========================================================================
     # Orange Team
     # =========================================================================
@@ -209,6 +215,22 @@ PAGES: list[PageDef] = [
         allowed_roles=["gold_team", "admin"],
         denied_roles=["blue_team", "red_team", "orange_team", "unauthenticated"],
     ),
+    PageDef(
+        url_name="orange_team:team_checkins",
+        allowed_roles=["gold_team", "admin"],
+        denied_roles=["blue_team", "orange_team", "unauthenticated"],
+    ),
+    PageDef(
+        url_name="orange_team:review_queue",
+        allowed_roles=["gold_team", "admin"],
+        denied_roles=["blue_team", "orange_team", "unauthenticated"],
+    ),
+    PageDef(
+        url_name="orange_team:check_detail",
+        needs_data="orange_check",
+        allowed_roles=["gold_team", "admin"],
+        denied_roles=["blue_team", "orange_team", "unauthenticated"],
+    ),
     # =========================================================================
     # Packets
     # =========================================================================
@@ -219,6 +241,12 @@ PAGES: list[PageDef] = [
     ),
     PageDef(
         url_name="packets_list",
+        allowed_roles=["gold_team", "admin"],
+        denied_roles=["blue_team", "red_team", "unauthenticated"],
+    ),
+    PageDef(
+        url_name="packet_detail",
+        needs_data="packet",
         allowed_roles=["gold_team", "admin"],
         denied_roles=["blue_team", "red_team", "unauthenticated"],
     ),

@@ -12,7 +12,7 @@
             <table id="result_list" role="grid" aria-label="Orange team checks list">
                 <thead>
                     <tr role="row">
-                        <th scope="col" class="w-40">
+                        <th scope="col" class="action-checkbox-column">
                             <input type="checkbox"
                                    :checked="allSelected"
                                    :indeterminate="someSelected"
@@ -51,7 +51,7 @@
                 <tbody>
                     {% for check in page_obj %}
                         <tr class="{% cycle 'row1' 'row2' %}" role="row">
-                            <td>
+                            <td class="action-checkbox">
                                 {% if not check.is_approved %}
                                     <input type="checkbox"
                                            name="adjustment_ids"
