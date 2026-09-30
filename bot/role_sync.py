@@ -19,8 +19,6 @@ class RoleSyncStats(TypedDict, total=False):
     roles_added: int
     roles_removed: int
     errors: int
-    extra_linked: int  # linked users holding a role their Authentik groups don't grant
-    unlinked_holders: int  # unlinked users holding a synced role (can't verify)
     changes: list[str]
 
 
@@ -49,7 +47,8 @@ class AuthentikRoleSyncManager:
         in the competition guild.
 
         progress_callback, if given, is awaited with (current, total, role_name) per group mapping.
-        Add-only: roles a user shouldn't have are counted (extra_linked, unlinked_holders), never removed.
+        A mapped role belongs to exactly the linked members of its group: it is removed from everyone
+        else holding it, including members who haven't linked.
         """
         competition_guild = self._get_competition_guild()
         if not competition_guild:
@@ -59,8 +58,6 @@ class AuthentikRoleSyncManager:
             "roles_added": 0,
             "roles_removed": 0,
             "errors": 0,
-            "extra_linked": 0,
-            "unlinked_holders": 0,
             "changes": [],
         }
 
@@ -129,10 +126,10 @@ class AuthentikRoleSyncManager:
         await self._sync_team_roles(competition_guild, team_seats, stats, dry_run)
 
         summary = (
-            f"Role sync [{mode}]: {stats['roles_added']} added, {stats['errors']} errors, "
-            f"{stats.get('extra_linked', 0)} extra, {stats.get('unlinked_holders', 0)} unverified"
+            f"Role sync [{mode}]: {stats['roles_added']} added, {stats['roles_removed']} removed, "
+            f"{stats['errors']} errors"
         )
-        if dry_run or stats["roles_added"] or stats["errors"]:
+        if dry_run or stats["roles_added"] or stats["roles_removed"] or stats["errors"]:
             logger.info(summary)
         else:
             logger.debug(summary)
@@ -178,12 +175,9 @@ class AuthentikRoleSyncManager:
         stats: RoleSyncStats,
         dry_run: bool,
     ) -> None:
-        """Sync one Authentik group to its Discord role. Only ever ADDS the role.
-
-        Most volunteers haven't linked yet, so removing roles from everyone not proven to be in
-        the group would strip real staff. Holders who shouldn't have the role are reported instead:
-        linked users outside the group (extra permissions) and unlinked users (can't verify yet).
-        """
+        """Sync one Authentik group to its Discord role: add it to linked members of the group and remove it
+        from every other holder. Someone who hasn't linked can't be shown to be in the group, so they lose it
+        until they link."""
         competition_role = competition_guild.get_role(role_id)
         if not competition_role:
             msg = f"Discord role for {group_name} is not configured or not found (role ID {role_id})"
@@ -205,16 +199,12 @@ class AuthentikRoleSyncManager:
                             await member.add_roles(competition_role, reason=f"Authentik sync: member of {group_name}")
                         stats["roles_added"] = stats["roles_added"] + 1
                         stats["changes"].append(f"{prefix}✓ Added {competition_role.name} to {who}")
-                elif has_role and member.id in linked_discord_ids:
-                    stats["extra_linked"] = stats.get("extra_linked", 0) + 1
-                    stats["changes"].append(
-                        f"{prefix}✗ Extra: {who} has {competition_role.name} but is not in {group_name} (not removed)"
-                    )
                 elif has_role:
-                    stats["unlinked_holders"] = stats.get("unlinked_holders", 0) + 1
-                    stats["changes"].append(
-                        f"{prefix}? Unverified: {who} has {competition_role.name} but has not linked (not removed)"
-                    )
+                    reason = f"not in {group_name}" if member.id in linked_discord_ids else "not linked"
+                    if not dry_run:
+                        await member.remove_roles(competition_role, reason=f"Authentik sync: {reason}")
+                    stats["roles_removed"] = stats["roles_removed"] + 1
+                    stats["changes"].append(f"{prefix}✗ Removed {competition_role.name} from {who} ({reason})")
             except discord.errors.Forbidden as e:
                 error_msg = f"Missing permissions to modify roles for {member.name} (ID: {member.id}): {e}"
                 logger.warning(error_msg)

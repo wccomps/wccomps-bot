@@ -1,4 +1,4 @@
-"""Sync Roles page: live add-only runs are allowed, and results include the per-person list."""
+"""Sync Roles page: live runs are allowed, and results include the per-person list."""
 
 import pytest
 from django.test import Client
@@ -36,12 +36,10 @@ def test_status_returns_summary_and_changes(admin_client):
             "dry_run": True,
             "result": {
                 "roles_added": 2,
-                "roles_removed": 0,
-                "extra_linked": 1,
-                "unlinked_holders": 3,
+                "roles_removed": 1,
                 "errors": 0,
                 "dry_run": True,
-                "changes": ["[DRY RUN] ✗ Extra: bob (Bob) has Gold Team but is not in WCComps_GoldTeam (not removed)"],
+                "changes": ["[DRY RUN] ✗ Removed Gold Team from bob (Bob) (not in WCComps_GoldTeam)"],
             },
         },
     )
@@ -49,8 +47,7 @@ def test_status_returns_summary_and_changes(admin_client):
     data = admin_client.get(reverse("admin_task_status", args=[task.pk])).json()
 
     assert "2 would be added" in data["message"]
-    assert "1 linked users with extra roles" in data["message"]
-    assert "3 unlinked role holders" in data["message"]
+    assert "1 would be removed" in data["message"]
     assert data["changes"] == task.payload["result"]["changes"]
 
 

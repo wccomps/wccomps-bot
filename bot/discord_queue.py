@@ -506,8 +506,6 @@ class DiscordQueueProcessor:
             task.payload["result"] = {
                 "roles_added": stats["roles_added"],
                 "roles_removed": stats["roles_removed"],
-                "extra_linked": stats.get("extra_linked", 0),
-                "unlinked_holders": stats.get("unlinked_holders", 0),
                 "errors": stats["errors"],
                 "changes_count": len(stats["changes"]),
                 "changes": stats["changes"],

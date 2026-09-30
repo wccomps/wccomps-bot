@@ -130,12 +130,10 @@ def role_sync_summary(stats: Mapping[str, object], *, dry_run: bool) -> str:
 
     Lives in core, not bot/, so web code doesn't import the bot package.
     """
-    added = "would be added" if dry_run else "added"
+    added, removed = ("would be added", "would be removed") if dry_run else ("added", "removed")
     return (
         f"{'[DRY RUN] ' if dry_run else ''}Role sync complete: {stats.get('roles_added', 0)} {added}, "
-        f"{stats.get('extra_linked', 0)} linked users with extra roles, "
-        f"{stats.get('unlinked_holders', 0)} unlinked role holders, {stats.get('errors', 0)} errors "
-        "(roles are never removed automatically)"
+        f"{stats.get('roles_removed', 0)} {removed}, {stats.get('errors', 0)} errors"
     )
 
 

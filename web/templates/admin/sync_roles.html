@@ -15,7 +15,7 @@
                 <ul class="text-muted mb-10">
                     <li>Users in Authentik groups (e.g., WCComps_GoldTeam) will get corresponding Discord roles</li>
                     <li>Users must have linked their Discord account to be synced</li>
-                    <li>Roles are only ever added. Anyone holding a role they shouldn't is listed for manual review, never removed</li>
+                    <li>Anyone else holding a synced role loses it, including members who haven't linked; they get it back once they link and are in the group</li>
                 </ul>
                 <c-button_row class="mt-20">
                     <c-button variant="primary" @click="requestSyncPreview" ::disabled="loading">
