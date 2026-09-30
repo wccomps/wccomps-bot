@@ -54,8 +54,6 @@ class RemoveRole:
 
 @dataclass(frozen=True, kw_only=True)
 class SetupTeamInfrastructure:
-    """Create a team's Discord role and channels."""
-
     task_type: ClassVar = "setup_team_infrastructure"
     label: ClassVar = "Setup Team Infrastructure"
     team_number: int
@@ -85,8 +83,6 @@ class PostTicketUpdate:
 
 @dataclass(frozen=True, kw_only=True)
 class TicketCreatedWeb:
-    """A ticket opened on the web, which needs its Discord thread."""
-
     task_type: ClassVar = "ticket_created_web"
     label: ClassVar = "Ticket Created via Web"
     ticket_id: int
@@ -105,7 +101,7 @@ class SyncRolesResult(TypedDict):
 
 @dataclass(frozen=True, kw_only=True)
 class SyncRoles:
-    """Sync competition-guild roles from Authentik groups; the SyncRolesResult lands in DiscordTask.result."""
+    """The SyncRolesResult lands in DiscordTask.result."""
 
     task_type: ClassVar = "sync_roles"
     label: ClassVar = "Sync Roles from Authentik Groups"

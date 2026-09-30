@@ -124,6 +124,16 @@ class TestDiscordTaskModel:
     def test_enqueue_leaves_the_ticket_unset_for_payloads_without_one(self):
         assert DiscordTask.enqueue(SyncRoles(requested_by="ops", dry_run=True)).ticket_id is None
 
+    def test_typed_payload_takes_a_missing_ticket_id_from_the_ticket_fk(self, box_reset_category):
+        """The previous release's web left post_ticket_update's ticket on the FK only."""
+        from ticketing.models import Ticket
+
+        team = Team.objects.create(team_number=3, team_name="Team 03")
+        ticket = Ticket.objects.create(ticket_number="T003-001", team=team, category=box_reset_category, title="t")
+        task = DiscordTask(task_type="post_ticket_update", ticket=ticket, payload={"action": "claimed", "actor": "ops"})
+
+        assert task.typed_payload() == PostTicketUpdate(ticket_id=ticket.id, action="claimed", actor="ops")
+
     def test_typed_payload_ignores_keys_the_type_does_not_declare(self):
         task = DiscordTask(task_type="sync_roles", payload={"requested_by": "ops", "dry_run": True, "progress": {}})
 
