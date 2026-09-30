@@ -89,8 +89,9 @@ async def test_refuses_while_the_competition_runs(competition: Team) -> None:
 async def test_queued_cleanup_runs_the_shared_function() -> None:
     task = await DiscordTask.objects.acreate(task_type="cleanup_competition", payload={"requested_by": "web:admin"})
     processor = DiscordQueueProcessor(MagicMock())
-    processor.discord_manager = MagicMock()
+    guild = MagicMock()
+    processor._guild = MagicMock(return_value=guild)
     with patch("bot.competition_actions.run_competition_cleanup", new_callable=AsyncMock) as cleanup:
         await processor._handle_cleanup_competition(task.typed_payload())
 
-    cleanup.assert_awaited_once_with(processor.bot, processor.discord_manager.guild, "web:admin")
+    cleanup.assert_awaited_once_with(processor.bot, guild, "web:admin")

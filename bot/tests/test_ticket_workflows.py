@@ -72,18 +72,17 @@ class TestTicketCreationWorkflow:
 
         category.channels = [text_channel]
 
-        # Set up a mock guild and discord_manager so the shared utility can find the channel
+        # A mock competition guild so the shared utility can find the channel
         guild = MagicMock(spec=discord.Guild)
         guild.get_channel.return_value = category
         guild.get_member.return_value = None  # No members to add
 
-        discord_manager = MagicMock()
-        discord_manager.guild = guild
-
         # Process task (simulating queue processor)
-        with patch("bot.ticket_dashboard.trigger_dashboard"):
+        with (
+            patch("bot.ticket_dashboard.trigger_dashboard"),
+            patch("bot.discord_queue.competition_guild", return_value=guild),
+        ):
             processor = DiscordQueueProcessor(bot)
-            processor.discord_manager = discord_manager
             await processor._handle_ticket_created_web(task.typed_payload())
 
         # Verify thread created with correct metadata
