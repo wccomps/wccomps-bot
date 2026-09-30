@@ -55,7 +55,7 @@
                         </td>
                         <td class="field-secondary_email">
                             {% if item.school_info %}
-                                {{ item.school_info.secondary_contact_email|default:"—" }}
+                                {{ item.school_info.secondary_email|default:"—" }}
                             {% else %}
                                 Not set
                             {% endif %}
