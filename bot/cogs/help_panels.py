@@ -9,9 +9,9 @@ from asgiref.sync import sync_to_async
 from discord.ext import commands
 from django.conf import settings
 
+from bot.permissions import linked_team_member
 from bot.thread_creator import publish_new_ticket
 from core.tickets_config import TicketCategoryConfig, get_all_categories, get_category_config
-from team.models import DiscordLink
 from ticketing.models import TicketCategory
 from ticketing.utils import TicketRateLimitError
 
@@ -29,11 +29,8 @@ async def create_ticket(
     """Create a ticket from a Discord modal submission."""
     await interaction.response.defer(ephemeral=True)
 
-    link = await (
-        DiscordLink.objects.filter(discord_id=interaction.user.id, is_active=True).select_related("team").afirst()
-    )
-
-    if not link or not link.team:
+    member = await linked_team_member(interaction.user.id)
+    if not member:
         await interaction.followup.send(
             "You must be linked to a competition team to create tickets.\nClick the **🔗 Link Account** button first.",
             ephemeral=True,
@@ -66,7 +63,7 @@ async def create_ticket(
 
         category_obj = await TicketCategory.objects.aget(pk=cat_id_int)
         ticket = await acreate_ticket_atomic(
-            team=link.team,
+            team=member.team,
             category=category_obj,
             title=cat_info["display_name"],
             description=description,
@@ -77,7 +74,7 @@ async def create_ticket(
         )
 
     except TicketRateLimitError as e:
-        logger.warning(f"Ticket rate limit hit by {interaction.user.name} for {link.team.team_name}")
+        logger.warning(f"Ticket rate limit hit by {interaction.user.name} for {member.team.team_name}")
         await interaction.followup.send(str(e), ephemeral=True)
         return
     except Exception as e:

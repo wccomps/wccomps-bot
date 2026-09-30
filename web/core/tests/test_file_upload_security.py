@@ -34,7 +34,7 @@ class TestFileUploadConstraints:
         team = Team.objects.create(
             team_number=1,
             team_name="Test Team",
-            authentik_group="WCComps_BlueTeam1",
+            authentik_group="WCComps_BlueTeam01",
         )
         ticket = Ticket.objects.create(
             ticket_number="T001-001",
@@ -58,8 +58,7 @@ class TestFileUploadConstraints:
         request.user.is_authenticated = True
 
         with (
-            patch("ticketing.views.attachments.get_authentik_groups", return_value=["WCComps_BlueTeam01"]),
-            patch("ticketing.views.attachments.get_team_from_groups", return_value=(team, 1, True)),
+            patch("ticketing.views.attachments.get_user_team", return_value=team),
             patch("ticketing.views.attachments.has_permission", return_value=False),
         ):
             response = ticket_attachment_upload(request, ticket_number=ticket.ticket_number)
@@ -78,12 +77,12 @@ class TestFileUploadAuthorizationBypass:
         team1 = Team.objects.create(
             team_number=1,
             team_name="Team 1",
-            authentik_group="WCComps_BlueTeam1",
+            authentik_group="WCComps_BlueTeam01",
         )
         team2 = Team.objects.create(
             team_number=2,
             team_name="Team 2",
-            authentik_group="WCComps_BlueTeam2",
+            authentik_group="WCComps_BlueTeam02",
         )
 
         ticket1 = Ticket.objects.create(
@@ -119,8 +118,7 @@ class TestFileUploadAuthorizationBypass:
         request.user.is_authenticated = True
 
         with (
-            patch("ticketing.views.attachments.get_authentik_groups", return_value=["WCComps_BlueTeam02"]),
-            patch("ticketing.views.attachments.get_team_from_groups", return_value=(team2, 2, True)),
+            patch("ticketing.views.attachments.get_user_team", return_value=team2),
             patch("ticketing.views.attachments.has_permission", return_value=False),
         ):
             response = ticket_attachment_download(
@@ -144,8 +142,7 @@ class TestFileUploadAuthorizationBypass:
         request.user.is_authenticated = True
 
         with (
-            patch("ticketing.views.attachments.get_authentik_groups", return_value=["WCComps_BlueTeam02"]),
-            patch("ticketing.views.attachments.get_team_from_groups", return_value=(team2, 2, True)),
+            patch("ticketing.views.attachments.get_user_team", return_value=team2),
             patch("ticketing.views.attachments.has_permission", return_value=False),
         ):
             response = ticket_attachment_upload(request, ticket_number=ticket1.ticket_number)

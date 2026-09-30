@@ -10,6 +10,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 from bot.cogs.ticketing import TicketingCog
+from core.models import UserGroups
 from team.models import DiscordLink, Team
 from ticketing.models import Ticket, TicketCategory, TicketComment, TicketHistory
 
@@ -49,6 +50,7 @@ class TestTicketingCog:
     async def discord_link(self, team: Team) -> DiscordLink:
         """Create test Discord link."""
         user = await User.objects.acreate(username="testuser")
+        await UserGroups.objects.acreate(user=user, authentik_id="testuser-uid", groups=[team.authentik_group])
         return await DiscordLink.objects.acreate(
             team=team,
             discord_id=999888777,
@@ -489,6 +491,7 @@ class TestTicketCommand:
         from django.contrib.auth.models import User
 
         user = await User.objects.acreate(username="teammember", email="teammember@test.local")
+        await UserGroups.objects.acreate(user=user, authentik_id="teammember-uid", groups=[team.authentik_group])
         return await DiscordLink.objects.acreate(
             team=team,
             user=user,

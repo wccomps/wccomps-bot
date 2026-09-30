@@ -6,17 +6,8 @@ import httpx
 import pytest
 
 from bot.cogs import authentik_groups
-from bot.permissions import _permission_cache
 from core.authentik_manager import AuthentikAPIError, AuthentikManager
-from core.services.user_groups import GroupRefreshAbortedError, GroupRefreshResult
-
-
-@pytest.fixture(autouse=True)
-def _cache():
-    _permission_cache.clear()
-    _permission_cache[1] = {"groups": ["WCComps_Discord_Admin"], "expires_at": None}  # type: ignore[typeddict-item]
-    yield
-    _permission_cache.clear()
+from core.services.user_groups import GroupRefreshAbortedError
 
 
 async def _run_with(result=None, error=None):
@@ -25,22 +16,9 @@ async def _run_with(result=None, error=None):
 
 
 @pytest.mark.asyncio
-async def test_changes_clear_the_permission_cache():
-    await _run_with(GroupRefreshResult(checked=3, changed=1))
-    assert _permission_cache == {}
-
-
-@pytest.mark.asyncio
-async def test_no_changes_keep_the_cache():
-    await _run_with(GroupRefreshResult(checked=3, changed=0))
-    assert 1 in _permission_cache
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("error", [GroupRefreshAbortedError("no users"), AuthentikAPIError("down"), RuntimeError("x")])
 async def test_failures_are_logged_not_raised(error):
     await _run_with(error=error)
-    assert 1 in _permission_cache
 
 
 def _manager(handler):

@@ -24,9 +24,9 @@ from .auth_utils import (
     get_permissions_context,
     get_role_based_landing_url,
     require_permission,
+    team_for_groups,
 )
 from .forms import LinkConfirmForm, SchoolInfoEditForm
-from .utils import get_team_from_groups
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ def link_callback(request: HttpRequest) -> HttpResponse:
     discord_id = link_token.discord_id
     discord_username = link_token.discord_username
 
-    team, team_number, is_team_account = get_team_from_groups(groups)
+    team = team_for_groups(groups)
 
     # Nothing is linked until the user confirms which Discord account they are linking (POST + CSRF).
     # Opening someone else's /link URL would otherwise silently hand them this account's roles.
@@ -148,27 +148,23 @@ def link_callback(request: HttpRequest) -> HttpResponse:
                 "discord_username": link_token.discord_username,
                 "authentik_username": authentik_username,
                 "team_name": f"Team {team.team_number}" if team else None,
-                "is_team_account": is_team_account,
+                "is_team_account": team is not None,
             },
         )
 
     # Enforce one-to-one link policy for non-team accounts
-    policy_error = enforce_account_link_policy(
-        user, discord_id, discord_username, authentik_username, team, is_team_account
-    )
+    policy_error = enforce_account_link_policy(user, discord_id, discord_username, authentik_username, team)
     if policy_error:
         return _render_error(policy_error)
 
-    if not is_team_account:
+    if not team:
         store_discord_id_in_authentik(authentik_username, discord_id, authentik_user_id)
 
-    link_error = execute_link(discord_id, discord_username, user, team, is_team_account)
+    link_error = execute_link(discord_id, discord_username, user, team)
     if link_error:
         return _render_error(link_error)
 
-    finalize_link(
-        link_token, discord_id, discord_username, authentik_username, team, team_number, is_team_account, groups
-    )
+    finalize_link(link_token, discord_id, discord_username, authentik_username, team, groups)
 
     request.session.pop("pending_link_token", None)
     request.session.pop("pending_link_discord_id", None)
@@ -178,10 +174,10 @@ def link_callback(request: HttpRequest) -> HttpResponse:
         "link_success.html",
         {
             "team_name": f"Team {team.team_number}" if team else None,
-            "team_number": team_number,
+            "team_number": team.team_number if team else None,
             "discord_username": discord_username,
             "authentik_username": authentik_username,
-            "is_team_account": is_team_account,
+            "is_team_account": team is not None,
         },
     )
 

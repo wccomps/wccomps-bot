@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import UploadedFile
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 def format_boxes_display(boxes: list[str] | str | None) -> str:
@@ -22,6 +23,23 @@ def validate_file_size(file: UploadedFile[bytes]) -> UploadedFile[bytes]:
 
         raise ValidationError(f"File size cannot exceed {max_size_mb}MB")
     return file
+
+
+class Approvable(models.Model):
+    """A submission that counts toward scores only once a reviewer approves it."""
+
+    is_approved = models.BooleanField(default=False)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta:
+        abstract = True
+
+    def approve(self, user: User) -> None:
+        self.is_approved = True
+        self.approved_by = user
+        self.approved_at = timezone.now()
+        self.save()
 
 
 class ScoringTemplate(models.Model):
@@ -223,7 +241,7 @@ class AttackType(models.Model):
         return self.name
 
 
-class RedTeamScore(models.Model):
+class RedTeamScore(Approvable):
     """Red team vulnerability score affecting one or more teams."""
 
     event = models.ForeignKey(
@@ -345,24 +363,6 @@ class RedTeamScore(models.Model):
         help_text="Points deducted per affected team (auto-calculated from outcomes)",
     )
 
-    is_approved = models.BooleanField(
-        default=False,
-        help_text="Whether this finding has been approved by Gold Team",
-    )
-    approved_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When this finding was approved",
-    )
-    approved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="red_scores_approved",
-        help_text="Gold Team member who approved this finding",
-    )
-
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -395,7 +395,7 @@ class RedTeamScore(models.Model):
     def calculate_points(self) -> Decimal:
         """Points each affected team loses, per CCDC guidelines, from the outcome checkboxes.
 
-        Stored positive in points_per_team; the calculator subtracts it (get_approved_red_deductions).
+        Stored positive in points_per_team; the calculator subtracts it.
         Effect on the team, from the National Scoring Guidelines:
         - Root/Admin access: -100
         - User access: -25 (only if no root access)
@@ -486,7 +486,7 @@ class RedTeamScreenshot(models.Model):
         return f"{self.filename} ({self.finding})"
 
 
-class IncidentReport(models.Model):
+class IncidentReport(Approvable):
     """Blue team incident report submission."""
 
     event = models.ForeignKey(
@@ -528,7 +528,6 @@ class IncidentReport(models.Model):
 
     evidence_notes = models.TextField(blank=True)
 
-    is_approved = models.BooleanField(default=False)
     matched_to_red_score = models.ForeignKey(
         RedTeamScore,
         on_delete=models.SET_NULL,
@@ -544,14 +543,6 @@ class IncidentReport(models.Model):
         help_text="Points awarded for detecting/reporting this incident",
     )
     approval_notes = models.TextField(blank=True)
-    approved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="incidents_approved",
-    )
-    approved_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -601,7 +592,7 @@ class IncidentScreenshot(models.Model):
         return f"{self.filename} ({self.incident})"
 
 
-class InjectScore(models.Model):
+class InjectScore(Approvable):
     """White/Gold team scoring of inject submissions."""
 
     event = models.ForeignKey(
@@ -647,24 +638,6 @@ class InjectScore(models.Model):
         help_text="User who approved this feedback",
     )
 
-    is_approved = models.BooleanField(
-        default=False,
-        help_text="Grade has been approved by supervisor",
-    )
-    approved_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When the grade was approved",
-    )
-    approved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="injects_approved",
-        help_text="User who approved this grade",
-    )
-
     graded_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -691,7 +664,7 @@ class InjectScore(models.Model):
         return f"{self.team.team_name} - {self.inject_name}: {self.points_awarded}"
 
 
-class OrangeTeamScore(models.Model):
+class OrangeTeamScore(Approvable):
     """Orange team checks for customer service evaluation (positive or negative)."""
 
     event = models.ForeignKey(
@@ -720,23 +693,6 @@ class OrangeTeamScore(models.Model):
         help_text="Points to add (positive) or deduct (negative)",
     )
 
-    is_approved = models.BooleanField(
-        default=False,
-        help_text="Whether this check has been approved",
-    )
-    approved_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When this check was approved",
-    )
-    approved_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="orange_scores_approved",
-        help_text="User who approved this check",
-    )
     orange_check = models.ForeignKey(
         "orange_team.OrangeCheck",
         on_delete=models.SET_NULL,
@@ -848,40 +804,14 @@ class ServiceDetail(models.Model):
         return f"{self.team.team_name} - {self.service_name}: {self.points}"
 
 
-class FinalScore(models.Model):
-    """Calculated final scores for leaderboard."""
+class ScoringExclusion(models.Model):
+    """A team left off the leaderboard and out of comparative stats; its own score still computes."""
 
-    team = models.ForeignKey(
-        "team.Team",
-        on_delete=models.CASCADE,
-        related_name="final_scores",
-    )
-
-    service_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    inject_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    orange_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    red_deductions = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    incident_recovery_points = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    sla_penalties = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    point_adjustments = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-
-    total_score = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    rank = models.IntegerField(null=True, blank=True)
-    is_excluded = models.BooleanField(
-        default=False,
-        help_text="Exclude from comparative analysis and leaderboard",
-    )
-
-    calculated_at = models.DateTimeField(auto_now=True)
+    team = models.OneToOneField("team.Team", on_delete=models.CASCADE, related_name="scoring_exclusion")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = "final_score"
-        verbose_name = "Final Score"
-        verbose_name_plural = "Final Scores"
-        unique_together = [["team"]]
-        ordering = ["-total_score", "team__team_number"]
-        indexes = []
+        db_table = "scoring_exclusion"
 
     def __str__(self) -> str:
-        rank_str = f"#{self.rank}" if self.rank else "Unranked"
-        return f"{rank_str} - {self.team.team_name}: {self.total_score}"
+        return f"{self.team.team_name} excluded"

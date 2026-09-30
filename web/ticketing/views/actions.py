@@ -8,11 +8,20 @@ from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from core.auth_utils import get_authentik_groups, get_authentik_id, has_permission
+from core.auth_utils import get_authentik_id, get_user_team, has_permission
 from core.models import DiscordTask
-from core.utils import get_team_from_groups
 from team.models import DiscordLink
+from core.auth_utils import get_authentik_groups, get_authentik_id, has_permission
+from core.utils import get_team_from_groups
 from ticketing.forms import TicketChangeCategoryForm, TicketReassignForm, TicketReopenForm, TicketResolveForm
+from ticketing.lifecycle import (
+    assign_ticket,
+    cancel_ticket,
+    claim_ticket,
+    reopen_ticket,
+    resolve_ticket,
+    unclaim_ticket,
+)
 from ticketing.models import Ticket
 
 logger = logging.getLogger(__name__)
@@ -23,10 +32,9 @@ def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
     """Cancel an open ticket (team members only)."""
     user = cast(User, request.user)
     authentik_username = user.username
-    groups = get_authentik_groups(user)
-    team, _team_number, is_team = get_team_from_groups(groups)
+    team = get_user_team(user)
 
-    if not is_team or not team:
+    if not team:
         return render(
             request,
             "error.html",
@@ -48,9 +56,7 @@ def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
             },
         )
 
-    from ticketing.utils import cancel_ticket_atomic
-
-    ticket, error = cancel_ticket_atomic(
+    ticket, error = cancel_ticket(
         ticket_id=ticket_obj.id,
         actor_username=authentik_username,
         user=user,
@@ -60,7 +66,6 @@ def ticket_cancel(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, error or "Failed to cancel ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    DiscordTask.create_post_ticket_update(ticket=ticket, action="cancelled", actor=authentik_username)
     logger.info(f"Ticket {ticket_number} cancelled by {authentik_username} via web")
 
     return redirect("ticket_list")
@@ -91,9 +96,7 @@ def ticket_claim(request: HttpRequest, ticket_number: str) -> HttpResponse:
             status=404,
         )
 
-    from ticketing.utils import claim_ticket_atomic
-
-    ticket, error = claim_ticket_atomic(
+    ticket, error = claim_ticket(
         ticket_id=ticket_obj.id,
         actor_username=authentik_username,
         user=user,
@@ -102,14 +105,6 @@ def ticket_claim(request: HttpRequest, ticket_number: str) -> HttpResponse:
     if error or ticket is None:
         messages.error(request, error or "Failed to claim ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
-
-    if ticket.discord_thread_id:
-        discord_link = DiscordLink.objects.filter(user=user, is_active=True).first()
-        if discord_link:
-            DiscordTask.create_add_user_to_thread(
-                ticket=ticket, discord_id=discord_link.discord_id, thread_id=ticket.discord_thread_id
-            )
-    DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor=authentik_username)
 
     logger.info(f"Ticket {ticket_number} claimed by {authentik_username}")
     referer = request.META.get("HTTP_REFERER", "")
@@ -149,9 +144,7 @@ def ticket_unclaim(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, "You can only unclaim tickets you have claimed")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    from ticketing.utils import unclaim_ticket_atomic
-
-    ticket, error = unclaim_ticket_atomic(
+    ticket, error = unclaim_ticket(
         ticket_id=ticket_obj.id,
         actor_username=authentik_username,
         user=user,
@@ -160,8 +153,6 @@ def ticket_unclaim(request: HttpRequest, ticket_number: str) -> HttpResponse:
     if error or ticket is None:
         messages.error(request, error or "Failed to unclaim ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
-
-    DiscordTask.create_post_ticket_update(ticket=ticket, action="unclaimed", actor=authentik_username)
 
     logger.info(f"Ticket {ticket_number} unclaimed by {authentik_username}")
     referer = request.META.get("HTTP_REFERER", "")
@@ -205,13 +196,7 @@ def ticket_reassign(request: HttpRequest, ticket_number: str) -> HttpResponse:
         messages.error(request, f"User '{new_assignee_username}' not found")
         return redirect("ticket_detail", ticket_number=ticket_number)
 
-    from ticketing.utils import claim_ticket_atomic, reassign_ticket_atomic
-
-    # Open tickets are claimed on the new assignee's behalf (same as Discord /tickets reassign);
-    # any other status just changes the assignee.
-    claimed_for_them = ticket_obj.status == Ticket.STATUS_OPEN
-    atomic_op = claim_ticket_atomic if claimed_for_them else reassign_ticket_atomic
-    ticket, error = atomic_op(
+    ticket, error = assign_ticket(
         ticket_id=ticket_obj.id,
         actor_username=authentik_username,
         user=new_assignee_user,
@@ -220,16 +205,6 @@ def ticket_reassign(request: HttpRequest, ticket_number: str) -> HttpResponse:
     if error or ticket is None:
         messages.error(request, error or "Failed to assign ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
-
-    if claimed_for_them:
-        DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor=authentik_username)
-
-    if ticket.discord_thread_id:
-        discord_link = DiscordLink.objects.filter(user=new_assignee_user, is_active=True).first()
-        if discord_link:
-            DiscordTask.create_add_user_to_thread(
-                ticket=ticket, discord_id=discord_link.discord_id, thread_id=ticket.discord_thread_id
-            )
 
     logger.info(f"Ticket {ticket_number} reassigned to {new_assignee_username} by {authentik_username}")
     referer = request.META.get("HTTP_REFERER", "")
@@ -286,9 +261,7 @@ def ticket_resolve(request: HttpRequest, ticket_number: str) -> HttpResponse:
     resolution_notes = form.cleaned_data["resolution_notes"]
     points_override = form.cleaned_data.get("points_override")
 
-    from ticketing.utils import resolve_ticket_atomic
-
-    ticket, error = resolve_ticket_atomic(
+    ticket, error = resolve_ticket(
         ticket_id=ticket_obj.id,
         actor_username=authentik_username,
         resolution_notes=resolution_notes,
@@ -299,14 +272,6 @@ def ticket_resolve(request: HttpRequest, ticket_number: str) -> HttpResponse:
     if error or ticket is None:
         messages.error(request, error or "Failed to resolve ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
-
-    DiscordTask.create_post_ticket_update(
-        ticket=ticket,
-        action="resolved",
-        actor=authentik_username,
-        resolution_notes=resolution_notes,
-        points_charged=ticket.points_charged,
-    )
 
     logger.info(f"Ticket {ticket_number} resolved by {authentik_username}")
     referer = request.META.get("HTTP_REFERER", "")
@@ -343,9 +308,7 @@ def ticket_reopen(request: HttpRequest, ticket_number: str) -> HttpResponse:
     form.is_valid()  # Always valid (optional field)
     reopen_reason = form.cleaned_data.get("reopen_reason", "")
 
-    from ticketing.utils import reopen_ticket_atomic
-
-    ticket, error = reopen_ticket_atomic(
+    ticket, error = reopen_ticket(
         ticket_id=ticket_obj.id,
         actor_username=authentik_username,
         reopen_reason=reopen_reason,
@@ -355,11 +318,6 @@ def ticket_reopen(request: HttpRequest, ticket_number: str) -> HttpResponse:
     if error or ticket is None:
         messages.error(request, error or "Failed to reopen ticket")
         return redirect("ticket_detail", ticket_number=ticket_number)
-
-    extra: dict[str, object] = {}
-    if reopen_reason:
-        extra["reason"] = reopen_reason
-    DiscordTask.create_post_ticket_update(ticket=ticket, action="reopened", actor=authentik_username, **extra)
 
     logger.info(
         f"Ticket {ticket_number} reopened by {authentik_username}" + (f": {reopen_reason}" if reopen_reason else "")

@@ -9,9 +9,8 @@ from discord.ext import commands, tasks
 from django.utils import timezone
 from quotient.client import get_quotient_client
 
-from bot.permissions import check_blue_team
+from bot.permissions import check_blue_team, linked_team_member
 from bot.thread_creator import publish_new_ticket
-from team.models import DiscordLink
 from ticketing.models import CommentRateLimit, Ticket, TicketAttachment, TicketCategory, TicketComment, TicketHistory
 from ticketing.utils import TicketRateLimitError, acreate_ticket_atomic, get_user_for_ticket
 
@@ -139,11 +138,10 @@ class TicketingCog(commands.Cog):
             await interaction.response.send_message("This command must be used in a guild", ephemeral=True)
             return
 
-        link = await (
-            DiscordLink.objects.filter(discord_id=interaction.user.id, is_active=True).select_related("team").afirst()
-        )
-        if not link or not link.team:
+        member = await linked_team_member(interaction.user.id)
+        if not member:
             return
+        team = member.team
 
         from core.tickets_config import get_category_config
 
@@ -192,7 +190,7 @@ class TicketingCog(commands.Cog):
         category_obj = await TicketCategory.objects.aget(pk=category_id)
         try:
             ticket = await acreate_ticket_atomic(
-                team=link.team,
+                team=team,
                 category=category_obj,
                 title=cat_info["display_name"],
                 description=description,
@@ -202,7 +200,7 @@ class TicketingCog(commands.Cog):
                 actor_username=f"discord:{interaction.user}",
             )
         except TicketRateLimitError as e:
-            logger.warning(f"Ticket rate limit hit by {interaction.user} for {link.team.team_name}")
+            logger.warning(f"Ticket rate limit hit by {interaction.user} for {team.team_name}")
             await interaction.response.send_message(str(e), ephemeral=True)
             return
 
@@ -213,7 +211,7 @@ class TicketingCog(commands.Cog):
         )
         embed.add_field(name="Ticket Number", value=ticket.ticket_number, inline=True)
         embed.add_field(name="Status", value="Open", inline=True)
-        embed.add_field(name="Team", value=link.team.team_name, inline=True)
+        embed.add_field(name="Team", value=team.team_name, inline=True)
         embed.add_field(name="Point Cost", value=f"{cat_info.get('points', 0)} points", inline=True)
         embed.add_field(name="Description", value=description, inline=False)
 
@@ -227,7 +225,7 @@ class TicketingCog(commands.Cog):
         embed.set_footer(text="Volunteers will be notified in #ticket-queue")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        logger.info(f"Ticket {ticket.ticket_number} created by {interaction.user} for {link.team.team_name}")
+        logger.info(f"Ticket {ticket.ticket_number} created by {interaction.user} for {team.team_name}")
 
         await publish_new_ticket(self.bot, interaction.guild, ticket)
 

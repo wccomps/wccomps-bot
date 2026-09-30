@@ -15,7 +15,6 @@ from team.models import MAX_TEAMS, Team
 logger = logging.getLogger(__name__)
 
 
-TEAM_CHAT_CHANNEL_KEYWORD = "chat"
 THREAD_AUTO_ARCHIVE_MINUTES: Final[Literal[10080]] = 10080  # 7 days
 DISCORD_EMBED_FIELD_CHAR_LIMIT = 1024
 DISCORD_MESSAGE_CHAR_LIMIT = 2000
@@ -69,7 +68,7 @@ async def report_missing_discord_settings(bot: discord.Client) -> None:
         return
     message = (
         f"⚠️ Discord settings missing from the environment (set to 0): {', '.join(missing)}. "
-        "Role sync, /link roles and announcements that depend on them will not work."
+        "Role sync, /link roles, team channel access and announcements that depend on them will not work."
     )
     logger.error(message)
     await log_to_ops_channel(bot, message)
@@ -110,11 +109,19 @@ async def safe_remove_role(member: discord.Member, role: discord.Role, reason: s
 
 async def remove_blueteam_role(member: discord.Member, guild: discord.Guild, reason: str | None = None) -> bool:
     """Remove the Blueteam role if held; True if removed or not present, False on error."""
-    blueteam_role = discord.utils.get(guild.roles, name="Blueteam")
+    blueteam_role = guild.get_role(settings.BLUETEAM_ROLE_ID)
     if not blueteam_role:
         return True
 
     return await safe_remove_role(member, blueteam_role, reason)
+
+
+def team_chat_channel(guild: discord.Guild, team: Team) -> discord.TextChannel | None:
+    """The text channel with "chat" in its name in the team's category, which may predate the bot."""
+    category = guild.get_channel(team.discord_category_id) if team.discord_category_id else None
+    if not isinstance(category, discord.CategoryChannel):
+        return None
+    return next((c for c in category.channels if isinstance(c, discord.TextChannel) and "chat" in c.name.lower()), None)
 
 
 @sync_to_async

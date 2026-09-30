@@ -2,21 +2,15 @@ from decimal import Decimal
 from typing import TypedDict
 
 import weasyprint
-from django.db.models import Avg, Max, Min
+from django.db.models import Avg, Max
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 from django.template.loader import render_to_string
 
 from core.auth_utils import require_permission
-from team.models import Team
 
-from ..calculator import calculate_team_score_detailed, get_leaderboard
-from ..models import (
-    FinalScore,
-    InjectScore,
-    RedTeamScore,
-    ServiceDetail,
-)
+from ..calculator import Standing, calculate_team_score_detailed, compute_standings, get_leaderboard, get_standing
+from ..models import InjectScore, RedTeamScore, ServiceDetail
 
 
 class _CategoryRank(TypedDict):
@@ -65,69 +59,54 @@ class _ScorecardStats(TypedDict):
 @require_permission("gold_team", "white_team", "red_team", "ticketing_admin")
 def leaderboard(request: HttpRequest) -> HttpResponse:
     """Restricted leaderboard view."""
-    scores = get_leaderboard()
-
-    context = {
-        "scores": scores,
-    }
-    return render(request, "scoring/leaderboard.html", context)
+    return render(request, "scoring/leaderboard.html", {"scores": get_leaderboard()})
 
 
-def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
-    """Compute comparative statistics for a team's scorecard."""
-    all_scores = FinalScore.objects.filter(is_excluded=False, rank__isnull=False)
-    team_count = all_scores.count()
+def _compute_scorecard_stats(score: Standing, standings: list[Standing]) -> _ScorecardStats:
+    """Compute comparative statistics for a team's scorecard against the ranked teams."""
+    team = score.team
+    ranked = get_leaderboard(standings)
+    team_count = len(ranked)
 
-    # Category ranking: (field_name, label, team_value)
-    categories: list[tuple[str, str, Decimal]] = [
-        ("service_points", "services", score.service_points),
-        ("inject_points", "injects", score.inject_points),
-        ("orange_points", "orange", score.orange_points),
-        ("red_deductions", "red", score.red_deductions),
-        ("sla_penalties", "sla", score.sla_penalties),
-        ("incident_recovery_points", "recovery", score.incident_recovery_points),
-        ("point_adjustments", "adjustments", score.point_adjustments),
+    categories: list[tuple[str, str]] = [
+        ("service_points", "services"),
+        ("inject_points", "injects"),
+        ("orange_points", "orange"),
+        ("red_deductions", "red"),
+        ("sla_penalties", "sla"),
+        ("incident_recovery_points", "recovery"),
+        ("point_adjustments", "adjustments"),
     ]
 
     category_ranks: dict[str, _CategoryRank] = {}
-    for field, label, value in categories:
-        aggs = all_scores.aggregate(
-            avg=Avg(field),
-            mn=Min(field),
-            mx=Max(field),
-        )
+    for field, label in categories:
+        value: Decimal = getattr(score, field)
+        values: list[Decimal] = [getattr(s, field) for s in ranked]
+        mx = max(values, default=Decimal("0"))
+        mn = min(values, default=Decimal("0"))
         # Skip categories where nobody has any data
-        mx = aggs["mx"] or Decimal("0")
-        mn = aggs["mn"] or Decimal("0")
         if mx == 0 and mn == 0:
             continue
+        avg = sum(values, Decimal("0")) / len(values)
 
-        # Rank = teams scoring strictly better + 1.
-        # For positive categories: higher is better, so __gt counts better teams.
-        # For red deductions (negative): less negative is better; -100 > -500,
-        # so __gt still counts less-negative (better) teams.
-        rank = all_scores.filter(**{f"{field}__gt": value}).count() + 1
+        # Rank = teams scoring strictly better + 1. Red deductions are negative, so a
+        # greater value (closer to 0) is better there too.
+        rank = sum(1 for v in values if v > value) + 1
 
         if label == "red":
             # Store as absolute values; swap min/max so max = most deductions
             category_ranks[label] = _CategoryRank(
                 rank=rank,
-                avg=abs(aggs["avg"] or Decimal("0")),
-                min=abs(mx),  # SQL max (closest to 0) = least deductions
-                max=abs(mn),  # SQL min (most negative) = most deductions
+                avg=abs(avg),
+                min=abs(mx),
+                max=abs(mn),
                 value=abs(value),
             )
         else:
-            category_ranks[label] = _CategoryRank(
-                rank=rank,
-                avg=aggs["avg"] or Decimal("0"),
-                min=mn,
-                max=mx,
-                value=value,
-            )
+            category_ranks[label] = _CategoryRank(rank=rank, avg=avg, min=mn, max=mx, value=value)
 
     # Use the same population as category ranking: only ranked, non-excluded teams
-    ranked_team_ids = set(all_scores.values_list("team_id", flat=True))
+    ranked_team_ids = {s.team.pk for s in ranked}
 
     inject_stats: list[_InjectStat] = []
     team_injects = (
@@ -193,8 +172,7 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
             insights.append(f"Strongest category: {best_cat.title()} (rank #{best_rank} of {team_count})")
 
     if score.sla_penalties and score.sla_penalties < 0:
-        sla_agg = all_scores.aggregate(avg=Avg("sla_penalties"))
-        sla_avg = sla_agg["avg"] or Decimal("0")
+        sla_avg = sum((s.sla_penalties for s in ranked), Decimal("0")) / team_count if team_count else Decimal("0")
         if score.sla_penalties < sla_avg:
             insights.append(f"SLA penalties ({score.sla_penalties}) are worse than average ({sla_avg:.0f})")
 
@@ -208,23 +186,10 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
     # Nearest competitors (team directly above and below by rank)
     neighbors: list[_Neighbor] = []
     if score.rank:
-        neighbor_scores = (
-            all_scores.filter(
-                rank__gte=score.rank - 1,
-                rank__lte=score.rank + 1,
-            )
-            .exclude(team=team)
-            .order_by("rank")
-        )
-
         neighbors = [
-            _Neighbor(
-                rank=ns.rank,
-                total_score=ns.total_score,
-                gap=ns.total_score - score.total_score,
-            )
-            for ns in neighbor_scores
-            if ns.rank is not None
+            _Neighbor(rank=ns.rank, total_score=ns.total_score, gap=ns.total_score - score.total_score)
+            for ns in ranked
+            if ns.rank is not None and ns.team != team and abs(ns.rank - score.rank) <= 1
         ]
 
     return _ScorecardStats(
@@ -237,9 +202,8 @@ def _compute_scorecard_stats(team: Team, score: FinalScore) -> _ScorecardStats:
     )
 
 
-def _build_scorecard_context(team_number: int) -> dict[str, object]:
-    """Build the context dict shared by scorecard HTML and PDF views."""
-    score = get_object_or_404(FinalScore, team__team_number=team_number)
+def build_scorecard_context(score: Standing, standings: list[Standing]) -> dict[str, object]:
+    """Context shared by the scorecard page, its PDF, and the emailed and bulk-exported PDFs."""
     team = score.team
 
     red_scores = (
@@ -248,21 +212,17 @@ def _build_scorecard_context(team_number: int) -> dict[str, object]:
         .order_by("attack_type__name", "pk")
     )
 
-    stats = _compute_scorecard_stats(team, score)
+    stats = _compute_scorecard_stats(score, standings)
     detailed = calculate_team_score_detailed(team)
-
-    red_total = sum(r.points_per_team for r in red_scores)
-    inject_total = sum(i["points"] for i in stats["inject_stats"])
-    service_total = sum(s["points"] for s in stats["service_stats"])
 
     return {
         "team": team,
         "score": score,
         "red_scores": red_scores,
         "stats": stats,
-        "red_total": red_total,
-        "inject_total": inject_total,
-        "service_total": service_total,
+        "red_total": sum(r.points_per_team for r in red_scores),
+        "inject_total": sum(i["points"] for i in stats["inject_stats"]),
+        "service_total": sum(s["points"] for s in stats["service_stats"]),
         "scaling": {
             "service_raw": detailed["service_raw"],
             "inject_raw": detailed["inject_raw"],
@@ -277,6 +237,11 @@ def _build_scorecard_context(team_number: int) -> dict[str, object]:
     }
 
 
+def _scorecard_context(team_number: int) -> dict[str, object]:
+    standings = compute_standings()
+    return build_scorecard_context(get_standing(team_number, standings), standings)
+
+
 @require_permission(
     "gold_team",
     "white_team",
@@ -286,7 +251,7 @@ def _build_scorecard_context(team_number: int) -> dict[str, object]:
 )
 def scorecard(request: HttpRequest, team_number: int) -> HttpResponse:
     """Detailed scorecard for a single team."""
-    context = _build_scorecard_context(team_number)
+    context = _scorecard_context(team_number)
     return render(request, "scoring/scorecard.html", context)
 
 
@@ -298,7 +263,7 @@ def scorecard(request: HttpRequest, team_number: int) -> HttpResponse:
     error_message="Only authorized staff can export scorecards",
 )
 def scorecard_pdf(request: HttpRequest, team_number: int) -> HttpResponse:
-    context = _build_scorecard_context(team_number)
+    context = _scorecard_context(team_number)
     html_string = render_to_string("scoring/scorecard_print.html", context, request=request)
     pdf_bytes = weasyprint.HTML(string=html_string).write_pdf()
     response = HttpResponse(pdf_bytes, content_type="application/pdf")

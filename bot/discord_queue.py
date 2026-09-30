@@ -14,7 +14,7 @@ from bot.discord_manager import DiscordManager
 from bot.heartbeat import record as record_heartbeat
 from bot.thread_creator import publish_new_ticket
 from bot.ticket_dashboard import post_ticket_to_dashboard, update_ticket_dashboard
-from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, TEAM_CHAT_CHANNEL_KEYWORD, recycle_db_connection
+from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection, team_chat_channel
 from core.models import DiscordTask
 from core.utils import role_sync_summary
 from team.models import Team
@@ -431,6 +431,8 @@ class DiscordQueueProcessor:
             await thread.send(embed=embed)
         elif action == "claimed":
             await thread.send(f"Ticket claimed by **{actor}**")
+        elif action == "assigned":
+            await thread.send(f"Ticket assigned to **{task.payload.get('assignee')}** by **{actor}**")
         elif action == "unclaimed":
             await thread.send(f"Ticket unclaimed by **{actor}**")
         elif action == "cancelled":
@@ -615,18 +617,7 @@ class DiscordQueueProcessor:
         from core.models import QueuedAnnouncement
 
         try:
-            chat_channel = None
-            if team.discord_category_id:
-                category = guild.get_channel(team.discord_category_id)
-                if category and isinstance(category, discord.CategoryChannel):
-                    for channel in category.channels:
-                        if (
-                            isinstance(channel, discord.TextChannel)
-                            and TEAM_CHAT_CHANNEL_KEYWORD in channel.name.lower()
-                        ):
-                            chat_channel = channel
-                            break
-
+            chat_channel = team_chat_channel(guild, team)
             if chat_channel:
                 await chat_channel.send(f"**Announcement from {sender}:**\n\n{message}")
                 return "sent"

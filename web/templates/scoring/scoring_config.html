@@ -74,14 +74,6 @@
                     Sync Service Scores
                 </c-button>
             </c-form>
-            <c-form action="{% url 'scoring:recalculate_scores' %}"
-                    class="m-0"
-                    onsubmit="return confirm('Recalculate all scores? This overwrites current values.')">
-                {% csrf_token %}
-                <c-button type="submit" variant="primary" ::disabled="submitting">
-                    Recalculate Scores
-                </c-button>
-            </c-form>
         </c-button_row>
     </c-module>
     <style>

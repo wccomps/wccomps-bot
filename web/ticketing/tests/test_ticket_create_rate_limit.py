@@ -9,13 +9,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from team.models import Team
+from ticketing.lifecycle import cancel_ticket
 from ticketing.models import Ticket, TicketCategory
-from ticketing.utils import (
-    TEAM_TICKET_LIMIT,
-    TicketRateLimitError,
-    cancel_ticket_atomic,
-    create_ticket_atomic,
-)
+from ticketing.utils import TEAM_TICKET_LIMIT, TicketRateLimitError, create_ticket_atomic
 
 pytestmark = pytest.mark.django_db
 
@@ -55,7 +51,7 @@ def test_limit_blocks_the_next_ticket(team, category):
 def test_cancelled_tickets_still_count(team, category):
     """Create-then-cancel is exactly the spam loop; cancelling must not free up a slot."""
     for ticket in _fill(team, category):
-        cancel_ticket_atomic(ticket.id, actor_username="team01")
+        cancel_ticket(ticket.id, actor_username="team01")
 
     with pytest.raises(TicketRateLimitError):
         create_ticket_atomic(team=team, category=category, title="again")

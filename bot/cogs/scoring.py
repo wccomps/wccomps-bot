@@ -7,9 +7,8 @@ from discord import app_commands
 from discord.ext import commands
 from django.utils import timezone
 
-from bot.permissions import check_blue_team
+from bot.permissions import check_blue_team, linked_team_member
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT
-from team.models import DiscordLink
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +40,10 @@ class ScoringCog(commands.Cog):
         description: str,
     ) -> None:
         """Submit an incident report for red team activity."""
-        link = await (
-            DiscordLink.objects.filter(discord_id=interaction.user.id, is_active=True)
-            .select_related("team", "user")
-            .afirst()
-        )
-        if not link or not link.team:
+        member = await linked_team_member(interaction.user.id)
+        if not member:
             return
-        team = link.team
-        submitted_by_user = link.user
+        team, submitted_by_user = member.team, member.user
 
         # Import models here to avoid circular imports
         from scoring.models import IncidentReport

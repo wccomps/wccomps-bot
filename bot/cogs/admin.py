@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from bot.permissions import check_admin
+from bot.permissions import permission_check
 from bot.utils import log_to_ops_channel, send_lines
 from core.models import AuditLog
 
@@ -25,7 +25,7 @@ class AdminCog(commands.Cog):
         name="sync-roles",
         description="[ADMIN] Preview role synchronization (dry run only)",
     )
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_sync_roles(self, interaction: discord.Interaction) -> None:
         """Preview the Authentik-group role sync for the competition guild (dry run only).
 

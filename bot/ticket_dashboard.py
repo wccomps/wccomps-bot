@@ -141,7 +141,7 @@ class TicketActionView(discord.ui.View):
         row=1,
     )
     async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button[TicketActionView]) -> None:
-        from bot.permissions import can_support_tickets_async
+        from bot.permissions import has_permission
 
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
         if not ticket_id:
@@ -151,7 +151,7 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        if not await can_support_tickets_async(interaction):
+        if not await has_permission(interaction.user.id, "ticketing_support"):
             await interaction.response.send_message(
                 "You don't have permission to claim tickets. "
                 "Contact an administrator if you need ticketing support access.",
@@ -159,9 +159,9 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        from ticketing.utils import aclaim_ticket_atomic
+        from ticketing.lifecycle import aclaim_ticket
 
-        ticket, error = await aclaim_ticket_atomic(
+        ticket, error = await aclaim_ticket(
             ticket_id=ticket_id,
             actor_username=str(interaction.user),
             discord_id=interaction.user.id,
@@ -171,18 +171,6 @@ class TicketActionView(discord.ui.View):
         if error or ticket is None:
             await interaction.response.send_message(error or "Failed to claim ticket.", ephemeral=True)
             return
-
-        await update_ticket_dashboard(interaction.client, ticket)
-
-        if ticket.discord_thread_id:
-            try:
-                thread = interaction.client.get_channel(ticket.discord_thread_id)
-                if not thread:
-                    thread = await interaction.client.fetch_channel(ticket.discord_thread_id)
-                if thread and isinstance(thread, discord.Thread):
-                    await thread.add_user(interaction.user)
-            except Exception as e:
-                logger.warning(f"Failed to add user {interaction.user.id} to thread {ticket.discord_thread_id}: {e}")
 
         await interaction.response.send_message(
             f"You have claimed ticket {ticket.ticket_number}.",
@@ -199,7 +187,7 @@ class TicketActionView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button[TicketActionView]
     ) -> None:
         """Show resolve modal with category dropdown and notes."""
-        from bot.permissions import can_support_tickets_async
+        from bot.permissions import has_permission
 
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
         if not ticket_id:
@@ -209,7 +197,7 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        if not await can_support_tickets_async(interaction):
+        if not await has_permission(interaction.user.id, "ticketing_support"):
             await interaction.response.send_message(
                 "You don't have permission to resolve tickets. "
                 "Contact an administrator if you need ticketing support access.",
@@ -222,8 +210,10 @@ class TicketActionView(discord.ui.View):
             await interaction.response.send_message("Ticket not found.", ephemeral=True)
             return
 
-        if ticket.status == "resolved":
-            await interaction.response.send_message("This ticket is already resolved.", ephemeral=True)
+        from ticketing.lifecycle import refusal
+
+        if error := refusal(ticket, "resolve"):
+            await interaction.response.send_message(error, ephemeral=True)
             return
 
         cat_info = await sync_to_async(get_category_config)(ticket.category_id) or {}
@@ -241,8 +231,7 @@ class TicketActionView(discord.ui.View):
     ) -> None:
         """Cancel an unclaimed ticket."""
 
-        from bot.permissions import can_support_tickets_async
-        from team.models import DiscordLink
+        from bot.permissions import has_permission, linked_team_member
 
         ticket_id = await self._get_ticket_id_from_interaction(interaction)
         if not ticket_id:
@@ -252,20 +241,10 @@ class TicketActionView(discord.ui.View):
             )
             return
 
-        is_ops = await can_support_tickets_async(interaction)
+        is_ops = await has_permission(interaction.user.id, "ticketing_support")
+        member = await linked_team_member(interaction.user.id)
 
-        @sync_to_async
-        def get_team_link() -> DiscordLink | None:
-            return (
-                DiscordLink.objects.filter(discord_id=interaction.user.id, is_active=True)
-                .select_related("team")
-                .first()
-            )
-
-        link = await get_team_link()
-        is_team_member = link and link.team
-
-        if not is_ops and not is_team_member:
+        if not is_ops and not member:
             await interaction.response.send_message(
                 "You must be a team member or ops to cancel tickets.",
                 ephemeral=True,
@@ -278,18 +257,16 @@ class TicketActionView(discord.ui.View):
             return
 
         # If team member (not ops), verify ticket belongs to their team
-        if is_team_member and not is_ops and link and link.team and ticket.team.id != link.team.id:
+        if not is_ops and member and ticket.team_id != member.team.id:
             await interaction.response.send_message("This ticket does not belong to your team.", ephemeral=True)
             return
 
-        from ticketing.utils import acancel_ticket_atomic
+        from ticketing.lifecycle import acancel_ticket
 
-        cancelled, error = await acancel_ticket_atomic(ticket_id=ticket.id, actor_username=str(interaction.user))
+        cancelled, error = await acancel_ticket(ticket_id=ticket.id, actor_username=str(interaction.user))
         if error or cancelled is None:
             await interaction.response.send_message(error or "Failed to cancel ticket.", ephemeral=True)
             return
-
-        await update_ticket_dashboard(interaction.client, cancelled)
 
         await interaction.response.send_message(
             f"Ticket {cancelled.ticket_number} has been cancelled (no point penalty).",
@@ -343,9 +320,9 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
                 await interaction.response.send_message("Invalid point value. Must be a number.", ephemeral=True)
                 return
 
-        from ticketing.utils import aresolve_ticket_atomic
+        from ticketing.lifecycle import aresolve_ticket
 
-        ticket, error = await aresolve_ticket_atomic(
+        ticket, error = await aresolve_ticket(
             ticket_id=self.ticket.id,
             actor_username=str(interaction.user),
             resolution_notes=self.notes.value,
@@ -357,8 +334,6 @@ class ResolveTicketModal(discord.ui.Modal, title="Resolve Ticket"):
         if error or ticket is None:
             await interaction.response.send_message(error or "Failed to resolve ticket.", ephemeral=True)
             return
-
-        await update_ticket_dashboard(interaction.client, ticket)
 
         await interaction.response.send_message(
             f"Ticket {ticket.ticket_number} resolved with {ticket.points_charged} point penalty.",

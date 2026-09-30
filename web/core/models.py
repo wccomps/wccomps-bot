@@ -331,7 +331,6 @@ class CompetitionConfig(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    last_check = models.DateTimeField(null=True, blank=True, help_text="Last time background task checked")
 
     status_channel_id = models.BigIntegerField(
         null=True, blank=True, help_text="Discord channel ID for competition status display"

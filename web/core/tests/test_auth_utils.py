@@ -13,10 +13,11 @@ from core.auth_utils import (
     get_authentik_groups,
     get_authentik_id,
     get_permissions_context,
-    get_user_team_number,
+    get_user_team,
     has_permission,
     require_permission,
 )
+from team.models import Team
 
 pytestmark = pytest.mark.django_db
 
@@ -159,28 +160,21 @@ class TestGetPermissionsContext:
             assert key in ctx
 
 
-class TestGetUserTeamNumber:
-    """Tests for get_user_team_number function."""
+class TestGetUserTeam:
+    @pytest.fixture
+    def teams(self):
+        return [Team.objects.create(team_number=n, team_name=f"Team {n}") for n in (1, 2)]
 
-    def test_blue_team_01_returns_1(self, blue_team_user):
-        """Blue team 01 user should return team number 1."""
-        team_num = get_user_team_number(blue_team_user)
-        assert team_num == 1
+    def test_blue_team_user_gets_their_team(self, teams, blue_team_user, blue_team_02_user):
+        assert get_user_team(blue_team_user) == teams[0]
+        assert get_user_team(blue_team_02_user) == teams[1]
 
-    def test_blue_team_02_returns_2(self, blue_team_02_user):
-        """Blue team 02 user should return team number 2."""
-        team_num = get_user_team_number(blue_team_02_user)
-        assert team_num == 2
+    def test_non_team_users_get_none(self, teams, ticketing_support_user, admin_user):
+        assert get_user_team(ticketing_support_user) is None
+        assert get_user_team(admin_user) is None
 
-    def test_non_team_user_returns_none(self, ticketing_support_user):
-        """Non-team user should return None."""
-        team_num = get_user_team_number(ticketing_support_user)
-        assert team_num is None
-
-    def test_admin_without_team_returns_none(self, admin_user):
-        """Admin user without team group should return None."""
-        team_num = get_user_team_number(admin_user)
-        assert team_num is None
+    def test_anonymous_user_gets_none(self, teams):
+        assert get_user_team(AnonymousUser()) is None
 
 
 class TestRequirePermissionDecorator:

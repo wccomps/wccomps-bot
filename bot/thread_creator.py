@@ -5,7 +5,7 @@ import logging
 import discord
 from asgiref.sync import sync_to_async
 
-from bot.utils import TEAM_CHAT_CHANNEL_KEYWORD, THREAD_AUTO_ARCHIVE_MINUTES
+from bot.utils import THREAD_AUTO_ARCHIVE_MINUTES, team_chat_channel
 from team.models import Team
 from ticketing.models import Ticket
 
@@ -28,27 +28,9 @@ async def create_ticket_thread(
     from bot.ticket_dashboard import TicketActionView, format_ticket_embed
     from bot.utils import get_team_member_discord_ids
 
-    if not team.discord_category_id:
-        logger.warning(f"Team {team.team_name} has no discord_category_id; cannot create ticket thread")
-        return None
-
-    category = guild.get_channel(team.discord_category_id)
-    if not category:
-        logger.warning(f"Category channel {team.discord_category_id} not found in guild for team {team.team_name}")
-        return None
-
-    if not isinstance(category, discord.CategoryChannel):
-        logger.warning(f"Channel {team.discord_category_id} is not a CategoryChannel for team {team.team_name}")
-        return None
-
-    chat_channel: discord.TextChannel | None = None
-    for channel in category.channels:
-        if isinstance(channel, discord.TextChannel) and TEAM_CHAT_CHANNEL_KEYWORD in channel.name.lower():
-            chat_channel = channel
-            break
-
+    chat_channel = team_chat_channel(guild, team)
     if not chat_channel:
-        logger.warning(f"No text channel with 'chat' in name found in category {category.name}")
+        logger.warning(f"No chat channel found for {team.team_name} (category {team.discord_category_id})")
         return None
 
     thread = await chat_channel.create_thread(
@@ -58,8 +40,10 @@ async def create_ticket_thread(
 
     # Targeted update: a full save of this instance would revert concurrent web changes.
     ticket.discord_thread_id = thread.id
-    ticket.discord_channel_id = category.id
-    await Ticket.objects.filter(pk=ticket.pk).aupdate(discord_thread_id=thread.id, discord_channel_id=category.id)
+    ticket.discord_channel_id = team.discord_category_id
+    await Ticket.objects.filter(pk=ticket.pk).aupdate(
+        discord_thread_id=thread.id, discord_channel_id=team.discord_category_id
+    )
 
     team_member_ids = await get_team_member_discord_ids(team)
     for member_id in team_member_ids:

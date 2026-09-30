@@ -5,7 +5,6 @@ import logging
 from asgiref.sync import sync_to_async
 from discord.ext import commands, tasks
 
-from bot.permissions import clear_permission_cache
 from core.services.user_groups import GroupRefreshAbortedError, refresh_user_groups
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,6 @@ async def refresh_groups_now() -> None:
         logger.warning(f"Authentik group refresh failed: {e}")
         return
     if result.changed:
-        clear_permission_cache()
         logger.info(f"Authentik group refresh: {result.changed} of {result.checked} users changed")
 
 
@@ -45,13 +43,7 @@ class AuthentikGroupsCog(commands.Cog):
 
     @refresh_task.before_loop
     async def before_refresh(self) -> None:
-        if self.bot.is_closed():
-            return
-        try:
-            await self.bot.wait_until_ready()
-        except RuntimeError:
-            # Bot was never logged in (e.g., during tests)
-            self.refresh_task.cancel()
+        await self.bot.wait_until_ready()
 
 
 async def setup(bot: commands.Bot) -> None:

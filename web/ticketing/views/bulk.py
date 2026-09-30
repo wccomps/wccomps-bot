@@ -7,10 +7,10 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 
 from core.auth_utils import has_permission
-from core.models import DiscordTask
 from ticketing.forms import TicketBulkActionForm
+from ticketing.lifecycle import claim_ticket, resolve_ticket
 from ticketing.models import Ticket
-from ticketing.utils import claim_ticket_atomic, clear_all_tickets, resolve_ticket_atomic
+from ticketing.utils import clear_all_tickets
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +32,8 @@ def tickets_bulk_claim(request: HttpRequest) -> HttpResponse:
     for ticket_id in Ticket.objects.filter(ticket_number__in=form.cleaned_data["ticket_numbers"]).values_list(
         "id", flat=True
     ):
-        ticket, error = claim_ticket_atomic(ticket_id=ticket_id, actor_username=user.username, user=user)
+        ticket, error = claim_ticket(ticket_id=ticket_id, actor_username=user.username, user=user)
         if ticket is not None and not error:
-            DiscordTask.create_post_ticket_update(ticket=ticket, action="claimed", actor=user.username)
             claimed += 1
 
     logger.info(f"Bulk claimed {claimed} tickets by {user.username}")
@@ -63,7 +62,7 @@ def tickets_bulk_resolve(request: HttpRequest) -> HttpResponse:
         for number in requested.exclude(pk__in=tickets.values("pk")).values_list("ticket_number", flat=True)
     ]
     for ticket_id, ticket_number in tickets.values_list("id", "ticket_number"):
-        ticket, error = resolve_ticket_atomic(
+        ticket, error = resolve_ticket(
             ticket_id=ticket_id,
             actor_username=user.username,
             resolution_notes="Bulk resolved via web interface",
@@ -72,13 +71,6 @@ def tickets_bulk_resolve(request: HttpRequest) -> HttpResponse:
         if ticket is None or error:
             skipped.append(f"{ticket_number} ({error})")
             continue
-        DiscordTask.create_post_ticket_update(
-            ticket=ticket,
-            action="resolved",
-            actor=user.username,
-            resolution_notes=ticket.resolution_notes,
-            points_charged=ticket.points_charged,
-        )
         resolved += 1
 
     if skipped:

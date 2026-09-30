@@ -17,11 +17,6 @@ class LinkResult:
     success: bool
     error_template: str | None = None
     error_context: dict[str, str] | None = None
-    team: Team | None = None
-    team_number: int | None = None
-    discord_username: str = ""
-    authentik_username: str = ""
-    is_team_account: bool = False
 
 
 def validate_link_token(url_token: str | None, session_token: str | None, username: str) -> LinkResult | LinkToken:
@@ -93,10 +88,9 @@ def enforce_account_link_policy(
     discord_username: str,
     authentik_username: str,
     team: Team | None,
-    is_team_account: bool,
 ) -> LinkResult | None:
     """Check if account linking is allowed by policy, returning an error LinkResult if blocked, else None."""
-    if is_team_account:
+    if team:
         return None
 
     existing_link = DiscordLink.objects.filter(user=user, is_active=True).first()
@@ -145,10 +139,9 @@ def execute_link(
     discord_username: str,
     user: User,
     team: Team | None,
-    is_team_account: bool,
 ) -> LinkResult | None:
     """Create the DiscordLink, locking the team row to enforce fullness; returns an error LinkResult or None."""
-    if is_team_account and team:
+    if team:
         with transaction.atomic():
             team = Team.objects.select_for_update().get(pk=team.pk)
             relinking = team.members.filter(discord_id=discord_id, is_active=True).exists()
@@ -201,8 +194,6 @@ def finalize_link(
     discord_username: str,
     authentik_username: str,
     team: Team | None,
-    team_number: int | None,
-    is_team_account: bool,
     groups: list[str],
 ) -> None:
     """Mark token used, create audit records, and queue Discord tasks."""
@@ -224,8 +215,8 @@ def finalize_link(
 
     DiscordTask.create_assign_group_roles(discord_id=discord_id, authentik_groups=groups)
 
-    if is_team_account and team and team_number is not None:
-        DiscordTask.create_assign_role(discord_id=discord_id, team_number=team_number)
+    if team:
+        DiscordTask.create_assign_role(discord_id=discord_id, team_number=team.team_number)
         DiscordTask.create_log_to_channel(
             message=f"User Linked: <@{discord_id}> ({discord_username}) \u2192 **{team.team_name}**"
         )

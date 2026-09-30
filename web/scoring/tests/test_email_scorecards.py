@@ -10,7 +10,7 @@ from django.test import Client
 from django.urls import reverse
 
 from core.models import UserGroups
-from scoring.models import FinalScore, ScoringTemplate
+from scoring.models import ScoringTemplate, ServiceScore
 from team.models import SchoolInfo, Team
 
 pytestmark = pytest.mark.django_db
@@ -69,27 +69,10 @@ def scoring_template():
 
 @pytest.fixture
 def final_scores(teams, scoring_template):
+    """Service points give both teams scoring activity: team 1 ranks first, team 2 second."""
     return [
-        FinalScore.objects.create(
-            team=teams[0],
-            service_points=Decimal("500"),
-            inject_points=Decimal("300"),
-            orange_points=Decimal("100"),
-            red_deductions=Decimal("-50"),
-            sla_penalties=Decimal("-10"),
-            total_score=Decimal("840"),
-            rank=1,
-        ),
-        FinalScore.objects.create(
-            team=teams[1],
-            service_points=Decimal("400"),
-            inject_points=Decimal("250"),
-            orange_points=Decimal("80"),
-            red_deductions=Decimal("-30"),
-            sla_penalties=Decimal("-5"),
-            total_score=Decimal("695"),
-            rank=2,
-        ),
+        ServiceScore.objects.create(team=teams[0], service_points=Decimal("500")),
+        ServiceScore.objects.create(team=teams[1], service_points=Decimal("400")),
     ]
 
 

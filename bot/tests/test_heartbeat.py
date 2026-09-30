@@ -96,7 +96,6 @@ def test_health_module_exit_codes_and_no_django(hb_dir):
     ("module", "cls_name", "work_attr", "loop_attr", "beat"),
     [
         ("bot.discord_queue", "DiscordQueueProcessor", "_process_pending_tasks", "_process_loop", "queue"),
-        ("bot.competition_timer", "CompetitionTimer", "_check_competition_times", "_check_loop", "timer"),
         ("bot.unified_dashboard", "UnifiedDashboard", "_check_and_update", "_dashboard_loop", "dashboard"),
     ],
 )
@@ -133,7 +132,6 @@ async def test_loops_beat_only_after_successful_pass(
 @pytest.mark.parametrize(
     ("module", "cls_name", "loop_attr", "db_call"),
     [
-        ("bot.competition_timer", "CompetitionTimer", "_check_loop", "core.models.CompetitionConfig.get_config"),
         ("bot.unified_dashboard", "UnifiedDashboard", "_dashboard_loop", "core.models.DashboardUpdate.objects.first"),
     ],
 )

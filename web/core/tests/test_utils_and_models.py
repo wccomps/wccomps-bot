@@ -9,9 +9,8 @@ from hypothesis import given
 from hypothesis import settings as hypothesis_settings
 from hypothesis import strategies as st
 
-from core.auth_utils import get_authentik_groups, get_authentik_id
+from core.auth_utils import get_authentik_groups, get_authentik_id, team_for_groups
 from core.models import AuditLog, CompetitionConfig, DiscordTask
-from core.utils import get_team_from_groups
 from team.models import Team
 
 pytestmark = pytest.mark.django_db
@@ -47,65 +46,26 @@ class TestGetAuthentikId:
         assert user_id is None
 
 
-class TestGetTeamFromGroups:
-    """Tests for get_team_from_groups function."""
-
+class TestTeamForGroups:
     @pytest.fixture
-    def test_teams(self):
-        """Create test teams."""
-        teams = []
-        for i in [1, 10, 50]:
-            team = Team.objects.create(team_number=i, team_name=f"Team {i}")
-            teams.append(team)
-        return teams
+    def teams(self):
+        return {n: Team.objects.create(team_number=n, team_name=f"Team {n}") for n in (1, 10, 50)}
 
-    def test_extracts_team_from_valid_group(self, test_teams):
-        """Should extract team from valid BlueTeam group."""
-        team, team_number, is_team = get_team_from_groups(["WCComps_BlueTeam01"])
-        assert team is not None
-        assert team.team_number == 1
-        assert team_number == 1
-        assert is_team is True
+    @pytest.mark.parametrize("number", [1, 10, 50])
+    def test_finds_the_team_by_its_group(self, teams, number):
+        assert team_for_groups(["WCComps_Ticketing_Support", f"WCComps_BlueTeam{number:02d}"]) == teams[number]
 
-    def test_handles_double_digit_team(self, test_teams):
-        """Should handle double-digit team numbers."""
-        team, team_number, is_team = get_team_from_groups(["WCComps_BlueTeam10"])
-        assert team is not None
-        assert team.team_number == 10
-        assert team_number == 10
+    def test_matches_the_teams_configured_group_not_its_number(self, teams):
+        Team.objects.filter(team_number=10).update(authentik_group="WCComps_BlueTeam_Renamed")
 
-    def test_handles_team_50(self, test_teams):
-        """Should handle team 50."""
-        team, team_number, is_team = get_team_from_groups(["WCComps_BlueTeam50"])
-        assert team is not None
-        assert team.team_number == 50
+        assert team_for_groups(["WCComps_BlueTeam_Renamed"]) == teams[10]
+        assert team_for_groups(["WCComps_BlueTeam10"]) is None
 
-    def test_returns_none_for_non_team_groups(self, test_teams):
-        """Should return None for non-team groups."""
-        team, team_number, is_team = get_team_from_groups(["WCComps_GoldTeam", "WCComps_RedTeam"])
-        assert team is None
-        assert team_number is None
-        assert is_team is False
-
-    def test_returns_none_for_empty_groups(self, test_teams):
-        """Should return None for empty groups list."""
-        team, team_number, is_team = get_team_from_groups([])
-        assert team is None
-        assert team_number is None
-        assert is_team is False
-
-    def test_returns_none_for_nonexistent_team(self):
-        """Should return None if team doesn't exist in database."""
-        # No teams created
-        team, team_number, is_team = get_team_from_groups(["WCComps_BlueTeam01"])
-        assert team is None
-        assert team_number is None
-        assert is_team is False
-
-    def test_ignores_invalid_team_numbers(self, test_teams):
-        """Should ignore team numbers outside 1-50 range."""
-        team, team_number, is_team = get_team_from_groups(["WCComps_BlueTeam99"])
-        assert team is None
+    @pytest.mark.parametrize(
+        "groups", [[], ["WCComps_GoldTeam", "WCComps_RedTeam"], ["WCComps_BlueTeam02"], ["WCComps_BlueTeam1"]]
+    )
+    def test_none_without_a_teams_group(self, teams, groups):
+        assert team_for_groups(groups) is None
 
 
 class TestAuditLogModel:
@@ -295,55 +255,6 @@ class TestTeamModelProperties:
             )
 
         assert "team_number" in str(exc_info.value)
-
-
-class TestGetTeamFromGroupsProperties:
-    """Property-based tests for get_team_from_groups function."""
-
-    @given(team_number=st.integers(min_value=1, max_value=50))
-    @hypothesis_settings(max_examples=20, deadline=None)
-    def test_valid_team_group_patterns_parsed_correctly(self, team_number: int):
-        """Valid BlueTeam group patterns should be parsed correctly."""
-        # Create the team first
-        Team.objects.filter(team_number=team_number).delete()
-        Team.objects.create(
-            team_number=team_number,
-            team_name=f"Team {team_number}",
-        )
-
-        # Test with zero-padded format
-        group = f"WCComps_BlueTeam{team_number:02d}"
-        team, parsed_num, is_team = get_team_from_groups([group])
-
-        assert team is not None
-        assert parsed_num == team_number
-        assert is_team is True
-
-    @given(
-        prefix=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))),
-        suffix=st.text(min_size=0, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))),
-    )
-    @hypothesis_settings(max_examples=30, deadline=None)
-    def test_non_blueteam_groups_return_none(self, prefix: str, suffix: str):
-        """Groups not matching BlueTeam pattern should return None."""
-        # Skip if the generated text happens to match the pattern
-        group = f"{prefix}{suffix}"
-        if group.startswith("WCComps_BlueTeam"):
-            return
-
-        team, team_number, is_team = get_team_from_groups([group])
-
-        assert team is None
-        assert team_number is None
-        assert is_team is False
-
-    @given(groups=st.lists(st.text(min_size=1, max_size=50), min_size=0, max_size=10))
-    @hypothesis_settings(max_examples=30, deadline=None)
-    def test_no_exception_on_arbitrary_groups(self, groups: list[str]):
-        """Function should not raise exceptions on arbitrary group input."""
-        # Should not raise
-        result = get_team_from_groups(groups)
-        assert len(result) == 3  # Returns a 3-tuple
 
 
 class TestDiscordTaskTypeConsistency:

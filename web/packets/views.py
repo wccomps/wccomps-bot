@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from registration.models import Event
 
-from core.auth_utils import get_user_team_number, require_permission
+from core.auth_utils import get_user_team, require_permission
 from team.models import Team
 
 from .forms import PacketActionForm, PacketResendForm, PacketUploadForm
@@ -42,12 +42,10 @@ def team_packet(request: HttpRequest) -> HttpResponse:
         context: dict[str, object] = {"packets": packets, "is_gold_view": True}
         return render(request, "packets/team_packet.html", context)
 
-    team_number = get_user_team_number(user)
-    if not team_number:
+    team = get_user_team(user)
+    if not team:
         messages.error(request, "You are not assigned to a team.")
         return redirect("/")
-
-    team = get_object_or_404(Team, team_number=team_number)
 
     distributions = (
         PacketDistribution.objects.filter(team=team, web_access_enabled=True)
@@ -83,7 +81,7 @@ def download_packet(request: HttpRequest, packet_id: int) -> HttpResponse:
         distribution = get_object_or_404(
             PacketDistribution.objects.select_related("packet"),
             packet_id=packet_id,
-            team__team_number=get_user_team_number(user),
+            team=get_user_team(user),
             web_access_enabled=True,
             **{f"packet__{k}": v for k, v in available.items()},
         )

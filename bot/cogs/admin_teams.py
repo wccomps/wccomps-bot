@@ -10,7 +10,7 @@ from discord.ext import commands
 from django.utils import timezone
 
 from bot.discord_manager import delete_team_infrastructure, unlink_team_members
-from bot.permissions import check_admin
+from bot.permissions import permission_check
 from bot.utils import (
     get_team_or_respond,
     log_to_ops_channel,
@@ -35,7 +35,7 @@ class AdminTeamsCog(commands.Cog):
         self.bot = bot
 
     @teams_group.command(name="list", description="[ADMIN] List all teams with status")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_teams(self, interaction: discord.Interaction) -> None:
         """List all teams with member counts."""
         teams = [team async for team in Team.objects.all().order_by("team_number")]
@@ -62,7 +62,7 @@ class AdminTeamsCog(commands.Cog):
 
     @teams_group.command(name="info", description="[ADMIN] Get detailed info about a specific team")
     @app_commands.describe(team_number="Team number (1-50)")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_team_info(self, interaction: discord.Interaction, team_number: int) -> None:
         """Get detailed information about a team."""
         team = await get_team_or_respond(interaction, team_number)
@@ -105,7 +105,7 @@ class AdminTeamsCog(commands.Cog):
         description="[ADMIN] Unlink one or more Discord users from their teams",
     )
     @app_commands.describe(users="User mention(s), ID(s), or space-separated list of multiple users")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_unlink(self, interaction: discord.Interaction, users: str) -> None:
         """Unlink one or more Discord users from their teams."""
         await interaction.response.defer(ephemeral=True)
@@ -225,7 +225,7 @@ class AdminTeamsCog(commands.Cog):
         description="[ADMIN] Remove team infrastructure and unlink all members",
     )
     @app_commands.describe(team_number="Team number (1-50)")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_remove_team(self, interaction: discord.Interaction, team_number: int) -> None:
         """Remove a team's Discord infrastructure and unlink all members."""
         if team_number < 1 or team_number > MAX_TEAMS:
@@ -290,7 +290,7 @@ class AdminTeamsCog(commands.Cog):
         team_number="Team number (1-50)",
         recreate_channels="Whether to recreate Discord channels and role (default: True)",
     )
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_reset_team(
         self,
         interaction: discord.Interaction,
@@ -398,7 +398,7 @@ class AdminTeamsCog(commands.Cog):
         description="[ADMIN] Activate multiple teams in database",
     )
     @app_commands.describe(teams="Team numbers (e.g., '1,3,5-10,15')")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_activate_teams(self, interaction: discord.Interaction, teams: str) -> None:
         """Activate multiple teams in database (sets is_active=True)."""
         await interaction.response.defer(ephemeral=True)
@@ -459,7 +459,7 @@ class AdminTeamsCog(commands.Cog):
         description="[ADMIN] Deactivate multiple teams in database",
     )
     @app_commands.describe(teams="Team numbers (e.g., '1,3,5-10,15')")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_deactivate_teams(self, interaction: discord.Interaction, teams: str) -> None:
         """Deactivate multiple teams in database (sets is_active=False)."""
         await interaction.response.defer(ephemeral=True)
@@ -520,7 +520,7 @@ class AdminTeamsCog(commands.Cog):
         description="[ADMIN] Recreate Discord infrastructure for multiple teams",
     )
     @app_commands.describe(teams="Team numbers (e.g., '1,3,5-10,15')")
-    @app_commands.check(check_admin)
+    @app_commands.check(permission_check("admin"))
     async def admin_recreate_teams(self, interaction: discord.Interaction, teams: str) -> None:
         """Recreate Discord infrastructure (roles, channels) for multiple teams."""
         await interaction.response.defer(ephemeral=True)
