@@ -75,14 +75,14 @@ class TestTaskRetry:
             max_retries=5,
         )
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(return_value=(MagicMock(), MagicMock()))
+        processor._manager = MagicMock(return_value=AsyncMock())
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(return_value=(MagicMock(), MagicMock()))
 
         await processor._process_task(task)
 
         await task.arefresh_from_db()
         assert task.status == "completed"
-        processor.discord_manager.setup_team_infrastructure.assert_awaited_once_with(test_team.team_number)
+        processor._manager.return_value.setup_team_infrastructure.assert_awaited_once_with(test_team.team_number)
 
     async def test_task_retries_on_discord_error(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """A task retries on a Discord API error."""
@@ -97,15 +97,14 @@ class TestTaskRetry:
 
         # Create processor
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         # Create a proper Forbidden error
         mock_response = MagicMock()
         mock_response.status = 403
         mock_response.reason = "Forbidden"
         forbidden_error = discord.errors.Forbidden(mock_response, "Missing Permissions")
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
 
         # Process task
         await processor._process_task(task)
@@ -122,15 +121,14 @@ class TestTaskRetry:
     async def test_task_exponential_backoff_timing(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """Test exponential backoff timing: 2s, 4s, 8s, 16s."""
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         # Create a proper Forbidden error
         mock_response = MagicMock()
         mock_response.status = 403
         mock_response.reason = "Forbidden"
         forbidden_error = discord.errors.Forbidden(mock_response, "Missing Permissions")
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
 
         # Test only up to retry_count=3 (4th attempt) to avoid hitting max_retries
         expected_backoffs = [2, 4, 8, 16]  # 2^1, 2^2, 2^3, 2^4
@@ -180,15 +178,14 @@ class TestTaskRetry:
         )
 
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         # Create a proper Forbidden error
         mock_response = MagicMock()
         mock_response.status = 403
         mock_response.reason = "Forbidden"
         forbidden_error = discord.errors.Forbidden(mock_response, "Missing Permissions")
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
 
         # Mock log_to_ops_channel to avoid actual Discord calls
         with patch("bot.utils.log_to_ops_channel", new_callable=AsyncMock):
@@ -214,8 +211,7 @@ class TestTaskRetry:
         )
 
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         # Create a proper Forbidden error
         mock_response = MagicMock()
@@ -223,7 +219,7 @@ class TestTaskRetry:
         mock_response.reason = "Forbidden"
         error_msg = "Missing Permissions"
         forbidden_error = discord.errors.Forbidden(mock_response, error_msg)
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
 
         # Process task
         await processor._process_task(task)
@@ -246,12 +242,11 @@ class TestTaskRetry:
         )
 
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         # Create rate limit error with retry_after
         rate_limit_error = discord.errors.RateLimited(60)  # 60 second retry
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=rate_limit_error)
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=rate_limit_error)
 
         now = timezone.now()
 
@@ -287,8 +282,7 @@ class TestTaskRetry:
         task = tasks[0]
 
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         # Process task
         await processor._process_task(task)
@@ -310,11 +304,9 @@ class TestTaskRetry:
         guild.get_member.return_value = None
         guild.fetch_member = AsyncMock(side_effect=discord.NotFound(MagicMock(status=404), "unknown member"))
         processor = DiscordQueueProcessor(mock_bot_with_guild)
+        processor._guild = MagicMock(return_value=guild)
 
-        with (
-            patch("bot.role_sync.competition_guild", return_value=guild),
-            patch("bot.role_sync.sync_member_roles", new_callable=AsyncMock) as sync,
-        ):
+        with patch("bot.role_sync.sync_member_roles", new_callable=AsyncMock) as sync:
             await processor._handle_sync_member_roles(SyncMemberRoles(discord_id=999999999))
 
         sync.assert_not_awaited()
@@ -323,12 +315,10 @@ class TestTaskRetry:
         guild, member = MagicMock(), MagicMock()
         guild.get_member.return_value = member
         processor = DiscordQueueProcessor(mock_bot_with_guild)
+        processor._guild = MagicMock(return_value=guild)
         result = {"roles_added": 1, "roles_removed": 0, "errors": 0, "changes": []}
 
-        with (
-            patch("bot.role_sync.competition_guild", return_value=guild),
-            patch("bot.role_sync.sync_member_roles", new=AsyncMock(return_value=result)) as sync,
-        ):
+        with patch("bot.role_sync.sync_member_roles", new=AsyncMock(return_value=result)) as sync:
             await processor._handle_sync_member_roles(SyncMemberRoles(discord_id=42))
 
         sync.assert_awaited_once_with(guild, member)
@@ -342,8 +332,7 @@ class TestDiscordQueueOrdering:
     async def test_tasks_processed_in_created_at_order(self, mock_bot_with_guild: Any) -> None:
         """Test that tasks are fetched and processed in created_at order."""
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         # created_at is auto_now_add: bulk_create stamps each row in list order.
         from core.models import DiscordTask as TaskModel
@@ -399,8 +388,7 @@ class TestDiscordQueueOrdering:
     async def test_only_ready_tasks_processed(self, mock_bot_with_guild: Any) -> None:
         """Test that tasks not ready for retry are skipped."""
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         now = timezone.now()
 
@@ -434,8 +422,7 @@ class TestDiscordQueueOrdering:
     async def test_max_ten_tasks_per_poll(self, mock_bot_with_guild: Any) -> None:
         """Test that only max 10 tasks are fetched per poll."""
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
+        processor._manager = MagicMock(return_value=AsyncMock())
 
         now = timezone.now()
 
@@ -467,9 +454,8 @@ class TestExponentialBackoff:
     async def test_exponential_backoff_formula(self, mock_bot_with_guild: Any) -> None:
         """Test exponential backoff follows 2^retry_count formula."""
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
+        processor._manager = MagicMock(return_value=AsyncMock())
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
 
         # Test multiple retry levels: after incrementing retry_count, backoff is 2^retry_count
         test_cases = [
@@ -504,9 +490,8 @@ class TestExponentialBackoff:
     async def test_exponential_backoff_capped_at_300_seconds(self, mock_bot_with_guild: Any) -> None:
         """Test that exponential backoff is capped at 300 seconds (5 minutes)."""
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
+        processor._manager = MagicMock(return_value=AsyncMock())
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
 
         # Create task with high retry count where 2^retry_count > 300
         task = await DiscordTask.objects.acreate(
@@ -546,9 +531,8 @@ class TestPermanentFailure:
         )
 
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
+        processor._manager = MagicMock(return_value=AsyncMock())
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
 
         # Create task at max retries
         task = await DiscordTask.objects.acreate(
@@ -584,9 +568,8 @@ class TestPermanentFailure:
         )
 
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=Exception("Critical error"))
+        processor._manager = MagicMock(return_value=AsyncMock())
+        processor._manager.return_value.setup_team_infrastructure = AsyncMock(side_effect=Exception("Critical error"))
 
         task = await DiscordTask.objects.acreate(
             task_type="setup_team_infrastructure",
@@ -662,3 +645,25 @@ async def test_handler_return_is_stored_as_result_and_payload_is_left_alone() ->
     assert task.payload == {"requested_by": "ops", "dry_run": True}
     assert task.result["roles_added"] == 2
     assert task.result["changes"] == ["+ alice"]
+
+
+class TestCompetitionGuildLookup:
+    def test_each_task_gets_the_current_guild_object(self, settings: Any) -> None:
+        """A gateway re-identify replaces the Guild object; a copy taken at startup would go stale."""
+        settings.COMPETITION_GUILD_ID = 525
+        before, after = MagicMock(), MagicMock()
+        bot = MagicMock()
+        bot.get_guild.side_effect = [before, after]
+        processor = DiscordQueueProcessor(bot)
+
+        assert (processor._guild(), processor._guild()) == (before, after)
+        bot.get_guild.assert_called_with(525)
+
+    def test_a_missing_competition_guild_fails_instead_of_using_another_guild(self, settings: Any) -> None:
+        settings.COMPETITION_GUILD_ID = 525
+        bot = MagicMock()
+        bot.get_guild.return_value = None
+        bot.guilds = [MagicMock(name="volunteer guild")]
+
+        with pytest.raises(RuntimeError, match="Competition guild not found"):
+            DiscordQueueProcessor(bot)._guild()

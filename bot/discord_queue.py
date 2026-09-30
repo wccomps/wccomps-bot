@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from bot.discord_manager import DiscordManager
 from bot.heartbeat import record as record_heartbeat
+from bot.role_sync import competition_guild
 from bot.thread_creator import publish_new_ticket
 from bot.ticket_dashboard import trigger_dashboard
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection, team_chat_channel
@@ -51,26 +52,23 @@ class DiscordQueueProcessor:
 
     def __init__(self, bot: discord.Client) -> None:
         self.bot = bot
-        self.discord_manager: DiscordManager | None = None
         self.running = False
         self.task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
         self.running = True
-
-        guild_id = settings.COMPETITION_GUILD_ID
-        if guild_id:
-            guild = self.bot.get_guild(guild_id)
-            if guild:
-                self.discord_manager = DiscordManager(guild, self.bot)
-            else:
-                logger.error(f"Could not find configured guild {guild_id}")
-        elif self.bot.guilds:
-            guild = self.bot.guilds[0]
-            self.discord_manager = DiscordManager(guild, self.bot)
-
         self.task = asyncio.create_task(self._process_loop())
         logger.info("Discord queue processor started")
+
+    def _guild(self) -> discord.Guild:
+        """The competition guild, looked up per task so a gateway reconnect can't leave a stale one."""
+        guild = competition_guild(self.bot)
+        if not guild:
+            raise RuntimeError("Competition guild not found")
+        return guild
+
+    def _manager(self) -> DiscordManager:
+        return DiscordManager(self._guild(), self.bot)
 
     def stop(self) -> None:
         self.running = False
@@ -230,11 +228,9 @@ class DiscordQueueProcessor:
         return None
 
     async def _handle_sync_member_roles(self, payload: SyncMemberRoles) -> None:
-        from bot.role_sync import competition_guild, sync_member_roles
+        from bot.role_sync import sync_member_roles
 
-        guild = competition_guild(self.bot)
-        if not guild:
-            raise RuntimeError("Competition guild not found")
+        guild = self._guild()
         member = guild.get_member(payload.discord_id)
         if not member:
             try:
@@ -257,17 +253,12 @@ class DiscordQueueProcessor:
         """Run the competition cleanup requested from the ops page."""
         from bot.competition_actions import run_competition_cleanup
 
-        if not self.discord_manager:
-            raise RuntimeError("Discord manager not initialized")
-        await run_competition_cleanup(self.bot, self.discord_manager.guild, payload.requested_by)
+        await run_competition_cleanup(self.bot, self._guild(), payload.requested_by)
 
     async def _handle_setup_team_infrastructure(self, payload: SetupTeamInfrastructure) -> None:
-        if not self.discord_manager:
-            raise RuntimeError("Discord manager not initialized")
-
         team_number = payload.team_number
 
-        role, category = await self.discord_manager.setup_team_infrastructure(team_number)
+        role, category = await self._manager().setup_team_infrastructure(team_number)
         if not role or not category:
             raise RuntimeError(f"Failed to setup infrastructure for team {team_number}")
 
@@ -290,8 +281,7 @@ class DiscordQueueProcessor:
             trigger_dashboard(self.bot)
             return
 
-        guild = self.discord_manager.guild if self.discord_manager else None
-        await publish_new_ticket(self.bot, guild, ticket)
+        await publish_new_ticket(self.bot, competition_guild(self.bot), ticket)
 
     async def _handle_post_comment(self, payload: PostComment) -> None:
         """Handle posting a comment from web to Discord thread."""
@@ -415,13 +405,11 @@ class DiscordQueueProcessor:
 
     async def _handle_sync_roles(self, payload: SyncRoles) -> SyncRolesResult:
         """Run the Authentik role sync; its result is what the web Sync Roles page shows."""
-        from bot.role_sync import competition_guild, sync_roles
+        from bot.role_sync import sync_roles
         from bot.utils import log_to_ops_channel
 
         dry_run = payload.dry_run
-        guild = competition_guild(self.bot)
-        if not guild:
-            raise RuntimeError("Competition guild not found")
+        guild = self._guild()
 
         try:
             stats = await asyncio.wait_for(sync_roles(guild, dry_run=dry_run), timeout=300.0)
@@ -447,9 +435,7 @@ class DiscordQueueProcessor:
         if not target or not message:
             raise ValueError("Missing target or message in payload")
 
-        guild = self.bot.get_guild(settings.COMPETITION_GUILD_ID)
-        if not guild:
-            raise RuntimeError("Guild not found")
+        guild = self._guild()
 
         target_lower = target.lower().strip()
         sent_count = 0
