@@ -18,6 +18,11 @@ def team_username(team_number: int) -> str:
     return f"team{team_number:02d}"
 
 
+def default_team_name(team_number: int) -> str:
+    """A team's name until someone gives it one; the school CSV import resets every team to it."""
+    return f"BlueTeam{team_number:02d}"
+
+
 class Team(models.Model):
     """Competition team (1-50)."""
 
