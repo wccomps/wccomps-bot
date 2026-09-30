@@ -98,13 +98,13 @@ async def test_help_panel_ticket_gets_thread_and_no_malformed_task(
     mock_interaction.guild.get_member = Mock(return_value=None)
     mock_interaction.client = mock_bot
 
-    with patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock) as dashboard:
+    with patch("bot.ticket_dashboard.post_ticket_to_dashboard") as dashboard:
         await create_ticket(mock_interaction, category_id=str(consult.pk), description="help with dns")
 
     ticket = await Ticket.objects.aget(team=team)
     assert ticket.discord_thread_id == 777
     assert ticket.ticket_number in thread.send.await_args.kwargs["embed"].title
-    dashboard.assert_awaited_once()
+    dashboard.assert_called_once()
     assert not await DiscordTask.objects.filter(task_type="ticket_created_web").aexists()
     assert "created" in mock_interaction.followup.send.await_args.args[0]
 

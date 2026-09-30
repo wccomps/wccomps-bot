@@ -1,6 +1,6 @@
 """Tests for ticket dashboard functionality."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from django.contrib.auth.models import User
@@ -160,8 +160,8 @@ class TestDashboardUpdate:
     async def test_post_ticket_to_dashboard_with_unified_dashboard(self, box_reset_category: TicketCategory) -> None:
         """Test posting ticket when unified dashboard exists."""
         bot = MagicMock()
-        unified_dashboard = AsyncMock()
-        unified_dashboard.trigger_update = AsyncMock()
+        unified_dashboard = MagicMock()
+        unified_dashboard.trigger_update = MagicMock()
         bot.unified_dashboard = unified_dashboard
 
         team = await Team.objects.acreate(team_number=27, team_name="Test Team", authentik_group="test")
@@ -174,7 +174,7 @@ class TestDashboardUpdate:
             status="open",
         )
 
-        await post_ticket_to_dashboard(bot, ticket)
+        post_ticket_to_dashboard(bot, ticket)
 
         unified_dashboard.trigger_update.assert_called_once()
 
@@ -193,13 +193,13 @@ class TestDashboardUpdate:
             status="open",
         )
 
-        await post_ticket_to_dashboard(bot, ticket)
+        post_ticket_to_dashboard(bot, ticket)
 
     async def test_update_ticket_dashboard_with_unified_dashboard(self, box_reset_category: TicketCategory) -> None:
         """Test updating dashboard when unified dashboard exists."""
         bot = MagicMock()
-        unified_dashboard = AsyncMock()
-        unified_dashboard.trigger_update = AsyncMock()
+        unified_dashboard = MagicMock()
+        unified_dashboard.trigger_update = MagicMock()
         bot.unified_dashboard = unified_dashboard
 
         team = await Team.objects.acreate(team_number=29, team_name="Test Team", authentik_group="test")
@@ -212,6 +212,6 @@ class TestDashboardUpdate:
             status="open",
         )
 
-        await update_ticket_dashboard(bot, ticket)
+        update_ticket_dashboard(bot, ticket)
 
         unified_dashboard.trigger_update.assert_called_once()

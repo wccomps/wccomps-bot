@@ -7,7 +7,6 @@ from .models import (
     AuditLog,
     BotState,
     CompetitionConfig,
-    DashboardUpdate,
     DiscordTask,
     UserGroups,
 )
@@ -57,7 +56,7 @@ class DiscordTaskAdmin(admin.ModelAdmin[DiscordTask]):
     list_filter = ["status", "task_type"]
     search_fields = ["task_type", "error_message"]
     ordering = ["-created_at"]
-    readonly_fields = ["created_at", "completed_at"]
+    readonly_fields = ["result", "created_at", "completed_at"]
 
     actions = ["retry_failed_tasks"]
 
@@ -86,18 +85,6 @@ class BotStateAdmin(admin.ModelAdmin[BotState]):
 
     def has_delete_permission(self, request: HttpRequest, obj: BotState | None = None) -> bool:
         return False  # Internal bot state
-
-
-@admin.register(DashboardUpdate)
-class DashboardUpdateAdmin(admin.ModelAdmin[DashboardUpdate]):
-    list_display = ["needs_update", "last_updated", "update_scheduled_at"]
-    readonly_fields = ["needs_update", "last_updated", "update_scheduled_at"]
-
-    def has_add_permission(self, request: HttpRequest) -> bool:
-        return False  # Singleton managed by system
-
-    def has_delete_permission(self, request: HttpRequest, obj: DashboardUpdate | None = None) -> bool:
-        return False  # System singleton
 
 
 @admin.register(CompetitionConfig)

@@ -80,17 +80,17 @@ async def test_resolve_button_opens_modal_and_rejects_out_of_range_points(
 async def test_updates_for_threadless_ticket_complete_and_refresh_dashboard(claimed_ticket: Ticket) -> None:
     bot = MagicMock(spec=discord.Client)
     bot.unified_dashboard = MagicMock()
-    bot.unified_dashboard.trigger_update = AsyncMock()
+    bot.unified_dashboard.trigger_update = MagicMock()
     processor = DiscordQueueProcessor(bot)
 
     update = await DiscordTask.objects.acreate(
         task_type="post_ticket_update", ticket=claimed_ticket, payload={"action": "claimed", "actor": "v"}
     )
-    await processor._handle_post_ticket_update(update)
-    bot.unified_dashboard.trigger_update.assert_awaited_once()
+    await processor._handle_post_ticket_update(update.typed_payload(), update.ticket_id)
+    bot.unified_dashboard.trigger_update.assert_called_once()
 
     comment = await claimed_ticket.comments.acreate(comment_text="hi")
     task = await DiscordTask.objects.acreate(
         task_type="post_comment", payload={"ticket_id": claimed_ticket.id, "comment_id": comment.id}
     )
-    await processor._handle_post_comment(task)
+    await processor._handle_post_comment(task.typed_payload())

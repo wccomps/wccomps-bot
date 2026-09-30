@@ -2,11 +2,12 @@
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
 from datetime import timedelta
+from typing import assert_never
 
 import discord
 from asgiref.sync import sync_to_async
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
@@ -15,6 +16,22 @@ from bot.heartbeat import record as record_heartbeat
 from bot.thread_creator import publish_new_ticket
 from bot.ticket_dashboard import post_ticket_to_dashboard, update_ticket_dashboard
 from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection, team_chat_channel
+from core.discord_tasks import (
+    PAYLOAD_TYPES,
+    AddUserToThread,
+    AssignGroupRoles,
+    AssignRole,
+    BroadcastMessage,
+    CleanupCompetition,
+    LogToChannel,
+    PostComment,
+    PostTicketUpdate,
+    RemoveRole,
+    SetupTeamInfrastructure,
+    SyncRoles,
+    TaskPayload,
+    TicketCreatedWeb,
+)
 from core.models import DiscordTask
 from core.utils import role_sync_summary
 from team.models import Team
@@ -32,10 +49,6 @@ class DiscordQueueProcessor:
     # A task left in "processing" by a dead bot is retried if younger than this, failed if older.
     STRANDED_TASK_MAX_AGE = timedelta(hours=1)
 
-    # Adding a new task type? Also update DiscordTask in core/models.py
-    # (TASK_TYPE_CHOICES, required_keys, docstring, factory classmethod).
-    _task_handlers: dict[str, Callable[[DiscordQueueProcessor, DiscordTask], Awaitable[None]]] = {}
-
     def __init__(self, bot: discord.Client) -> None:
         self.bot = bot
         self.discord_manager: DiscordManager | None = None
@@ -43,11 +56,9 @@ class DiscordQueueProcessor:
         self.task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
-        from bot.config import DISCORD_GUILD_ID
-
         self.running = True
 
-        guild_id = DISCORD_GUILD_ID
+        guild_id = settings.COMPETITION_GUILD_ID
         if guild_id:
             guild = self.bot.get_guild(guild_id)
             if guild:
@@ -125,19 +136,19 @@ class DiscordQueueProcessor:
         task.status = "processing"
 
         try:
-            handler = self._task_handlers.get(task.task_type)
-            if handler is None:
+            if task.task_type not in PAYLOAD_TYPES:
                 logger.warning(f"Unknown task type: {task.task_type}")
-                await sync_to_async(lambda: setattr(task, "status", "failed"))()
-                await sync_to_async(lambda: setattr(task, "error_message", f"Unknown task type: {task.task_type}"))()
-                await sync_to_async(task.save)()
+                task.status = "failed"
+                task.error_message = f"Unknown task type: {task.task_type}"
+                await task.asave()
                 return
-            await handler(self, task)
+            task_result = await self._dispatch(task.typed_payload(), task)
 
             @sync_to_async
             def mark_completed() -> None:
                 task.status = "completed"
                 task.completed_at = timezone.now()
+                task.result = task_result
                 task.save()
 
             await mark_completed()
@@ -191,15 +202,43 @@ class DiscordQueueProcessor:
             else:
                 logger.warning(f"Task {task.id} failed (attempt {task.retry_count}), retrying in {value}s")
 
-    async def _handle_assign_role(self, task: DiscordTask) -> None:
+    async def _dispatch(self, payload: TaskPayload, task: DiscordTask) -> dict[str, object] | None:
+        """Run the handler for payload; what it returns is stored as the task's result."""
+        match payload:
+            case AssignRole():
+                await self._handle_assign_role(payload)
+            case AssignGroupRoles():
+                await self._handle_assign_group_roles(payload)
+            case RemoveRole():
+                await self._handle_remove_role(payload)
+            case SetupTeamInfrastructure():
+                await self._handle_setup_team_infrastructure(payload)
+            case LogToChannel():
+                await self._handle_log_to_channel(payload)
+            case TicketCreatedWeb():
+                await self._handle_ticket_created_web(payload)
+            case CleanupCompetition():
+                await self._handle_cleanup_competition(payload)
+            case PostComment():
+                await self._handle_post_comment(payload)
+            case PostTicketUpdate():
+                await self._handle_post_ticket_update(payload, task.ticket_id)
+            case AddUserToThread():
+                await self._handle_add_user_to_thread(payload)
+            case SyncRoles():
+                return await self._handle_sync_roles(payload)
+            case BroadcastMessage():
+                return await self._handle_broadcast_message(payload)
+            case _:
+                assert_never(payload)
+        return None
+
+    async def _handle_assign_role(self, payload: AssignRole) -> None:
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
 
-        discord_id = task.payload.get("discord_id")
-        team_number = task.payload.get("team_number")
-
-        if not discord_id or not team_number:
-            raise ValueError("Missing discord_id or team_number in payload")
+        discord_id = payload.discord_id
+        team_number = payload.team_number
 
         guild = self.discord_manager.guild
         member = guild.get_member(discord_id)
@@ -238,15 +277,12 @@ class DiscordQueueProcessor:
 
         logger.info(f"Assigned team {team_number} role to {member}")
 
-    async def _handle_assign_group_roles(self, task: DiscordTask) -> None:
+    async def _handle_assign_group_roles(self, payload: AssignGroupRoles) -> None:
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
 
-        discord_id = task.payload.get("discord_id")
-        authentik_groups = task.payload.get("authentik_groups", [])
-
-        if not discord_id:
-            raise ValueError("Missing discord_id in payload")
+        discord_id = payload.discord_id
+        authentik_groups = payload.authentik_groups
 
         guild = self.discord_manager.guild
         member = guild.get_member(discord_id)
@@ -267,15 +303,12 @@ class DiscordQueueProcessor:
 
         logger.info(f"Assigned group roles to {member}")
 
-    async def _handle_remove_role(self, task: DiscordTask) -> None:
+    async def _handle_remove_role(self, payload: RemoveRole) -> None:
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
 
-        discord_id = task.payload.get("discord_id")
-        team_number = task.payload.get("team_number")
-
-        if not discord_id or not team_number:
-            raise ValueError("Missing discord_id or team_number in payload")
+        discord_id = payload.discord_id
+        team_number = payload.team_number
 
         guild = self.discord_manager.guild
         member = guild.get_member(discord_id)
@@ -296,21 +329,19 @@ class DiscordQueueProcessor:
 
         logger.info(f"Removed team {team_number} role from {member}")
 
-    async def _handle_cleanup_competition(self, task: DiscordTask) -> None:
+    async def _handle_cleanup_competition(self, payload: CleanupCompetition) -> None:
         """Run the competition cleanup requested from the ops page."""
         from bot.competition_actions import run_competition_cleanup
 
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
-        await run_competition_cleanup(self.bot, self.discord_manager.guild, task.payload["requested_by"])
+        await run_competition_cleanup(self.bot, self.discord_manager.guild, payload.requested_by)
 
-    async def _handle_setup_team_infrastructure(self, task: DiscordTask) -> None:
+    async def _handle_setup_team_infrastructure(self, payload: SetupTeamInfrastructure) -> None:
         if not self.discord_manager:
             raise RuntimeError("Discord manager not initialized")
 
-        team_number = task.payload.get("team_number")
-        if not team_number:
-            raise ValueError("Missing team_number in payload")
+        team_number = payload.team_number
 
         role, category = await self.discord_manager.setup_team_infrastructure(team_number)
         if not role or not category:
@@ -318,38 +349,30 @@ class DiscordQueueProcessor:
 
         logger.info(f"Set up infrastructure for team {team_number}")
 
-    async def _handle_log_to_channel(self, task: DiscordTask) -> None:
-        message = task.payload.get("message")
-        if not message:
+    async def _handle_log_to_channel(self, payload: LogToChannel) -> None:
+        if not payload.message:
             raise ValueError("Missing message in payload")
 
         from bot.utils import log_to_ops_channel
 
-        await log_to_ops_channel(self.bot, message)
+        await log_to_ops_channel(self.bot, payload.message)
 
-    async def _handle_ticket_created_web(self, task: DiscordTask) -> None:
+    async def _handle_ticket_created_web(self, payload: TicketCreatedWeb) -> None:
         """Handle ticket creation from web UI - create thread and post to dashboard."""
-        ticket_id = task.payload.get("ticket_id")
-        if not ticket_id:
-            raise ValueError("Missing ticket_id in payload")
-
-        ticket = await Ticket.objects.select_related("team").aget(id=ticket_id)
+        ticket = await Ticket.objects.select_related("team").aget(id=payload.ticket_id)
 
         # A retry after a partial failure must not create a second thread.
         if ticket.discord_thread_id:
-            await post_ticket_to_dashboard(self.bot, ticket)
+            post_ticket_to_dashboard(self.bot, ticket)
             return
 
         guild = self.discord_manager.guild if self.discord_manager else None
         await publish_new_ticket(self.bot, guild, ticket)
 
-    async def _handle_post_comment(self, task: DiscordTask) -> None:
+    async def _handle_post_comment(self, payload: PostComment) -> None:
         """Handle posting a comment from web to Discord thread."""
-        ticket_id = task.payload.get("ticket_id")
-        comment_id = task.payload.get("comment_id")
-
-        if not ticket_id or not comment_id:
-            raise ValueError("Missing ticket_id or comment_id in payload")
+        ticket_id = payload.ticket_id
+        comment_id = payload.comment_id
 
         @sync_to_async
         def get_data() -> tuple[Ticket, TicketComment]:
@@ -389,19 +412,15 @@ class DiscordQueueProcessor:
 
         logger.info(f"Posted comment {comment_id} to thread {thread.id} (message {message.id})")
 
-    async def _handle_post_ticket_update(self, task: DiscordTask) -> None:
+    async def _handle_post_ticket_update(self, payload: PostTicketUpdate, ticket_id: int | None) -> None:
         """Post a ticket status update (resolve/claim/unclaim/reopen) to the Discord thread."""
-        action = task.payload.get("action", "")
-        actor = task.payload.get("actor", "Unknown")
+        action = payload.action
+        actor = payload.actor
 
-        @sync_to_async
-        def get_ticket() -> Ticket:
-            if task.ticket_id:
-                return Ticket.objects.get(id=task.ticket_id)
+        if ticket_id is None:
             raise ValueError("No ticket linked to task")
-
-        ticket = await get_ticket()
-        await update_ticket_dashboard(self.bot, ticket)
+        ticket = await Ticket.objects.aget(id=ticket_id)
+        update_ticket_dashboard(self.bot, ticket)
 
         if not ticket.discord_thread_id:
             logger.info(f"Ticket {ticket.ticket_number} has no Discord thread; update '{action}' not mirrored")
@@ -418,8 +437,8 @@ class DiscordQueueProcessor:
             raise TypeError(f"Channel {ticket.discord_thread_id} is not a text channel or thread")
 
         if action == "resolved":
-            notes = task.payload.get("resolution_notes", "")
-            points = task.payload.get("points_charged", 0)
+            notes = payload.resolution_notes
+            points = payload.points_charged
             embed = discord.Embed(
                 title="Ticket Resolved",
                 color=discord.Color.green(),
@@ -432,28 +451,24 @@ class DiscordQueueProcessor:
         elif action == "claimed":
             await thread.send(f"Ticket claimed by **{actor}**")
         elif action == "assigned":
-            await thread.send(f"Ticket assigned to **{task.payload.get('assignee')}** by **{actor}**")
+            await thread.send(f"Ticket assigned to **{payload.assignee}** by **{actor}**")
         elif action == "unclaimed":
             await thread.send(f"Ticket unclaimed by **{actor}**")
         elif action == "cancelled":
             await thread.send(f"Ticket cancelled by **{actor}**")
         elif action == "reopened":
-            reason = task.payload.get("reason", "")
             msg = f"Ticket reopened by **{actor}**"
-            if reason:
-                msg += f"\nReason: {reason}"
+            if payload.reason:
+                msg += f"\nReason: {payload.reason}"
             await thread.send(msg)
         else:
             await thread.send(f"Ticket updated: {action} by **{actor}**")
 
         logger.info(f"Posted ticket update ({action}) to thread {ticket.discord_thread_id}")
 
-    async def _handle_add_user_to_thread(self, task: DiscordTask) -> None:
-        discord_id = task.payload.get("discord_id")
-        thread_id = task.payload.get("thread_id")
-
-        if not discord_id or not thread_id:
-            raise ValueError("Missing discord_id or thread_id in payload")
+    async def _handle_add_user_to_thread(self, payload: AddUserToThread) -> None:
+        discord_id = payload.discord_id
+        thread_id = payload.thread_id
 
         thread = self.bot.get_channel(thread_id)
         if not thread:
@@ -476,73 +491,48 @@ class DiscordQueueProcessor:
 
         logger.info(f"Added user {discord_id} to thread {thread_id}")
 
-    async def _handle_sync_roles(self, task: DiscordTask) -> None:
-        """Run the Authentik role sync, keeping progress and results in the task payload."""
-        import asyncio
-
+    async def _handle_sync_roles(self, payload: SyncRoles) -> dict[str, object]:
+        """Run the Authentik role sync; returns the counts the web Sync Roles page shows."""
         from bot.role_sync import AuthentikRoleSyncManager
         from bot.utils import log_to_ops_channel
 
-        dry_run = task.payload.get("dry_run", False)
+        dry_run = payload.dry_run
         sync_manager = AuthentikRoleSyncManager(self.bot)
 
-        async def save_progress(current: int, total: int, role_name: str) -> None:
-            @sync_to_async
-            def update_payload() -> None:
-                task.payload["progress"] = {
-                    "current": current,
-                    "total": total,
-                    "current_role": role_name,
-                }
-                task.save()
-
-            await update_payload()
-
         try:
-            stats = await asyncio.wait_for(
-                sync_manager.sync_roles(dry_run=dry_run, progress_callback=save_progress),
-                timeout=300.0,
-            )
+            stats = await asyncio.wait_for(sync_manager.sync_roles(dry_run=dry_run), timeout=300.0)
         except TimeoutError:
             logger.error("Role sync timed out after 5 minutes")
             raise RuntimeError("Role sync timed out after 5 minutes") from None
-
-        @sync_to_async
-        def store_results() -> None:
-            task.payload["result"] = {
-                "roles_added": stats["roles_added"],
-                "roles_removed": stats["roles_removed"],
-                "extra_linked": stats.get("extra_linked", 0),
-                "unlinked_holders": stats.get("unlinked_holders", 0),
-                "errors": stats["errors"],
-                "changes_count": len(stats["changes"]),
-                "changes": stats["changes"],
-                "dry_run": dry_run,
-            }
-            task.payload.pop("progress", None)
-            task.save()
-
-        await store_results()
 
         summary = role_sync_summary(stats, dry_run=dry_run)
         await log_to_ops_channel(self.bot, summary)
 
         logger.info(f"Role sync completed: {summary}")
+        return {
+            "roles_added": stats["roles_added"],
+            "roles_removed": stats["roles_removed"],
+            "extra_linked": stats.get("extra_linked", 0),
+            "unlinked_holders": stats.get("unlinked_holders", 0),
+            "errors": stats["errors"],
+            "changes_count": len(stats["changes"]),
+            "changes": stats["changes"],
+            "dry_run": dry_run,
+        }
 
-    async def _handle_broadcast_message(self, task: DiscordTask) -> None:
+    async def _handle_broadcast_message(self, payload: BroadcastMessage) -> dict[str, object]:
         """Broadcast a message to announcement channel or team channels."""
-        from bot.config import BLUETEAM_ROLE_ID, DISCORD_ANNOUNCEMENT_CHANNEL_ID, DISCORD_GUILD_ID
         from bot.utils import log_to_ops_channel
         from core.authentik_utils import parse_team_range
 
-        target = task.payload.get("target", "")
-        message = task.payload.get("message", "")
-        sender = task.payload.get("sender", "Web Admin")
+        target = payload.target
+        message = payload.message
+        sender = payload.sender
 
         if not target or not message:
             raise ValueError("Missing target or message in payload")
 
-        guild = self.bot.get_guild(DISCORD_GUILD_ID)
+        guild = self.bot.get_guild(settings.COMPETITION_GUILD_ID)
         if not guild:
             raise RuntimeError("Guild not found")
 
@@ -552,11 +542,11 @@ class DiscordQueueProcessor:
         failed_channels: list[str] = []
 
         if target_lower == "announcements":
-            channel = guild.get_channel(DISCORD_ANNOUNCEMENT_CHANNEL_ID)
+            channel = guild.get_channel(settings.DISCORD_ANNOUNCEMENT_CHANNEL_ID)
             if not channel or not isinstance(channel, discord.TextChannel):
                 raise RuntimeError("Announcements channel not found")
 
-            blueteam_role = guild.get_role(BLUETEAM_ROLE_ID)
+            blueteam_role = guild.get_role(settings.BLUETEAM_ROLE_ID)
             role_mention = blueteam_role.mention if blueteam_role else "@Blueteam"
 
             await channel.send(f"{role_mention}\n\n{message}")
@@ -594,23 +584,13 @@ class DiscordQueueProcessor:
                 else:
                     failed_channels.append(f"Team {team_number:02d}")
 
-        @sync_to_async
-        def store_results() -> None:
-            task.payload["result"] = {
-                "sent_count": sent_count,
-                "queued_count": queued_count,
-                "failed_count": len(failed_channels),
-            }
-            task.save()
-
-        await store_results()
-
         await log_to_ops_channel(
             self.bot,
             f"Broadcast by {sender}\n• Target: {target}\n• Sent: {sent_count}\n• Queued: {queued_count}",
         )
 
         logger.info(f"Broadcast complete: sent={sent_count}, queued={queued_count}, failed={len(failed_channels)}")
+        return {"sent_count": sent_count, "queued_count": queued_count, "failed_count": len(failed_channels)}
 
     async def _send_to_team_channel(self, guild: discord.Guild, team: Team, message: str, sender: str) -> str:
         """Send message to a team's chat channel. Returns 'sent', 'queued', or 'failed'."""
@@ -631,20 +611,3 @@ class DiscordQueueProcessor:
         except Exception as e:
             logger.exception(f"Failed to send to team {team.team_number}: {e}")
             return "failed"
-
-
-# Assigned after the class body so it can reference the handler methods.
-DiscordQueueProcessor._task_handlers = {
-    "assign_role": DiscordQueueProcessor._handle_assign_role,
-    "assign_group_roles": DiscordQueueProcessor._handle_assign_group_roles,
-    "remove_role": DiscordQueueProcessor._handle_remove_role,
-    "setup_team_infrastructure": DiscordQueueProcessor._handle_setup_team_infrastructure,
-    "log_to_channel": DiscordQueueProcessor._handle_log_to_channel,
-    "ticket_created_web": DiscordQueueProcessor._handle_ticket_created_web,
-    "cleanup_competition": DiscordQueueProcessor._handle_cleanup_competition,
-    "post_comment": DiscordQueueProcessor._handle_post_comment,
-    "post_ticket_update": DiscordQueueProcessor._handle_post_ticket_update,
-    "add_user_to_thread": DiscordQueueProcessor._handle_add_user_to_thread,
-    "sync_roles": DiscordQueueProcessor._handle_sync_roles,
-    "broadcast_message": DiscordQueueProcessor._handle_broadcast_message,
-}

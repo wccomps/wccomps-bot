@@ -5,6 +5,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from core.auth_utils import require_permission
+from core.discord_tasks import BroadcastMessage, SyncRoles
 from core.forms import BroadcastForm, SyncRolesForm
 from core.models import AuditLog, DiscordTask
 from core.utils import role_sync_summary
@@ -43,7 +44,7 @@ def admin_broadcast_action(request: HttpRequest) -> HttpResponse:
     target = form.cleaned_data["target"]
     message = form.cleaned_data["message"]
 
-    DiscordTask.create_broadcast_message(target=target, message=message, sender=authentik_username)
+    DiscordTask.enqueue(BroadcastMessage(target=target, message=message, sender=authentik_username))
 
     AuditLog.objects.create(
         action="broadcast_message",
@@ -82,7 +83,7 @@ def admin_sync_roles_action(request: HttpRequest) -> HttpResponse:
     form = SyncRolesForm(request.POST)
     dry_run = form.cleaned_data["dry_run"] if form.is_valid() else True
 
-    task = DiscordTask.create_sync_roles(requested_by=authentik_username, dry_run=dry_run)
+    task = DiscordTask.enqueue(SyncRoles(requested_by=authentik_username, dry_run=dry_run))
 
     AuditLog.objects.create(
         action="role_sync_started",
@@ -118,8 +119,8 @@ def admin_task_status(request: HttpRequest, task_id: int) -> HttpResponse:
     }
 
     if task.status == "completed":
-        result = task.payload.get("result", {})
         if task.task_type == "sync_roles":
+            result = cast(dict[str, object], task.result)
             response["message"] = role_sync_summary(result, dry_run=bool(result.get("dry_run")))
             response["changes"] = result.get("changes", [])
         else:

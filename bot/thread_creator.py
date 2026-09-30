@@ -87,4 +87,4 @@ async def publish_new_ticket(bot: discord.Client, guild: discord.Guild | None, t
             await create_ticket_thread(guild=guild, ticket=ticket, team=ticket.team, pin_message=True)
         except Exception:
             logger.exception(f"Failed to create thread for ticket {ticket.ticket_number}")
-    await post_ticket_to_dashboard(bot, ticket)
+    post_ticket_to_dashboard(bot, ticket)

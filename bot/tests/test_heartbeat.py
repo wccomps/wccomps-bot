@@ -126,37 +126,3 @@ async def test_loops_beat_only_after_successful_pass(
     await getattr(obj, loop_attr)()
 
     assert beats == ([] if work_fails else [beat])
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("module", "cls_name", "loop_attr", "db_call"),
-    [
-        ("bot.unified_dashboard", "UnifiedDashboard", "_dashboard_loop", "core.models.DashboardUpdate.objects.first"),
-    ],
-)
-async def test_real_work_failing_on_the_db_skips_the_beat(module, cls_name, loop_attr, db_call, monkeypatch):
-    """The loops' own work must let a DB error through, or the liveness probe never sees it."""
-    import importlib
-    from unittest.mock import patch
-
-    mod = importlib.import_module(module)
-    obj = getattr(mod, cls_name).__new__(getattr(mod, cls_name))
-    obj.bot = _open_bot()
-    obj.bot.wait_until_ready = AsyncMock()
-    obj._last_failure = None
-    beats: list[str] = []
-
-    async def stop_after_one_pass(*_a: object) -> None:
-        obj.running = False
-
-    monkeypatch.setattr(mod, "recycle_db_connection", AsyncMock())
-    monkeypatch.setattr(mod, "record_heartbeat", lambda name, bot: beats.append(name))
-    monkeypatch.setattr(obj, "_initialize_dashboard", AsyncMock(), raising=False)
-    monkeypatch.setattr(mod.asyncio, "sleep", stop_after_one_pass)
-    obj.running = True
-
-    with patch(db_call, side_effect=RuntimeError("db down")):
-        await getattr(obj, loop_attr)()
-
-    assert beats == []

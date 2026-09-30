@@ -31,18 +31,15 @@ def test_status_returns_summary_and_changes(admin_client):
     task = DiscordTask.objects.create(
         task_type="sync_roles",
         status="completed",
-        payload={
-            "requested_by": "admin",
+        payload={"requested_by": "admin", "dry_run": True},
+        result={
+            "roles_added": 2,
+            "roles_removed": 0,
+            "extra_linked": 1,
+            "unlinked_holders": 3,
+            "errors": 0,
             "dry_run": True,
-            "result": {
-                "roles_added": 2,
-                "roles_removed": 0,
-                "extra_linked": 1,
-                "unlinked_holders": 3,
-                "errors": 0,
-                "dry_run": True,
-                "changes": ["[DRY RUN] ✗ Extra: bob (Bob) has Gold Team but is not in WCComps_GoldTeam (not removed)"],
-            },
+            "changes": ["[DRY RUN] ✗ Extra: bob (Bob) has Gold Team but is not in WCComps_GoldTeam (not removed)"],
         },
     )
 
@@ -51,7 +48,7 @@ def test_status_returns_summary_and_changes(admin_client):
     assert "2 would be added" in data["message"]
     assert "1 linked users with extra roles" in data["message"]
     assert "3 unlinked role holders" in data["message"]
-    assert data["changes"] == task.payload["result"]["changes"]
+    assert data["changes"] == task.result["changes"]
 
 
 def test_blue_team_cannot_trigger_sync(blue_team_user):

@@ -299,7 +299,7 @@ class AdminTicketsCog(commands.Cog):
 
         old_cat_info = await sync_to_async(get_category_config)(old_category_id) or {}
         new_cat_info = await sync_to_async(get_category_config)(new_category_id) or {}
-        await update_ticket_dashboard(self.bot, ticket)
+        update_ticket_dashboard(self.bot, ticket)
 
         old_cat_name = old_cat_info.get("display_name", str(old_category_id))
         new_cat_name = new_cat_info.get("display_name", str(new_category_id))

@@ -81,10 +81,10 @@ class TestTicketCreationWorkflow:
         discord_manager.guild = guild
 
         # Process task (simulating queue processor)
-        with patch("bot.ticket_dashboard.post_ticket_to_dashboard", new_callable=AsyncMock):
+        with patch("bot.ticket_dashboard.post_ticket_to_dashboard"):
             processor = DiscordQueueProcessor(bot)
             processor.discord_manager = discord_manager
-            await processor._handle_ticket_created_web(task)
+            await processor._handle_ticket_created_web(task.typed_payload())
 
         # Verify thread created with correct metadata
         text_channel.create_thread.assert_called_once()
@@ -134,9 +134,9 @@ class TestTicketCreationWorkflow:
 
         bot = AsyncMock(spec=discord.Client)
 
-        with patch("bot.discord_queue.post_ticket_to_dashboard", new_callable=AsyncMock) as mock_dashboard:
+        with patch("bot.discord_queue.post_ticket_to_dashboard") as mock_dashboard:
             processor = DiscordQueueProcessor(bot)
-            await processor._handle_ticket_created_web(task)
+            await processor._handle_ticket_created_web(task.typed_payload())
 
             mock_dashboard.assert_called_once()
 

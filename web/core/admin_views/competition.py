@@ -15,6 +15,7 @@ from scoring.quotient_sync import sync_quotient_metadata
 from core.admin_views.readiness import action_readiness_check, action_readiness_fix
 from core.authentik_manager import AuthentikManager
 from core.authentik_utils import reset_team_password
+from core.discord_tasks import CleanupCompetition, LogToChannel
 from core.forms import ActionForm, AppSlugForm, ResetPasswordsForm, SetMaxMembersForm, SetTimeForm
 from core.models import AuditLog, CompetitionConfig, DiscordTask
 from core.services.competition import CompetitionRunResult, run_competition
@@ -213,7 +214,9 @@ def _stream_competition_run(enable: bool, authentik_username: str) -> Iterator[s
 
     if result.success:
         verb = "Started" if enable else "Stopped"
-        DiscordTask.create_log_to_channel(f"**Competition {verb}** by {authentik_username} (web)\n{result.summary()}")
+        DiscordTask.enqueue(
+            LogToChannel(message=f"**Competition {verb}** by {authentik_username} (web)\n{result.summary()}")
+        )
     yield json.dumps({"done": True, "success": result.success, "message": result.summary()}) + "\n"
 
 
@@ -238,7 +241,7 @@ def _action_cleanup_competition(
     if config.applications_enabled:
         return JsonResponse({"error": "Competition must be stopped before cleanup"}, status=400)
 
-    DiscordTask.create_cleanup_competition(requested_by=authentik_username)
+    DiscordTask.enqueue(CleanupCompetition(requested_by=authentik_username))
     return JsonResponse({"success": True, "message": "Cleanup queued. The bot reports progress in the ops channel."})
 
 

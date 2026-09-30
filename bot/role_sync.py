@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
 from typing import TypedDict
 
 import discord
@@ -38,14 +37,9 @@ class AuthentikRoleSyncManager:
             logger.error(f"Competition guild {self.competition_guild_id} not found")
         return guild
 
-    async def sync_roles(
-        self,
-        dry_run: bool = False,
-        progress_callback: Callable[[int, int, str], Awaitable[None]] | None = None,
-    ) -> RoleSyncStats:
+    async def sync_roles(self, dry_run: bool = False) -> RoleSyncStats:
         """Add roles from Authentik groups (UserGroups) to linked users in the competition guild.
 
-        progress_callback, if given, is awaited with (current, total, role_name) per group mapping.
         Add-only: roles a user shouldn't have are counted (extra_linked, unlinked_holders), never removed.
         """
         competition_guild = self._get_competition_guild()
@@ -119,14 +113,7 @@ class AuthentikRoleSyncManager:
         for group_name, discord_ids in group_to_discord_ids.items():
             logger.info(f"  {group_name}: {len(discord_ids)} linked Discord users")
 
-        total_mappings = len(self.group_role_mapping)
-        for idx, (group_name, role_id) in enumerate(self.group_role_mapping.items(), start=1):
-            competition_role = competition_guild.get_role(role_id)
-            role_name = competition_role.name if competition_role else f"Role {role_id}"
-
-            if progress_callback:
-                await progress_callback(idx, total_mappings, role_name)
-
+        for group_name, role_id in self.group_role_mapping.items():
             try:
                 await self._sync_authentik_group(
                     competition_guild,
