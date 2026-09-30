@@ -1,12 +1,11 @@
-"""Background refresh of stored Authentik groups, so removals and deactivations take effect, followed by a
-role sync that brings everyone's synced Discord roles in line with them."""
+"""Every few minutes: refresh stored Authentik groups from Authentik, then sync Discord roles from them."""
 
 import logging
 
 from asgiref.sync import sync_to_async
 from discord.ext import commands, tasks
 
-from bot.role_sync import AuthentikRoleSyncManager
+from bot.role_sync import competition_guild, sync_roles
 from core.services.user_groups import GroupRefreshAbortedError, refresh_user_groups
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,8 @@ async def refresh_groups_now() -> None:
 async def sync_roles_now(bot: commands.Bot) -> None:
     """Sync the competition guild's roles; never raises (the caller is a background loop)."""
     try:
-        await AuthentikRoleSyncManager(bot).sync_roles()
+        if guild := competition_guild(bot):
+            await sync_roles(guild)
     except Exception as e:
         logger.warning(f"Role sync failed: {e}")
 
@@ -48,7 +48,7 @@ class AuthentikGroupsCog(commands.Cog):
 
     @tasks.loop(minutes=REFRESH_MINUTES)
     async def refresh_task(self) -> None:
-        """Refresh stored groups from Authentik every few minutes, then sync roles from them."""
+        """Refresh stored groups, then sync roles from them."""
         await refresh_groups_now()
         await sync_roles_now(self.bot)
 

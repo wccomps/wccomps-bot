@@ -143,7 +143,7 @@ class TestDiscordTaskModel:
         from django.core.exceptions import ValidationError
 
         with pytest.raises(ValidationError, match="team_number"):
-            DiscordTask(task_type="assign_role", payload={"discord_id": 1}).clean()
+            DiscordTask(task_type="setup_team_infrastructure", payload={}).clean()
 
 
 class TestCompetitionConfigModel:

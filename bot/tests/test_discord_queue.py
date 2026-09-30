@@ -11,7 +11,7 @@ from asgiref.sync import sync_to_async
 from django.utils import timezone
 
 from bot.discord_queue import DiscordQueueProcessor
-from core.discord_tasks import AssignRole, SyncRoles
+from core.discord_tasks import SyncMemberRoles, SyncRoles
 from core.models import DiscordTask
 from team.models import Team
 
@@ -63,38 +63,32 @@ def mock_bot_with_guild() -> Any:
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
-class TestAssignRoleRetry:
-    """Test assign_role task retry logic."""
+class TestTaskRetry:
+    """Retry logic, shown with setup_team_infrastructure tasks."""
 
-    async def test_assign_role_succeeds_on_first_try(self, mock_bot_with_guild: Any, test_team: Team) -> None:
-        """Test successful assign_role task on first attempt."""
-        # Create task
+    async def test_task_succeeds_on_first_try(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
-            payload={"discord_id": 111111111, "team_number": test_team.team_number},
+            task_type="setup_team_infrastructure",
+            payload={"team_number": test_team.team_number},
             status="pending",
             retry_count=0,
             max_retries=5,
         )
-
-        # Create processor and mock discord manager
         processor = DiscordQueueProcessor(mock_bot_with_guild)
         processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.assign_team_role = AsyncMock(return_value=True)
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(return_value=(MagicMock(), MagicMock()))
 
-        # Process task
-        await processor._handle_assign_role(task.typed_payload())
+        await processor._process_task(task)
 
-        # Verify role assignment was called
-        processor.discord_manager.assign_team_role.assert_called_once()
+        await task.arefresh_from_db()
+        assert task.status == "completed"
+        processor.discord_manager.setup_team_infrastructure.assert_awaited_once_with(test_team.team_number)
 
-    async def test_assign_role_retries_on_discord_error(self, mock_bot_with_guild: Any, test_team: Team) -> None:
-        """Test that assign_role task retries on Discord API error."""
+    async def test_task_retries_on_discord_error(self, mock_bot_with_guild: Any, test_team: Team) -> None:
+        """A task retries on a Discord API error."""
         # Create task with team number from fixture
         task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
+            task_type="setup_team_infrastructure",
             payload={"discord_id": 111111111, "team_number": test_team.team_number},
             status="pending",
             retry_count=0,
@@ -111,8 +105,7 @@ class TestAssignRoleRetry:
         mock_response.status = 403
         mock_response.reason = "Forbidden"
         forbidden_error = discord.errors.Forbidden(mock_response, "Missing Permissions")
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=forbidden_error)
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
 
         # Process task
         await processor._process_task(task)
@@ -126,7 +119,7 @@ class TestAssignRoleRetry:
         assert task.next_retry_at is not None
         assert "Forbidden" in task.error_message or len(task.error_message) > 0
 
-    async def test_assign_role_exponential_backoff_timing(self, mock_bot_with_guild: Any, test_team: Team) -> None:
+    async def test_task_exponential_backoff_timing(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """Test exponential backoff timing: 2s, 4s, 8s, 16s."""
         processor = DiscordQueueProcessor(mock_bot_with_guild)
         processor.discord_manager = AsyncMock()
@@ -137,8 +130,7 @@ class TestAssignRoleRetry:
         mock_response.status = 403
         mock_response.reason = "Forbidden"
         forbidden_error = discord.errors.Forbidden(mock_response, "Missing Permissions")
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=forbidden_error)
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
 
         # Test only up to retry_count=3 (4th attempt) to avoid hitting max_retries
         expected_backoffs = [2, 4, 8, 16]  # 2^1, 2^2, 2^3, 2^4
@@ -146,7 +138,7 @@ class TestAssignRoleRetry:
         for retry_attempt, expected_backoff in enumerate(expected_backoffs, start=1):
             # Create new task for each retry
             task = await DiscordTask.objects.acreate(
-                task_type="assign_role",
+                task_type="setup_team_infrastructure",
                 payload={"discord_id": 111111111, "team_number": test_team.team_number},
                 status="pending",
                 retry_count=retry_attempt - 1,
@@ -176,11 +168,11 @@ class TestAssignRoleRetry:
                 f"Retry {retry_attempt}: expected {expected_backoff}s, got {time_diff}s"
             )
 
-    async def test_assign_role_fails_after_max_retries(self, mock_bot_with_guild: Any, test_team: Team) -> None:
+    async def test_task_fails_after_max_retries(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """Test that task is marked failed after max retries exceeded."""
         # Create task with max retries already reached
         task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
+            task_type="setup_team_infrastructure",
             payload={"discord_id": 111111111, "team_number": test_team.team_number},
             status="pending",
             retry_count=5,  # Already at max
@@ -196,8 +188,7 @@ class TestAssignRoleRetry:
         mock_response.status = 403
         mock_response.reason = "Forbidden"
         forbidden_error = discord.errors.Forbidden(mock_response, "Missing Permissions")
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=forbidden_error)
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
 
         # Mock log_to_ops_channel to avoid actual Discord calls
         with patch("bot.utils.log_to_ops_channel", new_callable=AsyncMock):
@@ -212,10 +203,10 @@ class TestAssignRoleRetry:
         assert task.retry_count == 6
         assert "Forbidden" in task.error_message
 
-    async def test_assign_role_captures_error_message(self, mock_bot_with_guild: Any, test_team: Team) -> None:
+    async def test_task_captures_error_message(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """Test that error messages are captured in task."""
         task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
+            task_type="setup_team_infrastructure",
             payload={"discord_id": 111111111, "team_number": test_team.team_number},
             status="pending",
             retry_count=0,
@@ -232,8 +223,7 @@ class TestAssignRoleRetry:
         mock_response.reason = "Forbidden"
         error_msg = "Missing Permissions"
         forbidden_error = discord.errors.Forbidden(mock_response, error_msg)
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=forbidden_error)
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=forbidden_error)
 
         # Process task
         await processor._process_task(task)
@@ -245,12 +235,10 @@ class TestAssignRoleRetry:
         assert task.error_message != ""
         assert "Forbidden" in task.error_message
 
-    async def test_assign_role_rate_limit_uses_discord_retry_after(
-        self, mock_bot_with_guild: Any, test_team: Team
-    ) -> None:
+    async def test_task_rate_limit_uses_discord_retry_after(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """Test that rate limit errors use Discord's retry_after value."""
         task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
+            task_type="setup_team_infrastructure",
             payload={"discord_id": 111111111, "team_number": test_team.team_number},
             status="pending",
             retry_count=0,
@@ -263,8 +251,7 @@ class TestAssignRoleRetry:
 
         # Create rate limit error with retry_after
         rate_limit_error = discord.errors.RateLimited(60)  # 60 second retry
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=rate_limit_error)
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=rate_limit_error)
 
         now = timezone.now()
 
@@ -284,13 +271,13 @@ class TestAssignRoleRetry:
         time_diff = (task.next_retry_at - now).total_seconds()
         assert abs(time_diff - 60) <= 2.0, f"Expected ~60s retry delay, got {time_diff}s"
 
-    async def test_assign_role_missing_payload_fields(self, mock_bot_with_guild: Any, test_team: Team) -> None:
+    async def test_task_missing_payload_fields(self, mock_bot_with_guild: Any, test_team: Team) -> None:
         """Test handling of missing payload fields - retries then fails."""
         tasks = await sync_to_async(DiscordTask.objects.bulk_create)(
             [
                 DiscordTask(
-                    task_type="assign_role",
-                    payload={},  # Missing discord_id and team_number
+                    task_type="setup_team_infrastructure",
+                    payload={},  # Missing team_number
                     status="pending",
                     retry_count=0,
                     max_retries=5,
@@ -313,50 +300,38 @@ class TestAssignRoleRetry:
         assert task.status == "pending"
         assert task.retry_count == 1
         assert task.next_retry_at is not None
-        assert "discord_id" in task.error_message
+        assert "team_number" in task.error_message
 
-    async def test_assign_role_member_not_found(self, mock_bot_with_guild: Any, test_team: Team) -> None:
-        """Test handling when member is not found in guild - completes gracefully."""
-        task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
-            payload={
-                "discord_id": 999999999,
-                "team_number": test_team.team_number,
-            },  # Non-existent member
-            status="pending",
-            retry_count=0,
-            max_retries=5,
-        )
-
-        processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-
-        # Process task
-        await processor._process_task(task)
-
-        # Refresh from DB
-        await task.arefresh_from_db()
-
-        # Verify task completed successfully (the periodic role sync gives them the role once they join)
-        assert task.status == "completed"
-        assert task.retry_count == 0
-        assert task.completed_at is not None
-
-    async def test_team_is_set_up_even_when_the_member_has_not_joined(self, mock_bot_with_guild: Any) -> None:
-        """The periodic role sync assigns roles but never creates them, so linking must set the team up."""
-        team = await Team.objects.acreate(team_number=31, team_name="Team 31")
+    async def test_member_sync_for_someone_not_in_the_guild_completes_without_syncing(
+        self, mock_bot_with_guild: Any
+    ) -> None:
+        """The periodic sync covers them once they join."""
         guild = MagicMock()
         guild.get_member.return_value = None
         guild.fetch_member = AsyncMock(side_effect=discord.NotFound(MagicMock(status=404), "unknown member"))
         processor = DiscordQueueProcessor(mock_bot_with_guild)
-        processor.discord_manager = AsyncMock()
-        processor.discord_manager.guild = guild
 
-        await processor._handle_assign_role(AssignRole(discord_id=999999999, team_number=team.team_number))
+        with (
+            patch("bot.role_sync.competition_guild", return_value=guild),
+            patch("bot.role_sync.sync_member_roles", new_callable=AsyncMock) as sync,
+        ):
+            await processor._handle_sync_member_roles(SyncMemberRoles(discord_id=999999999))
 
-        processor.discord_manager.setup_team_infrastructure.assert_awaited_once_with(team.team_number)
-        processor.discord_manager.assign_team_role.assert_not_awaited()
+        sync.assert_not_awaited()
+
+    async def test_member_sync_runs_for_a_member_in_the_guild(self, mock_bot_with_guild: Any) -> None:
+        guild, member = MagicMock(), MagicMock()
+        guild.get_member.return_value = member
+        processor = DiscordQueueProcessor(mock_bot_with_guild)
+        result = {"roles_added": 1, "roles_removed": 0, "errors": 0, "changes": []}
+
+        with (
+            patch("bot.role_sync.competition_guild", return_value=guild),
+            patch("bot.role_sync.sync_member_roles", new=AsyncMock(return_value=result)) as sync,
+        ):
+            await processor._handle_sync_member_roles(SyncMemberRoles(discord_id=42))
+
+        sync.assert_awaited_once_with(guild, member)
 
 
 @pytest.mark.asyncio
@@ -494,8 +469,7 @@ class TestExponentialBackoff:
         processor = DiscordQueueProcessor(mock_bot_with_guild)
         processor.discord_manager = AsyncMock()
         processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=Exception("Network error"))
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
 
         # Test multiple retry levels: after incrementing retry_count, backoff is 2^retry_count
         test_cases = [
@@ -507,7 +481,7 @@ class TestExponentialBackoff:
 
         for retry_count, expected_exponent in test_cases:
             task = await DiscordTask.objects.acreate(
-                task_type="assign_role",
+                task_type="setup_team_infrastructure",
                 payload={"discord_id": 111111111, "team_number": 1},
                 status="pending",
                 retry_count=retry_count,
@@ -532,12 +506,11 @@ class TestExponentialBackoff:
         processor = DiscordQueueProcessor(mock_bot_with_guild)
         processor.discord_manager = AsyncMock()
         processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=Exception("Network error"))
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
 
         # Create task with high retry count where 2^retry_count > 300
         task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
+            task_type="setup_team_infrastructure",
             payload={"discord_id": 111111111, "team_number": 1},
             status="pending",
             retry_count=8,  # Will be incremented to 9, 2^9 = 512 > 300
@@ -575,12 +548,11 @@ class TestPermanentFailure:
         processor = DiscordQueueProcessor(mock_bot_with_guild)
         processor.discord_manager = AsyncMock()
         processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=Exception("Network error"))
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=Exception("Network error"))
 
         # Create task at max retries
         task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
+            task_type="setup_team_infrastructure",
             payload={"discord_id": 111111111, "team_number": team.team_number},
             status="pending",
             retry_count=5,  # At max_retries
@@ -614,11 +586,10 @@ class TestPermanentFailure:
         processor = DiscordQueueProcessor(mock_bot_with_guild)
         processor.discord_manager = AsyncMock()
         processor.discord_manager.guild = mock_bot_with_guild.guilds[0]
-        processor.discord_manager.assign_team_role = AsyncMock(side_effect=Exception("Critical error"))
-        processor.discord_manager.setup_team_infrastructure = AsyncMock()
+        processor.discord_manager.setup_team_infrastructure = AsyncMock(side_effect=Exception("Critical error"))
 
         task = await DiscordTask.objects.acreate(
-            task_type="assign_role",
+            task_type="setup_team_infrastructure",
             payload={"discord_id": 111111111, "team_number": team.team_number},
             status="pending",
             retry_count=5,
@@ -680,7 +651,8 @@ async def test_handler_return_is_stored_as_result_and_payload_is_left_alone() ->
     }
 
     with (
-        patch("bot.role_sync.AuthentikRoleSyncManager.sync_roles", new=AsyncMock(return_value=stats)),
+        patch("bot.role_sync.competition_guild", return_value=MagicMock()),
+        patch("bot.role_sync.sync_roles", new=AsyncMock(return_value=stats)),
         patch("bot.utils.log_to_ops_channel", new=AsyncMock()),
     ):
         await DiscordQueueProcessor(MagicMock())._process_task(task)

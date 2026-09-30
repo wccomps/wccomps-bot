@@ -164,7 +164,7 @@ def link_callback(request: HttpRequest) -> HttpResponse:
     if link_error:
         return _render_error(link_error)
 
-    finalize_link(link_token, discord_id, discord_username, authentik_username, team, groups)
+    finalize_link(link_token, discord_id, discord_username, authentik_username, team)
 
     request.session.pop("pending_link_token", None)
     request.session.pop("pending_link_discord_id", None)

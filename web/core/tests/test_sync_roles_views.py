@@ -1,4 +1,4 @@
-"""Sync Roles page: live runs are allowed, and results include the per-person list."""
+"""Sync Roles page: dry and live runs can be queued, and results include the per-person list."""
 
 import pytest
 from django.test import Client
@@ -36,7 +36,7 @@ def test_status_returns_summary_and_changes(admin_client):
             "roles_added": 2,
             "roles_removed": 1,
             "errors": 0,
-            "changes": ["[DRY RUN] ✗ Removed Gold Team from bob (Bob) (not in WCComps_GoldTeam)"],
+            "changes": ["[DRY RUN] ✗ Removed Gold Team from bob (Bob) (not linked)"],
         },
     )
 

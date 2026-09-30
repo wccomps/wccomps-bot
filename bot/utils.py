@@ -91,31 +91,6 @@ async def get_team_or_respond(
     return team
 
 
-async def safe_remove_role(member: discord.Member, role: discord.Role, reason: str | None = None) -> bool:
-    """Remove a role from a member; True if removed or not held, False on error."""
-    if role not in member.roles:
-        return True
-
-    try:
-        await member.remove_roles(role, reason=reason)
-        return True
-    except discord.errors.Forbidden:
-        logger.warning(f"Permission denied removing role {role.name} from {member}")
-        return False
-    except Exception as e:
-        logger.exception(f"Error removing role {role.name} from {member}: {e}")
-        return False
-
-
-async def remove_blueteam_role(member: discord.Member, guild: discord.Guild, reason: str | None = None) -> bool:
-    """Remove the Blueteam role if held; True if removed or not present, False on error."""
-    blueteam_role = guild.get_role(settings.BLUETEAM_ROLE_ID)
-    if not blueteam_role:
-        return True
-
-    return await safe_remove_role(member, blueteam_role, reason)
-
-
 def team_chat_channel(guild: discord.Guild, team: Team) -> discord.TextChannel | None:
     """The text channel with "chat" in its name in the team's category, which may predate the bot."""
     category = guild.get_channel(team.discord_category_id) if team.discord_category_id else None

@@ -11,7 +11,6 @@ from django.contrib.auth.models import User
 
 from bot import role_sync
 from bot.cogs import authentik_groups
-from bot.role_sync import AuthentikRoleSyncManager
 from core.models import UserGroups
 from team.models import DiscordLink, Team
 
@@ -46,6 +45,7 @@ def _guild(*members: SimpleNamespace) -> MagicMock:
     roles = {role_id: _role(role_id) for role_id in ALL_ROLES}
     guild = MagicMock()
     guild.chunked = True
+    guild.me.guild_permissions.manage_roles = True
     guild.members = list(members)
     guild.get_role.side_effect = roles.get
     return guild
@@ -74,9 +74,7 @@ async def _link(discord_id: int, groups: list[str], team: Team | None = None) ->
 
 
 async def _sync(guild: MagicMock, *, dry_run: bool = False) -> dict[str, Any]:
-    bot = MagicMock()
-    bot.get_guild.return_value = guild
-    return dict(await AuthentikRoleSyncManager(bot).sync_roles(dry_run=dry_run))
+    return dict(await role_sync.sync_roles(guild, dry_run=dry_run))
 
 
 def _ids(mock: AsyncMock) -> set[int]:
@@ -174,7 +172,7 @@ async def test_a_role_above_the_bot_is_reported_once_and_never_touched(teams, se
     for member in members:
         assert BOSS not in _ids(member.add_roles) | _ids(member.remove_roles)
     assert stats["errors"] == 1
-    assert sum("Bot can't manage" in change for change in stats["changes"]) == 1
+    assert sum("Bot can't assign" in change for change in stats["changes"]) == 1
 
 
 async def test_a_link_ended_during_the_pass_is_not_regranted(teams) -> None:
@@ -212,6 +210,41 @@ async def test_a_failed_update_is_counted_and_the_pass_goes_on(teams) -> None:
     assert (stats["errors"], stats["roles_removed"]) == (1, 1)
 
 
+async def test_without_manage_roles_nothing_is_touched_and_it_is_reported_once(teams) -> None:
+    members = [_member(1, OPS), _member(2, TEAM_A)]
+    guild = _guild(*members)
+    guild.me.guild_permissions.manage_roles = False
+
+    stats = await _sync(guild)
+
+    for member in members:
+        member.remove_roles.assert_not_awaited()
+    assert stats["errors"] == 1
+    assert stats["changes"] == ["⚠ Bot lacks the Manage Roles permission, so no roles were synced"]
+
+
+async def test_syncing_one_member_gives_their_grant_and_takes_the_rest(teams) -> None:
+    await _link(1, ["WCComps_Ops"], team=teams[1])
+    member, bystander = _member(1, TEAM_A), _member(2, OPS)
+
+    stats = dict(await role_sync.sync_member_roles(_guild(member, bystander), member))
+
+    assert _ids(member.add_roles) == {OPS, TEAM_B, BLUETEAM}
+    assert _ids(member.remove_roles) == {TEAM_A}
+    bystander.remove_roles.assert_not_awaited()
+    assert (stats["roles_added"], stats["roles_removed"]) == (3, 1)
+
+
+async def test_syncing_one_member_after_unlinking_takes_every_synced_role(teams) -> None:
+    link = await _link(1, ["WCComps_Ops"], team=teams[0])
+    await DiscordLink.objects.filter(pk=link.pk).aupdate(is_active=False)
+    member = _member(1, OPS, TEAM_A, BLUETEAM)
+
+    await role_sync.sync_member_roles(_guild(member), member)
+
+    assert _ids(member.remove_roles) == {OPS, TEAM_A, BLUETEAM}
+
+
 async def test_refresh_loop_syncs_roles_after_refreshing_groups() -> None:
     calls: list[str] = []
     cog = authentik_groups.AuthentikGroupsCog.__new__(authentik_groups.AuthentikGroupsCog)
@@ -235,7 +268,8 @@ async def test_refresh_loop_syncs_roles_after_refreshing_groups() -> None:
 async def test_role_sync_failure_is_logged_not_raised(caplog: pytest.LogCaptureFixture) -> None:
     with (
         caplog.at_level(logging.WARNING, logger="bot.cogs.authentik_groups"),
-        patch.object(AuthentikRoleSyncManager, "sync_roles", AsyncMock(side_effect=RuntimeError("discord down"))),
+        patch.object(authentik_groups, "competition_guild", return_value=MagicMock()),
+        patch.object(authentik_groups, "sync_roles", AsyncMock(side_effect=RuntimeError("discord down"))),
     ):
         await authentik_groups.sync_roles_now(MagicMock())
 

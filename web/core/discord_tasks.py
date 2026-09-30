@@ -27,29 +27,12 @@ class BroadcastMessage:
 
 
 @dataclass(frozen=True, kw_only=True)
-class AssignRole:
-    task_type: ClassVar = "assign_role"
-    label: ClassVar = "Assign Team Role"
+class SyncMemberRoles:
+    """Bring one member's synced roles in line with their links, e.g. right after they link or unlink."""
+
+    task_type: ClassVar = "sync_member_roles"
+    label: ClassVar = "Sync a Member's Roles"
     discord_id: int
-    team_number: int
-
-
-@dataclass(frozen=True, kw_only=True)
-class AssignGroupRoles:
-    task_type: ClassVar = "assign_group_roles"
-    label: ClassVar = "Assign Group-Based Roles"
-    discord_id: int
-    authentik_groups: list[str]
-
-
-@dataclass(frozen=True, kw_only=True)
-class RemoveRole:
-    """Remove a team's role (and the Blueteam role) from a Discord user."""
-
-    task_type: ClassVar = "remove_role"
-    label: ClassVar = "Remove Team Role"
-    discord_id: int
-    team_number: int
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -128,9 +111,7 @@ class CleanupCompetition:
 type TaskPayload = (
     PostComment
     | BroadcastMessage
-    | AssignRole
-    | AssignGroupRoles
-    | RemoveRole
+    | SyncMemberRoles
     | SetupTeamInfrastructure
     | LogToChannel
     | PostTicketUpdate

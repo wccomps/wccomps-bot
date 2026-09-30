@@ -174,11 +174,11 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
 
         await log_to_ops_channel(bot, f"Deleted {deleted_count} team categories")
 
-        from bot.discord_manager import DiscordManager
+        from bot.role_sync import sync_roles
 
-        discord_manager = DiscordManager(guild, bot)
-        removed_count = await discord_manager.remove_all_team_roles()
-        await log_to_ops_channel(bot, f"Removed roles from {removed_count} members")
+        # Before the role IDs are cleared: afterwards the sync no longer counts team roles as its own
+        stats = await sync_roles(guild)
+        await log_to_ops_channel(bot, f"Removed {stats['roles_removed']} roles from members who are no longer linked")
 
         await Team.objects.all().aupdate(discord_category_id=None, discord_role_id=None)
 
@@ -270,7 +270,7 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
             details={
                 "deactivated_links": deactivated,
                 "deleted_categories": deleted_count,
-                "removed_roles": removed_count,
+                "removed_roles": stats["roles_removed"],
                 "helpers_removed": helpers_removed,
             },
         )
@@ -280,7 +280,7 @@ async def run_competition_cleanup(bot: discord.Client, guild: discord.Guild, act
             f"Competition Cleanup Complete\n"
             f"- Deactivated {deactivated} team links\n"
             f"- Deleted {deleted_count} team categories\n"
-            f"- Removed {removed_count} role assignments",
+            f"- Removed {stats['roles_removed']} roles",
         )
 
         await update_status_channel(bot)
