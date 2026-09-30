@@ -9,10 +9,6 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from core.auth_utils import get_authentik_id, get_user_team, has_permission
-from core.models import DiscordTask
-from team.models import DiscordLink
-from core.auth_utils import get_authentik_groups, get_authentik_id, has_permission
-from core.utils import get_team_from_groups
 from ticketing.forms import TicketChangeCategoryForm, TicketReassignForm, TicketReopenForm, TicketResolveForm
 from ticketing.lifecycle import (
     assign_ticket,
