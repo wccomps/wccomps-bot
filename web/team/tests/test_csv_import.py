@@ -291,19 +291,19 @@ class TestTeamNamesReset:
     """A team's name from the last event (e.g. a school shortname) doesn't carry over to the new school."""
 
     def test_import_resets_every_team_name(self) -> None:
-        renamed = Team.objects.create(team_name="CSUN", team_number=1)
+        renamed = Team.objects.create(team_name="Old Shortname", team_number=1)
         untouched_slot = Team.objects.create(team_name="Old Shortname", team_number=2)
 
-        apply_csv_import([{**_row("UC Davis"), "_team": renamed}], "gold")
+        apply_csv_import([{**_row("Example University"), "_team": renamed}], "gold")
 
         renamed.refresh_from_db()
         untouched_slot.refresh_from_db()
         assert (renamed.team_name, untouched_slot.team_name) == ("BlueTeam01", "BlueTeam02")
 
     def test_preview_warns_which_names_are_reset(self) -> None:
-        Team.objects.create(team_name="CSUN", team_number=1)
+        Team.objects.create(team_name="Old Shortname", team_number=1)
         Team.objects.create(team_name="BlueTeam02", team_number=2)
 
-        result = validate_csv_data([_row("UC Davis")])
+        result = validate_csv_data([_row("Example University")])
 
-        assert "Resets 1 team name(s) from the last event (CSUN)." in result["warnings"]
+        assert "Resets 1 team name(s) from the last event (Old Shortname)." in result["warnings"]
