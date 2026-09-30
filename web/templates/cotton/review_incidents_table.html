@@ -22,7 +22,7 @@
                         ID
                     </c-table_header>
                     <c-table_header sort_field="team__team_number"
-                                    current_sort="sort_by"
+                                    current_sort="{{ sort_by }}"
                                     query_params="&status={{ status_filter }}&team={{ selected_team }}&box={{ selected_box }}&search={{ search_query }}">
                         Team
                     </c-table_header>
@@ -33,7 +33,7 @@
                         Description
                     </c-table_header>
                     <c-table_header sort_field="attack_detected_at"
-                                    current_sort="sort_by"
+                                    current_sort="{{ sort_by }}"
                                     query_params="&status={{ status_filter }}&team={{ selected_team }}&box={{ selected_box }}&search={{ search_query }}">
                         Detected
                     </c-table_header>

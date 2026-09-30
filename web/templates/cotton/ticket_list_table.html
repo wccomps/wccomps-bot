@@ -78,40 +78,40 @@
                         </th>
                     {% endif %}
                     {% if is_ops %}
-                        <th scope="col">
-                            <div class="text">Ticket</div>
-                        </th>
-                        <th scope="col">
-                            <div class="text">Title</div>
-                        </th>
+                        <c-table_header sortable="false">
+                            Ticket
+                        </c-table_header>
+                        <c-table_header sortable="false">
+                            Title
+                        </c-table_header>
                         <c-table_header sort_field="team__team_number"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&category={{ category_filter }}&team={{ team_filter }}&assignee={{ assignee_filter }}&search={{ search_query }}&page_size={{ page_size }}">
                             Team
                         </c-table_header>
                         <c-table_header sort_field="category"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&category={{ category_filter }}&team={{ team_filter }}&assignee={{ assignee_filter }}&search={{ search_query }}&page_size={{ page_size }}">
                             Category
                         </c-table_header>
                         <c-table_header sort_field="status"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&category={{ category_filter }}&team={{ team_filter }}&assignee={{ assignee_filter }}&search={{ search_query }}&page_size={{ page_size }}">
                             Status
                         </c-table_header>
                         <c-table_header sort_field="assigned_to__username"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&category={{ category_filter }}&team={{ team_filter }}&assignee={{ assignee_filter }}&search={{ search_query }}&page_size={{ page_size }}">
                             Assigned
                         </c-table_header>
                         <c-table_header sort_field="created_at"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&category={{ category_filter }}&team={{ team_filter }}&assignee={{ assignee_filter }}&search={{ search_query }}&page_size={{ page_size }}">
                             Created
                         </c-table_header>
-                        <th scope="col">
-                            <div class="text">Actions</div>
-                        </th>
+                        <c-table_header sortable="false">
+                            Actions
+                        </c-table_header>
                     {% else %}
                         <c-table_header sortable="false">
                             Ticket

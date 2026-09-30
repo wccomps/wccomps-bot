@@ -32,17 +32,17 @@
                                    title="Select all">
                         </th>
                         <c-table_header sort_field="inject_name"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&inject={{ selected_inject }}&team={{ selected_team }}&outliers={{ show_outliers_only|yesno:'1,' }}&search={{ search_query }}">
                             Inject
                         </c-table_header>
                         <c-table_header sort_field="team__team_number"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&inject={{ selected_inject }}&team={{ selected_team }}&outliers={{ show_outliers_only|yesno:'1,' }}&search={{ search_query }}">
                             Team
                         </c-table_header>
                         <c-table_header sort_field="points_awarded"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&inject={{ selected_inject }}&team={{ selected_team }}&outliers={{ show_outliers_only|yesno:'1,' }}&search={{ search_query }}">
                             Points
                         </c-table_header>
@@ -50,7 +50,7 @@
                             Max
                         </c-table_header>
                         <c-table_header sort_field="graded_at"
-                                        current_sort="sort_by"
+                                        current_sort="{{ sort_by }}"
                                         query_params="&status={{ status_filter }}&inject={{ selected_inject }}&team={{ selected_team }}&outliers={{ show_outliers_only|yesno:'1,' }}&search={{ search_query }}">
                             Graded
                         </c-table_header>
