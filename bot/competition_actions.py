@@ -8,7 +8,6 @@ from asgiref.sync import sync_to_async
 from django.utils import timezone
 from scoring.models import QuotientMetadataCache
 
-from bot.permissions import clear_permission_cache
 from bot.utils import log_to_ops_channel
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
 from core.services.competition import CompetitionRunResult, run_competition_to_completion
@@ -23,10 +22,7 @@ async def run_competition(enable: bool, actor: str) -> CompetitionRunResult:
     Not thread_sensitive: the run makes dozens of Authentik calls and would otherwise hold the
     single thread every other sync_to_async call in the bot waits on.
     """
-    result = await sync_to_async(run_competition_to_completion, thread_sensitive=False)(enable, actor)
-    # The service refreshed stored groups; drop the bot's cached copies of them.
-    clear_permission_cache()
-    return result
+    return await sync_to_async(run_competition_to_completion, thread_sensitive=False)(enable, actor)
 
 
 async def update_status_channel(bot: discord.Client) -> bool:

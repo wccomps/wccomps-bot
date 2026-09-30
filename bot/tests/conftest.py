@@ -153,7 +153,7 @@ async def mock_team_user(db: Any) -> User:
     await UserGroups.objects.acreate(
         user=user,
         authentik_id=f"test-team-uid-{unique_id}",
-        groups=["WCComps_BlueTeam01"],
+        groups=[team.authentik_group],
     )
 
     await DiscordLink.objects.acreate(
@@ -305,6 +305,7 @@ def _patch_group_role_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
         "WCComps_GoldTeam": 647878925040615448,
     }
     monkeypatch.setattr(settings, "GROUP_ROLE_MAPPING", test_mapping)
+    monkeypatch.setattr(settings, "BLUETEAM_ROLE_ID", 525444104763736075)
     monkeypatch.setattr(settings, "WHITETEAM_ROLE_ID", 647838503505362957)
     monkeypatch.setattr(settings, "BLACKTEAM_ROLE_ID", 779192640540639263)
     monkeypatch.setattr(settings, "ORANGETEAM_ROLE_ID", 647878925040615446)

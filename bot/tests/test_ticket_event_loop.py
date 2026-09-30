@@ -59,7 +59,7 @@ async def test_resolve_button_opens_modal_and_rejects_out_of_range_points(
     claimed_ticket: Ticket, mock_interaction: Any
 ) -> None:
     view = TicketActionView(claimed_ticket.id)
-    with patch("bot.permissions.can_support_tickets_async", new=AsyncMock(return_value=True)):
+    with patch("bot.permissions.has_permission", new=AsyncMock(return_value=True)):
         await view.resolve_button.callback(mock_interaction)
 
     modal = mock_interaction.response.send_modal.await_args.args[0]

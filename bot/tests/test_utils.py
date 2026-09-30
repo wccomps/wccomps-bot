@@ -11,6 +11,7 @@ from bot.utils import (
     get_team_member_discord_ids,
     get_team_or_respond,
     log_to_ops_channel,
+    team_chat_channel,
 )
 from team.models import DiscordLink, Team
 
@@ -169,3 +170,32 @@ class TestLogging:
 
         # Should not raise exception, just log error
         bot.get_channel.assert_called_once_with(123456789)
+
+
+def _channel(kind: type, name: str) -> MagicMock:
+    channel = MagicMock(spec=kind)
+    channel.name = name
+    return channel
+
+
+class TestTeamChatChannel:
+    def test_finds_the_chat_text_channel_in_the_teams_category(self) -> None:
+        chat = _channel(discord.TextChannel, "Team05-Chat")
+        category = MagicMock(spec=discord.CategoryChannel)
+        category.channels = [
+            _channel(discord.VoiceChannel, "team05-chat"),
+            _channel(discord.TextChannel, "notes"),
+            chat,
+        ]
+        guild = MagicMock(spec=discord.Guild)
+        guild.get_channel.return_value = category
+
+        assert team_chat_channel(guild, Team(team_number=5, discord_category_id=55)) is chat
+        guild.get_channel.assert_called_once_with(55)
+
+    def test_none_without_a_category(self) -> None:
+        guild = MagicMock(spec=discord.Guild)
+        guild.get_channel.return_value = _channel(discord.TextChannel, "team05-chat")
+
+        assert team_chat_channel(guild, Team(team_number=5)) is None
+        assert team_chat_channel(guild, Team(team_number=5, discord_category_id=55)) is None

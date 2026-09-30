@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from core.auth_utils import has_permission, require_permission
+from core.auth_utils import get_user_team, has_permission, require_permission
 from team.models import Team
 
 from ..calculator import calculate_suggested_recovery_points, suggest_red_score_matches
@@ -16,7 +16,6 @@ from ..forms import IncidentMatchForm, IncidentReportForm
 from ..models import IncidentReport, IncidentScreenshot
 from ..quotient_sync import get_box_metadata
 from ..screenshots import read_screenshot, screenshot_response
-from ._helpers import _get_user_team
 
 
 @transaction.atomic
@@ -28,7 +27,7 @@ def submit_incident_report(request: HttpRequest) -> HttpResponse:
     team: Team | None = None
 
     if not is_admin:
-        team = _get_user_team(user)
+        team = get_user_team(user)
         if not team:
             messages.error(request, "You must be assigned to a team to submit incident reports")
             return redirect("leaderboard_page")
@@ -96,7 +95,7 @@ def incident_list(request: HttpRequest) -> HttpResponse:
     if has_permission(user, "gold_team") or has_permission(user, "white_team"):
         incidents = IncidentReport.objects.all().select_related("team", "submitted_by").order_by("-created_at")
     else:
-        user_team = _get_user_team(user)
+        user_team = get_user_team(user)
         if not user_team:
             return render(
                 request,
@@ -121,7 +120,7 @@ def view_incident_report(request: HttpRequest, incident_id: int) -> HttpResponse
 
     user = cast(User, request.user)
     if not has_permission(user, "gold_team") and not has_permission(user, "white_team"):
-        user_team = _get_user_team(user)
+        user_team = get_user_team(user)
         if not user_team or incident.team != user_team:
             messages.error(request, "You do not have permission to view this incident report")
             return redirect("leaderboard_page")
@@ -164,7 +163,7 @@ def incident_screenshot_download(request: HttpRequest, screenshot_id: int) -> Ht
     # Gold and White Team see every screenshot; a team sees its own incidents'
     user = cast(User, request.user)
     if not has_permission(user, "gold_team") and not has_permission(user, "white_team"):
-        user_team = _get_user_team(user)
+        user_team = get_user_team(user)
         if not user_team or screenshot.incident.team != user_team:
             return HttpResponseForbidden("You do not have permission to view this file")
 

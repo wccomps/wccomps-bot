@@ -7,8 +7,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.utils.http import content_disposition_header
 
-from core.auth_utils import get_authentik_groups, has_permission
-from core.utils import get_team_from_groups
+from core.auth_utils import get_user_team, has_permission
 from ticketing.models import Ticket, TicketAttachment
 
 logger = logging.getLogger(__name__)
@@ -59,11 +58,10 @@ def ticket_attachment_upload(request: HttpRequest, ticket_number: str) -> HttpRe
 
     user = cast(User, request.user)
     authentik_username = user.username
-    groups = get_authentik_groups(user)
-    team, _, is_team = get_team_from_groups(groups)
+    team = get_user_team(user)
     is_ops = has_permission(user, "ticketing_support") or has_permission(user, "ticketing_admin")
 
-    if not is_team and not is_ops:
+    if not team and not is_ops:
         return HttpResponse("Access denied", status=403)
 
     try:
@@ -71,7 +69,7 @@ def ticket_attachment_upload(request: HttpRequest, ticket_number: str) -> HttpRe
     except Ticket.DoesNotExist:
         return HttpResponse("Ticket not found", status=404)
 
-    if not is_ops and (not is_team or not team or ticket.team != team):
+    if not is_ops and ticket.team != team:
         return HttpResponse("Access denied", status=403)
 
     if error := _save_attachment(ticket, request.FILES.get("attachment"), authentik_username):
@@ -88,11 +86,10 @@ def ticket_attachment_download(
     ticket_number: str,
 ) -> HttpResponse:
     user = cast(User, request.user)
-    groups = get_authentik_groups(user)
-    team, _, is_team = get_team_from_groups(groups)
+    team = get_user_team(user)
     is_ops = has_permission(user, "ticketing_support") or has_permission(user, "ticketing_admin")
 
-    if not is_team and not is_ops:
+    if not team and not is_ops:
         return HttpResponse("Access denied", status=403)
 
     try:
@@ -102,7 +99,7 @@ def ticket_attachment_download(
     except TicketAttachment.DoesNotExist:
         return HttpResponse("Attachment not found", status=404)
 
-    if not is_ops and (not is_team or not team or attachment.ticket.team != team):
+    if not is_ops and attachment.ticket.team != team:
         return HttpResponse("Access denied", status=403)
 
     # Only images and PDFs render inline; anything else downloads, to prevent XSS via HTML/SVG

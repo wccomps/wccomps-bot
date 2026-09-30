@@ -7,10 +7,9 @@ from django.db import transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
-from core.auth_utils import get_authentik_groups, has_permission
+from core.auth_utils import get_user_team, has_permission
 from core.models import DiscordTask
 from core.tickets_config import get_all_categories
-from core.utils import get_team_from_groups
 from team.models import Team
 from ticketing.forms import CreateTicketForm
 from ticketing.models import TicketCategory
@@ -22,8 +21,7 @@ def create_ticket(request: HttpRequest) -> HttpResponse:
     """Create a new support ticket (web form alternative to Discord command)."""
     user = cast(User, request.user)
     authentik_username = user.username
-    groups = get_authentik_groups(user)
-    team, _, is_team = get_team_from_groups(groups)
+    team = get_user_team(user)
 
     # Allow admins (incl. ticketing admins, filing on a team's behalf) to create tickets for any team
     is_admin = (

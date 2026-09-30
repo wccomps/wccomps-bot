@@ -7,10 +7,9 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from core.auth_utils import get_authentik_groups, has_permission
+from core.auth_utils import get_user_team, has_permission
 from core.models import DiscordTask
 from core.tickets_config import get_all_categories, get_category_config
-from core.utils import get_team_from_groups
 from ticketing.forms import TicketCommentForm
 from ticketing.models import Ticket, TicketAttachment, TicketComment, TicketHistory
 
@@ -37,7 +36,7 @@ def _can_access(user: User, ticket: Ticket) -> bool:
     """Ticketing staff see every ticket; a team sees its own."""
     if has_permission(user, "ticketing_support"):
         return True
-    team, _, _ = get_team_from_groups(get_authentik_groups(user))
+    team = get_user_team(user)
     return team is not None and ticket.team_id == team.id
 
 
@@ -51,8 +50,7 @@ def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
         or has_permission(user, "ticketing_admin")
         or has_permission(user, "admin")
     )
-    groups = get_authentik_groups(user)
-    team, _, _ = get_team_from_groups(groups)
+    team = get_user_team(user)
     is_ticketing_admin = has_permission(user, "ticketing_admin")
     is_ticketing_support = has_permission(user, "ticketing_support")
 

@@ -6,10 +6,11 @@ from typing import Concatenate, ParamSpec
 from django.contrib.auth.models import AnonymousUser, User
 from django.http import HttpRequest, HttpResponseBase
 
+from team.models import Team
+
 from .models import UserGroups
 from .permission_constants import PERMISSION_MAP as PERMISSION_MAP
 from .permission_constants import check_groups_for_permission as check_groups_for_permission
-from .permission_constants import extract_team_number as extract_team_number
 
 P = ParamSpec("P")
 type ViewFunc[**P] = Callable[Concatenate[HttpRequest, P], HttpResponseBase]
@@ -43,13 +44,13 @@ def has_permission(user: User | AnonymousUser, permission_name: str) -> bool:
     return check_groups_for_permission(groups, permission_name)
 
 
-def get_user_team_number(user: User) -> int | None:
-    groups = get_authentik_groups(user)
-    for group in groups:
-        team_number = extract_team_number(group)
-        if team_number is not None:
-            return team_number
-    return None
+def team_for_groups(groups: list[str]) -> Team | None:
+    """The team whose Authentik group (Team.authentik_group) is among these groups, or None."""
+    return Team.objects.filter(authentik_group__in=groups).first()
+
+
+def get_user_team(user: User | AnonymousUser) -> Team | None:
+    return team_for_groups(get_authentik_groups(user))
 
 
 def get_role_based_landing_url(groups: list[str]) -> str:

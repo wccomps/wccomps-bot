@@ -7,7 +7,7 @@ from asgiref.sync import sync_to_async
 from discord import app_commands
 from discord.ext import commands
 
-from bot.permissions import check_ticketing_admin, check_ticketing_support
+from bot.permissions import permission_check
 from bot.thread_creator import publish_new_ticket
 from bot.ticket_dashboard import update_ticket_dashboard
 from bot.utils import (
@@ -63,7 +63,7 @@ class AdminTicketsCog(commands.Cog):
         description="Description of the issue",
     )
     @app_commands.autocomplete(category=admin_category_autocomplete)
-    @app_commands.check(check_ticketing_admin)
+    @app_commands.check(permission_check("ticketing_admin"))
     async def admin_ticket_create(
         self,
         interaction: discord.Interaction,
@@ -129,7 +129,7 @@ class AdminTicketsCog(commands.Cog):
             app_commands.Choice(name="All", value="all"),
         ]
     )
-    @app_commands.check(check_ticketing_support)
+    @app_commands.check(permission_check("ticketing_support"))
     async def admin_ticket_list(
         self,
         interaction: discord.Interaction,
@@ -191,7 +191,7 @@ class AdminTicketsCog(commands.Cog):
         notes="Resolution notes",
         points="Point value (required for variable categories; overrides the default otherwise)",
     )
-    @app_commands.check(check_ticketing_support)
+    @app_commands.check(permission_check("ticketing_support"))
     async def admin_ticket_resolve(
         self,
         interaction: discord.Interaction,
@@ -235,7 +235,7 @@ class AdminTicketsCog(commands.Cog):
         ticket_number="Ticket number (e.g., T050-003)",
         reason="Reason for cancellation",
     )
-    @app_commands.check(check_ticketing_admin)
+    @app_commands.check(permission_check("ticketing_admin"))
     async def admin_ticket_cancel(self, interaction: discord.Interaction, ticket_number: str, reason: str = "") -> None:
         """Cancel a ticket without point penalty."""
         from ticketing.lifecycle import acancel_ticket
@@ -274,7 +274,7 @@ class AdminTicketsCog(commands.Cog):
         new_category="New category for the ticket",
     )
     @app_commands.autocomplete(new_category=admin_category_autocomplete)
-    @app_commands.check(check_ticketing_admin)
+    @app_commands.check(permission_check("ticketing_admin"))
     async def admin_change_category(
         self, interaction: discord.Interaction, ticket_number: str, new_category: str
     ) -> None:
@@ -324,7 +324,7 @@ class AdminTicketsCog(commands.Cog):
         ticket_number="Ticket number (e.g., T050-003)",
         volunteer="Discord user (@mention or ID) to assign (leave empty to unassign)",
     )
-    @app_commands.check(check_ticketing_admin)
+    @app_commands.check(permission_check("ticketing_admin"))
     async def admin_ticket_reassign(
         self,
         interaction: discord.Interaction,
@@ -378,7 +378,7 @@ class AdminTicketsCog(commands.Cog):
 
     @tickets_group.command(name="reopen", description="[ADMIN] Reopen a resolved ticket")
     @app_commands.describe(ticket_number="Ticket number (e.g., T050-003)", reason="Reason for reopening")
-    @app_commands.check(check_ticketing_admin)
+    @app_commands.check(permission_check("ticketing_admin"))
     async def admin_ticket_reopen(self, interaction: discord.Interaction, ticket_number: str, reason: str) -> None:
         """Reopen a resolved ticket."""
         from ticketing.lifecycle import areopen_ticket
@@ -411,7 +411,7 @@ class AdminTicketsCog(commands.Cog):
         )
 
     @tickets_group.command(name="clear", description="[ADMIN] Delete all tickets and reset counters")
-    @app_commands.check(check_ticketing_admin)
+    @app_commands.check(permission_check("ticketing_admin"))
     async def admin_ticket_clear(self, interaction: discord.Interaction) -> None:
         """Delete all tickets and reset team counters."""
         from team.models import Team

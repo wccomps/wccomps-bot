@@ -221,9 +221,9 @@ class DiscordManager:
         try:
             overwrites: dict[discord.Role | discord.Member | discord.Object, discord.PermissionOverwrite] = {}
 
-            white_team = discord.utils.get(self.guild.roles, name="White Team")
+            white_team = self.guild.get_role(settings.WHITETEAM_ROLE_ID)
             observers = discord.utils.get(self.guild.roles, name="WCComps Observers")
-            orange_team = discord.utils.get(self.guild.roles, name="Orange Team")
+            orange_team = self.guild.get_role(settings.ORANGETEAM_ROLE_ID)
             orange_team_guest = discord.utils.get(self.guild.roles, name="Orange Team Guest")
             black_team_guest = discord.utils.get(self.guild.roles, name="Black Team Guest")
             room_judge = discord.utils.get(self.guild.roles, name="WCComps Room Judge")
@@ -360,9 +360,11 @@ class DiscordManager:
         try:
             roles_to_add = [role]
 
-            blueteam_role = discord.utils.get(self.guild.roles, name="Blueteam")
+            blueteam_role = self.guild.get_role(settings.BLUETEAM_ROLE_ID)
             if blueteam_role:
                 roles_to_add.append(blueteam_role)
+            else:
+                logger.warning(f"Blueteam role {settings.BLUETEAM_ROLE_ID} not found in guild")
 
             await member.add_roles(*roles_to_add, reason="WCComps team assignment")
             logger.info(f"Assigned {', '.join([r.name for r in roles_to_add])} to {member}")
@@ -416,7 +418,7 @@ class DiscordManager:
         try:
             roles_to_remove = [role]
 
-            blueteam_role = discord.utils.get(self.guild.roles, name="Blueteam")
+            blueteam_role = self.guild.get_role(settings.BLUETEAM_ROLE_ID)
             if blueteam_role and blueteam_role in member.roles:
                 roles_to_remove.append(blueteam_role)
 
@@ -431,7 +433,7 @@ class DiscordManager:
         """Remove team roles and Blueteam role from all members."""
         teams = [t async for t in Team.objects.all()]
         removed_count = 0
-        blueteam_role = discord.utils.get(self.guild.roles, name="Blueteam")
+        blueteam_role = self.guild.get_role(settings.BLUETEAM_ROLE_ID)
 
         for team in teams:
             if not team.discord_role_id:

@@ -1,7 +1,7 @@
 import ipaddress
 from collections.abc import Callable, Mapping
 from datetime import datetime
-from typing import NamedTuple, TypedDict
+from typing import TypedDict
 from zoneinfo import ZoneInfo
 
 from django.contrib import messages
@@ -9,8 +9,6 @@ from django.core.paginator import Page, Paginator
 from django.db.models import Model, QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
-
-from team.models import MAX_TEAMS, Team
 
 
 def client_ip(request: HttpRequest) -> str:
@@ -38,31 +36,6 @@ def ndjson_progress(step: str, current: int, total: int, ok: bool = True) -> str
     import json
 
     return json.dumps({"step": step, "current": current, "total": total, "ok": ok}) + "\n"
-
-
-class TeamGroupInfo(NamedTuple):
-    team: Team | None
-    team_number: int | None
-    is_team_account: bool
-
-
-def get_team_from_groups(
-    groups: list[str],
-) -> TeamGroupInfo:
-    """Extract team information from Authentik groups."""
-
-    from core.permission_constants import extract_team_number
-
-    for group in groups:
-        team_number = extract_team_number(group)
-        if team_number is not None and 1 <= team_number <= MAX_TEAMS:
-            try:
-                team = Team.objects.get(team_number=team_number)
-                return TeamGroupInfo(team, team_number, True)
-            except Team.DoesNotExist:
-                pass
-
-    return TeamGroupInfo(None, None, False)
 
 
 class FilterSortPage[M: Model](TypedDict):
