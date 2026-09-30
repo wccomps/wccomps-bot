@@ -149,6 +149,9 @@ def visit_and_capture_errors(
 
 def make_test_data():
     """Create shared test data needed by pages with needs_data."""
+    from orange_team.models import OrangeCheck
+    from packets.models import Packet
+
     from team.models import Team
     from ticketing.models import Ticket
 
@@ -169,9 +172,21 @@ def make_test_data():
         status="open",
     )
 
+    orange_check = OrangeCheck.objects.create(title="Browser Test Check", description="Created for browser tests")
+    packet = Packet.objects.create(
+        title="Browser Test Packet",
+        file_data=b"%PDF-1.4",
+        filename="packet.pdf",
+        mime_type="application/pdf",
+        file_size=8,
+        uploaded_by="browser-test",
+    )
+
     return {
         "ticket": ticket,
         "team": team,
+        "orange_check": orange_check,
+        "packet": packet,
     }
 
 
@@ -184,4 +199,8 @@ def resolve_url(page_def, test_data: dict) -> str:
         kwargs["ticket_number"] = test_data["ticket"].ticket_number
     elif page_def.needs_data == "team":
         kwargs["team_number"] = test_data["team"].team_number
+    elif page_def.needs_data == "orange_check":
+        kwargs["check_id"] = test_data["orange_check"].pk
+    elif page_def.needs_data == "packet":
+        kwargs["packet_id"] = test_data["packet"].pk
     return reverse(page_def.url_name, kwargs=kwargs)
