@@ -405,7 +405,10 @@ class InjectGradingForm(forms.Form):
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         if team_numbers:
             for num in team_numbers:
-                self.fields[f"points_team_{num}"] = forms.DecimalField(required=False)
+                # The column's bounds: points_awarded is DecimalField(max_digits=10, decimal_places=2) >= 0
+                self.fields[f"points_team_{num}"] = forms.DecimalField(
+                    required=False, min_value=0, max_digits=10, decimal_places=2
+                )
 
 
 class SaveInjectFeedbackForm(forms.Form):

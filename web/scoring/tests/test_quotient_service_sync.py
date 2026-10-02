@@ -60,3 +60,16 @@ def test_sync_attaches_scores_and_uptimes_to_the_named_team() -> None:
     detail = ServiceDetail.objects.get()
     assert detail.team == team3
     assert float(detail.uptime) == pytest.approx(0.9)
+
+
+@pytest.mark.django_db
+def test_a_second_sync_fetches_fresh_scores(monkeypatch) -> None:
+    """Sync is an explicit fetch: the client's 5-minute cache must not hand back the previous numbers."""
+    team3 = Team.objects.create(team_number=3, team_name="Three")
+    sync_service_scores()
+    monkeypatch.setitem(EXPORT[0], "total_points", 80)
+    monkeypatch.setitem(EXPORT[0]["services"][0], "service_points", 85)
+
+    sync_service_scores()
+
+    assert ServiceDetail.objects.get(team=team3).points == 85

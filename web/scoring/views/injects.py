@@ -53,27 +53,37 @@ def inject_grading(request: HttpRequest) -> HttpResponse:
             if selected_inject:
                 grades_saved = 0
                 user = cast(User, request.user)
+                current = {
+                    g.team_id: g for g in InjectScore.objects.select_for_update().filter(inject_id=selected_inject_id)
+                }
 
                 for team in teams:
-                    field_name = f"points_team_{team.team_number}"
-                    points_value = grading_form.cleaned_data.get(field_name)
-
-                    if points_value is not None:
-                        InjectScore.objects.update_or_create(
-                            team=team,
-                            inject_id=selected_inject_id,
-                            defaults={
-                                "inject_name": selected_inject.title,
-                                "points_awarded": points_value,
-                                "graded_by": user,
-                                "graded_at": timezone.now(),
-                            },
-                        )
-                        grades_saved += 1
+                    points_value = grading_form.cleaned_data.get(f"points_team_{team.team_number}")
+                    if points_value is None:
+                        continue
+                    grade = current.get(team.id)
+                    # The form posts every team's points: rewriting unchanged ones would overwrite another
+                    # grader's newer value and needlessly restamp graded_by
+                    if grade and grade.points_awarded == points_value:
+                        continue
+                    if grade is None:
+                        grade = InjectScore(team=team, inject_id=selected_inject_id)
+                    grade.inject_name = selected_inject.title
+                    grade.points_awarded = points_value
+                    grade.graded_by = user
+                    grade.graded_at = timezone.now()
+                    # An approval was of the old points; the new ones go back for review
+                    grade.is_approved = False
+                    grade.approved_by = None
+                    grade.approved_at = None
+                    grade.save()
+                    grades_saved += 1
 
                 if grades_saved:
                     messages.success(request, f"Saved {grades_saved} grades for {selected_inject.title}")
             return redirect(f"{reverse('scoring:inject_grading')}?inject={selected_inject_id}")
+        errors = "; ".join(f"{field.removeprefix('points_team_')}: {e[0]}" for field, e in grading_form.errors.items())
+        messages.error(request, f"Nothing saved. Fix these teams' points: {errors}")
 
     selected_inject = inject_lookup.get(selected_inject_id) if selected_inject_id else None
 
