@@ -142,6 +142,7 @@ class PacketDistributionService:
 
         sent_to = ", ".join(recipients)
         distribution.mark_as_sent(sent_to)
+        packet.complete_if_done()
         logger.info(f"Sent packet {packet.id} to team {team.team_number} at {sent_to}")
 
     def send_test_packet_email(self, packet: Packet, team: Team, email: str) -> None:
@@ -236,9 +237,6 @@ class PacketDistributionService:
             else:
                 failed += 1
 
-        if failed == 0:
-            packet.mark_as_completed()
-
         yield (
             json.dumps(
                 {
@@ -276,9 +274,6 @@ class PacketDistributionService:
                 sent += 1
             else:
                 still_failed += 1
-
-        if still_failed == 0:
-            packet.mark_as_completed()
 
         yield (
             json.dumps(

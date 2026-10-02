@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from core.auth_utils import get_user_team, require_permission
+from core.utils import run_detached
 from team.models import Team
 
 from .forms import PacketActionForm, PacketResendForm, PacketUploadForm
@@ -258,19 +259,19 @@ def packet_action(request: HttpRequest, packet_id: int) -> HttpResponseBase:
 
     if action == "distribute":
         return StreamingHttpResponse(
-            service.stream_distribute_packet(packet),
+            run_detached(service.stream_distribute_packet(packet)),
             content_type="application/x-ndjson",
         )
 
     if action == "resend_failed":
         return StreamingHttpResponse(
-            service.stream_resend_failed(packet),
+            run_detached(service.stream_resend_failed(packet)),
             content_type="application/x-ndjson",
         )
 
     if action == "resend_pending":
         return StreamingHttpResponse(
-            service.stream_retry_pending(packet),
+            run_detached(service.stream_retry_pending(packet)),
             content_type="application/x-ndjson",
         )
 

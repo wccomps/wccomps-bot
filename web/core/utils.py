@@ -1,16 +1,23 @@
 import ipaddress
-from collections.abc import Callable
+import json
+import logging
+import queue
+import threading
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from typing import TypedDict
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib import messages
 from django.core.paginator import Page, Paginator
+from django.db import connection
 from django.db.models import Model, QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 
 from core.discord_tasks import SyncRolesResult
+
+logger = logging.getLogger(__name__)
 
 
 def client_ip(request: HttpRequest) -> str:
@@ -43,9 +50,33 @@ def parse_datetime_to_utc(datetime_str: str, tz_name: str = "America/Los_Angeles
 
 def ndjson_progress(step: str, current: int, total: int, ok: bool = True) -> str:
     """Encode a single progress line as newline-delimited JSON for streaming views."""
-    import json
-
     return json.dumps({"step": step, "current": current, "total": total, "ok": ok}) + "\n"
+
+
+def run_detached(lines: Iterator[str]) -> Iterator[str]:
+    """Run a streamed operation to the end in its own thread, relaying its lines while the client listens.
+
+    A streaming view's generator stops at its next line once the client goes away (a closed tab, a proxy
+    timeout), leaving the operation half done. Here the client only stops the relay; the work finishes.
+    """
+    relay: queue.Queue[str | None] = queue.Queue()
+
+    def run() -> None:
+        try:
+            for line in lines:
+                relay.put(line)
+        except Exception as e:
+            logger.exception("Streamed operation failed")
+            relay.put(json.dumps({"done": True, "success": False, "message": f"Failed: {e}"}) + "\n")
+        finally:
+            # This thread's own DB connection; nothing else would close it
+            connection.close()
+            relay.put(None)
+
+    # Not a daemon: a worker shutting down (a deploy) waits for the operation, up to gunicorn's graceful timeout
+    threading.Thread(target=run, name="run-detached", daemon=False).start()
+    while (line := relay.get()) is not None:
+        yield line
 
 
 class FilterSortPage[M: Model](TypedDict):

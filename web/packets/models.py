@@ -78,6 +78,15 @@ class Packet(models.Model):
         self.status = "completed"
         self.save(update_fields=["status", "updated_at"])
 
+    def complete_if_done(self) -> None:
+        """Mark a distributing packet completed once every team's email has gone out.
+
+        Each send calls this, so the last one completes the packet whether or not anyone is watching.
+        """
+        if self.distributions.exclude(email_status__in=PacketDistribution.DONE_STATUSES).exists():
+            return
+        Packet.objects.filter(pk=self.pk, status="distributing").update(status="completed", updated_at=timezone.now())
+
 
 class PacketDistribution(models.Model):
     STATUS_CHOICES = [
@@ -87,6 +96,7 @@ class PacketDistribution(models.Model):
         ("failed", "Failed"),
         ("bounced", "Bounced"),
     ]
+    DONE_STATUSES = ("sent", "delivered")
 
     packet = models.ForeignKey(Packet, on_delete=models.CASCADE, related_name="distributions")
     team = models.ForeignKey("team.Team", on_delete=models.CASCADE)
