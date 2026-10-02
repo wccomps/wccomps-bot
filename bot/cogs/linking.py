@@ -76,11 +76,11 @@ def build_link_embed(auth_url: str) -> discord.Embed:
     return discord.Embed(
         title="Link Your Discord Account",
         description=(
-            f"Click the link below to authenticate with your team credentials (team01-team50):\n\n"
+            f"Click the link below and log in with your team account (staff: your own account):\n\n"
             f"[Click here to link your account]({auth_url})\n\n"
             f"This link expires in {TOKEN_EXPIRY_MINUTES} minutes.\n"
             f"You will be redirected to Authentik to log in.\n"
-            f"After successful login, you will receive your team role."
+            f"After you log in, your Discord roles follow your account within a few minutes."
         ),
         color=discord.Color.blue(),
     )

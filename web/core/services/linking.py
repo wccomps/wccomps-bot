@@ -213,7 +213,8 @@ def finalize_link(
         failure_reason="",
     )
 
-    # The queue runs in order, so the team's role exists by the time the member sync looks for it
+    # Queued in this order so the team's role usually exists by the time the member sync runs; if the setup is
+    # retried, the member gets Blueteam now and the team role from the periodic role sync within 5 minutes
     if team and team.is_active:
         DiscordTask.enqueue(SetupTeamInfrastructure(team_number=team.team_number))
     DiscordTask.enqueue(SyncMemberRoles(discord_id=discord_id))

@@ -322,7 +322,7 @@ class AdminTicketsCog(commands.Cog):
     )
     @app_commands.describe(
         ticket_number="Ticket number (e.g., T050-003)",
-        volunteer="Discord user (@mention or ID) to assign (leave empty to unassign)",
+        volunteer="Discord user (@mention or ID) to assign (leave empty to unclaim a claimed ticket)",
     )
     @app_commands.check(permission_check("ticketing_admin"))
     async def admin_ticket_reassign(
@@ -339,7 +339,8 @@ class AdminTicketsCog(commands.Cog):
             await interaction.followup.send(f"Ticket {ticket_number} not found", ephemeral=True)
             return
 
-        # Resolved/cancelled tickets can be reassigned too (#36); with no volunteer the ticket is unclaimed.
+        # Any ticket can get a new volunteer, resolved and cancelled ones included; with no volunteer only a
+        # claimed ticket can be unclaimed (the lifecycle refuses the rest).
         old_assignee = ticket.assigned_to.username if ticket.assigned_to else "Unassigned"
 
         from ticketing.lifecycle import aassign_ticket, aunclaim_ticket

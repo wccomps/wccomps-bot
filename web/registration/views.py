@@ -34,7 +34,7 @@ def register(request: HttpRequest) -> HttpResponse:
         if form.is_valid():
             RegistrationRateLimit.record(ip)  # Only count successful submissions
             form.save()
-            messages.success(request, "Registration submitted successfully! You will receive an email once reviewed.")
+            messages.success(request, "Registration submitted successfully!")
             return redirect("registration_register")
     else:
         form = RegistrationForm()

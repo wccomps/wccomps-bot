@@ -71,7 +71,7 @@ class ScoringCog(commands.Cog):
                 affected_boxes=[affected_box] if affected_box else [],
                 affected_service=affected_service,
                 source_ip=source_ip,
-                destination_ip="",  # Will be filled in from web interface
+                destination_ip="",
                 attack_description=f"{attack_vector}\n\n{description}",
                 attack_detected_at=timezone.now(),
                 submitted_by=submitted_by_user,
@@ -79,7 +79,7 @@ class ScoringCog(commands.Cog):
 
             embed = discord.Embed(
                 title="Incident Report Submitted",
-                description="Your incident report has been submitted for gold team review.",
+                description="Your incident report has been submitted for review.",
                 color=discord.Color.blue(),
             )
             embed.add_field(name="Report ID", value=f"#{incident.id}", inline=True)
@@ -92,9 +92,9 @@ class ScoringCog(commands.Cog):
             embed.add_field(name="Description", value=description[:DISCORD_EMBED_FIELD_CHAR_LIMIT], inline=False)
 
             embed.add_field(
-                name="Upload Evidence",
-                value=f"Visit the web interface to upload screenshots showing IP addresses and timestamps:\n"
-                f"`/scoring/incident/{incident.id}/`",
+                name="Evidence",
+                value="Screenshots can only be attached on the portal's incident form, when a report is submitted. "
+                "To include them, submit the report there instead.",
                 inline=False,
             )
 

@@ -424,8 +424,7 @@ class HelpPanelsCog(commands.Cog):
             value=(
                 "• You'll be redirected to Authentik to authenticate\n"
                 "• Your Discord account will be linked to your team\n"
-                "• You'll automatically get your team role\n"
-                "• You'll gain access to your team channels"
+                "• While your team is competing, you get your team role and channels within a few minutes"
             ),
             inline=False,
         )
