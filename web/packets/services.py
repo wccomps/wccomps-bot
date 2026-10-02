@@ -7,8 +7,6 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.db import close_old_connections
 from django.template.loader import render_to_string
-from django.utils import timezone
-from registration.models import Event, EventTeamAssignment
 
 from core.authentik_utils import reset_team_password
 from team.models import SchoolInfo, Team, team_username
@@ -26,9 +24,6 @@ class PacketDistributionService:
         """Distribute a packet to all teams."""
         if not packet.is_ready_for_distribution():
             raise ValueError(f"Packet {packet.id} is not ready for distribution")
-
-        if not packet.event:
-            raise ValueError("Packet must be linked to an event for distribution")
 
         packet.mark_as_distributing()
 
@@ -87,34 +82,24 @@ class PacketDistributionService:
 
         return {"sent": sent_count, "failed": failed_count}
 
-    def _ensure_team_credentials(self, event: Event, team: Team) -> EventTeamAssignment:
-        """The team's assignment to the event, setting a new Authentik password on first use.
+    def _team_password(self, team: Team) -> str:
+        """The team account's password for this competition, setting a new one in Authentik on first use."""
+        school_info = SchoolInfo.objects.filter(team=team).first()
+        if school_info is None:
+            raise ValueError(f"Team {team.team_number} has no school info; import the school list first")
+        if school_info.password:
+            return school_info.password
 
-        Assignments come from the school list import and the event page; packets never create one.
-        """
-        assignment = EventTeamAssignment.objects.filter(event=event, team=team).first()
-        if not assignment:
-            raise ValueError(
-                f"Team {team.team_number} is not assigned to {event.name}. Assign it on the event page, "
-                "or import the school list or edit the team's school info while the event is active."
-            )
-
-        if not assignment.password_generated:
-            password, error = reset_team_password(team.team_number)
-            if password is None:
-                raise ValueError(f"Failed to set Authentik password for team {team.team_number}: {error}")
-            assignment.refresh_from_db(fields=["password_generated"])
-            logger.info(f"Generated credentials for team {team.team_number}")
-
-        return assignment
+        password, error = reset_team_password(team.team_number)
+        if password is None:
+            raise ValueError(f"Failed to set Authentik password for team {team.team_number}: {error}")
+        logger.info(f"Generated credentials for team {team.team_number}")
+        return password
 
     def send_packet_email(self, distribution: PacketDistribution, override_emails: list[str] | None = None) -> None:
         """Send packet email to a team, or to override_emails instead of the SchoolInfo addresses."""
         packet = distribution.packet
         team = distribution.team
-
-        if not packet.event:
-            raise ValueError("Packet must be linked to an event for distribution")
 
         if override_emails:
             recipients = override_emails
@@ -124,7 +109,7 @@ class PacketDistributionService:
                 raise ValueError(f"No email address for team {team.team_number}")
             recipients = [email_address]
 
-        assignment = self._ensure_team_credentials(packet.event, team)
+        password = self._team_password(team)
 
         username = team_username(team.team_number)
         raw_extras = packet.team_extras.get(str(team.team_number), {}) if packet.team_extras else {}
@@ -135,7 +120,7 @@ class PacketDistributionService:
             "team": team,
             "distribution": distribution,
             "username": username,
-            "password": assignment.password_generated,
+            "password": password,
             "team_extras": team_extras,
         }
 
@@ -157,19 +142,11 @@ class PacketDistributionService:
 
         sent_to = ", ".join(recipients)
         distribution.mark_as_sent(sent_to)
-        # The packet carries the team's credentials: record the first delivery, which is what
-        # stops the team being unassigned from the event (registration views).
-        EventTeamAssignment.objects.filter(pk=assignment.pk, credentials_sent_at__isnull=True).update(
-            credentials_sent_at=timezone.now()
-        )
         logger.info(f"Sent packet {packet.id} to team {team.team_number} at {sent_to}")
 
     def send_test_packet_email(self, packet: Packet, team: Team, email: str) -> None:
         """Send a test packet email to a specific address without creating distribution records."""
-        if not packet.event:
-            raise ValueError("Packet must be linked to an event")
-
-        assignment = self._ensure_team_credentials(packet.event, team)
+        password = self._team_password(team)
 
         username = team_username(team.team_number)
         raw_extras = packet.team_extras.get(str(team.team_number), {}) if packet.team_extras else {}
@@ -178,7 +155,7 @@ class PacketDistributionService:
             "packet": packet,
             "team": team,
             "username": username,
-            "password": assignment.password_generated,
+            "password": password,
             "team_extras": team_extras,
         }
 
@@ -235,10 +212,6 @@ class PacketDistributionService:
                     yield _progress(f"Failed Team {dist.team.team_number}: {error}", completed, total, ok=False)
 
     def stream_distribute_packet(self, packet: Packet) -> Iterator[str]:
-        if not packet.event:
-            yield json.dumps({"done": True, "success": False, "message": "Packet must be linked to an event"}) + "\n"
-            return
-
         packet.mark_as_distributing()
         self._create_distributions_for_teams(packet)
 

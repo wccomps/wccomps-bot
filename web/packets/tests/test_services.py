@@ -1,10 +1,8 @@
 """Tests for packet services."""
 
-import datetime
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
-from registration.models import Event, EventTeamAssignment, Season, TeamRegistration
 
 from team.models import SchoolInfo, Team
 
@@ -19,16 +17,6 @@ class PacketDistributionServiceTestCase(TestCase):
         """Create test data."""
         self.service = PacketDistributionService()
 
-        # Create season and event
-        season = Season.objects.create(name="Test Season", year=2026)
-        self.event = Event.objects.create(
-            season=season,
-            name="Test Event",
-            event_type="invitational",
-            date=datetime.date(2026, 3, 1),
-        )
-
-        # Create teams with school info and event assignments
         for i in range(1, 4):
             team = Team.objects.create(
                 team_number=i,
@@ -40,16 +28,7 @@ class PacketDistributionServiceTestCase(TestCase):
                 team=team,
                 school_name=f"School {i}",
                 contact_email=f"team{i}@example.com",
-            )
-            registration = TeamRegistration.objects.create(
-                school_name=f"School {i}",
-                status="approved",
-            )
-            EventTeamAssignment.objects.create(
-                event=self.event,
-                registration=registration,
-                team=team,
-                password_generated=f"TestPass{i}!",
+                password=f"TestPass{i}!",
             )
 
         self.packet = Packet.objects.create(
@@ -62,7 +41,6 @@ class PacketDistributionServiceTestCase(TestCase):
             status="draft",
             send_via_email=True,
             web_access_enabled=True,
-            event=self.event,
         )
 
     def test_create_distributions_for_teams(self):
@@ -100,10 +78,7 @@ class PacketDistributionServiceTestCase(TestCase):
         distribution.refresh_from_db()
         self.assertEqual(distribution.email_status, "sent")
         self.assertEqual(distribution.email_sent_to, "team1@example.com")
-
-        # The packet delivered the team's credentials
-        assignment = EventTeamAssignment.objects.get(event=self.event, team=team)
-        self.assertIsNotNone(assignment.credentials_sent_at)
+        self.assertIn("TestPass1!", mock_email_class.call_args.kwargs["body"])
 
     @patch("packets.services.EmailMultiAlternatives")
     def test_send_packet_email_with_team_extras(self, mock_email_class):
@@ -127,40 +102,49 @@ class PacketDistributionServiceTestCase(TestCase):
         distribution.refresh_from_db()
         self.assertEqual(distribution.email_status, "sent")
 
-    def test_send_packet_email_requires_event(self):
-        """Test that distribution fails without event link."""
-        self.packet.event = None
-        self.packet.status = "draft"
-        self.packet.save()
-
-        with self.assertRaises(ValueError, msg="Packet must be linked to an event"):
-            self.service.distribute_packet(self.packet)
-
-    def test_send_packet_email_requires_credentials(self):
-        """Test that sending fails without generated credentials."""
+    @patch("packets.services.EmailMultiAlternatives")
+    def test_first_send_sets_the_password_and_later_sends_reuse_it(self, mock_email_class):
+        """The packet carries the team's credentials: a resend or test email must not change them."""
         team = Team.objects.get(team_number=1)
-        assignment = EventTeamAssignment.objects.get(event=self.event, team=team)
-        assignment.password_generated = ""
-        assignment.save()
-
+        SchoolInfo.objects.filter(team=team).update(password="")
         distribution = PacketDistribution.objects.create(packet=self.packet, team=team)
 
-        with self.assertRaises(ValueError, msg="No credentials generated"):
+        with patch("core.authentik_manager.AuthentikManager") as manager:
+            manager.return_value.reset_blueteam_password.return_value = (True, "")
             self.service.send_packet_email(distribution)
+            self.service.send_test_packet_email(self.packet, team, "gold@example.com")
+
+        manager.return_value.reset_blueteam_password.assert_called_once()
+        password = manager.return_value.reset_blueteam_password.call_args.args[1]
+        self.assertEqual(SchoolInfo.objects.get(team=team).password, password)
+        for call in mock_email_class.call_args_list:
+            self.assertIn(password, call.kwargs["body"])
 
     @patch("packets.services.EmailMultiAlternatives")
-    def test_send_packet_email_requires_event_assignment(self, mock_email_class):
-        """A team with school info but no assignment to the packet's event fails without inventing one."""
+    def test_failed_password_set_sends_nothing(self, mock_email_class):
         team = Team.objects.get(team_number=1)
-        EventTeamAssignment.objects.filter(team=team).delete()
-        registrations = TeamRegistration.objects.count()
+        SchoolInfo.objects.filter(team=team).update(password="")
         distribution = PacketDistribution.objects.create(packet=self.packet, team=team)
 
-        with self.assertRaisesMessage(ValueError, "not assigned to Test Event"):
-            self.service.send_packet_email(distribution)
+        with patch("core.authentik_manager.AuthentikManager") as manager:
+            manager.return_value.reset_blueteam_password.return_value = (False, "HTTP 500")
+            with self.assertRaisesMessage(ValueError, "Failed to set Authentik password for team 1: HTTP 500"):
+                self.service.send_packet_email(distribution)
 
-        self.assertEqual(TeamRegistration.objects.count(), registrations)
-        self.assertFalse(EventTeamAssignment.objects.filter(team=team).exists())
+        mock_email_class.return_value.send.assert_not_called()
+        self.assertEqual(SchoolInfo.objects.get(team=team).password, "")
+
+    @patch("packets.services.EmailMultiAlternatives")
+    def test_team_without_school_info_fails_clearly(self, mock_email_class):
+        team = Team.objects.get(team_number=1)
+        distribution = PacketDistribution.objects.create(packet=self.packet, team=team)
+        SchoolInfo.objects.filter(team=team).delete()
+
+        with self.assertRaisesMessage(ValueError, "No email address for team 1"):
+            self.service.send_packet_email(distribution)
+        with self.assertRaisesMessage(ValueError, "Team 1 has no school info; import the school list first"):
+            self.service.send_test_packet_email(self.packet, team, "gold@example.com")
+
         mock_email_class.return_value.send.assert_not_called()
 
     @patch("packets.services.PacketDistributionService.send_packet_email")
