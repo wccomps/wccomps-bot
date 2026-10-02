@@ -7,6 +7,9 @@ They run in a specific order and share a single bot instance to mirror productio
 import importlib
 import inspect
 import pkgutil
+import sys
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +64,39 @@ def extract_commands_from_cog(cog_name: str) -> dict[str, Any]:
     }
 
 
+@asynccontextmanager
+async def bot_with_all_cogs() -> AsyncIterator[commands.Bot]:
+    """A bot with every cog loaded as an extension, as main.py loads them.
+
+    Entered like production's login, so the cogs' loops wait for a ready that never comes instead of
+    running; closing unloads the cogs, which cancels them. Unloading also deletes each cog's module from
+    sys.modules, so they are put back: a later test on this worker patching "bot.cogs.x.name" would
+    otherwise patch a fresh copy while the cog classes it imported keep the old module's globals.
+    """
+    modules = {name: module for name, module in sys.modules.items() if name.startswith("bot.")}
+    async with commands.Bot(command_prefix="!", intents=discord.Intents.default()) as bot:
+        for cog_module in discover_cogs():
+            await bot.load_extension(cog_module)
+        yield bot
+    sys.modules.update(modules)
+
+
+async def test_loading_the_cogs_leaves_their_modules_patchable() -> None:
+    """A loaded-then-closed bot must not swap the cog modules later tests patch by path."""
+    from unittest.mock import patch
+
+    from bot.cogs.ticketing import TicketingCog
+
+    async with bot_with_all_cogs():
+        pass
+
+    with patch("bot.cogs.ticketing.get_quotient_client") as client:
+        client.return_value.get_infrastructure.return_value = None
+        TicketingCog._load_infrastructure_data()
+
+    client.assert_called_once()
+
+
 class TestCommandRegistration:
     """Test that all commands are properly registered in the command tree.
 
@@ -70,12 +106,8 @@ class TestCommandRegistration:
 
     @pytest_asyncio.fixture
     async def bot_with_cogs(self):
-        """Create a bot and load all cogs (runs once for all tests)."""
-        # Entered like production's login, so the cogs' loops wait for a ready that never comes
-        # instead of running; closing unloads the cogs, which cancels them.
-        async with commands.Bot(command_prefix="!", intents=discord.Intents.default()) as bot:
-            for cog_module in discover_cogs():
-                await bot.load_extension(cog_module)
+        """A bot with every cog loaded, one per test."""
+        async with bot_with_all_cogs() as bot:
             yield bot
 
     @pytest.fixture
