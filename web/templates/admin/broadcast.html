@@ -45,14 +45,6 @@
                                   rows="6"
                                   placeholder="Enter your message here..."></textarea>
                     </c-form_field>
-                    <div class="form-row">
-                        <input type="checkbox"
-                               id="mention_team"
-                               :checked="mentionTeam"
-                               @change="setChecked"
-                               data-field="mentionTeam">
-                        <label for="mention_team">Mention @Blueteam role</label>
-                    </div>
                 </c-fieldset>
                 <c-button_row class="justify-end">
                     <c-link href="{% url 'admin_competition' %}" variant="cancel">Cancel</c-link>
@@ -86,9 +78,7 @@
                 target: 'announcements',
                 teamNumbers: '',
                 message: '',
-                mentionTeam: false,
                 setField(e) { this[e.target.dataset.field] = e.target.value; },
-                setChecked(e) { this[e.target.dataset.field] = e.target.checked; },
                 get isCustomTarget() { return this.target === 'custom'; },
                 get sendDisabled() { return this.loading || !this.message.trim(); },
                 get previewText() { return this.message || '(No message entered)'; },
@@ -127,13 +117,8 @@
                         finalTarget = this.teamNumbers;
                     }
 
-                    let finalMessage = this.message;
-                    if (this.mentionTeam && this.target !== 'announcements') {
-                        finalMessage = '@Blueteam ' + finalMessage;
-                    }
-
                     try {
-                        const result = await wcPost('{% url "admin_broadcast_action" %}', { target: finalTarget, message: finalMessage });
+                        const result = await wcPost('{% url "admin_broadcast_action" %}', { target: finalTarget, message: this.message });
                         if (result.success) {
                             this.message_alert = result.message;
                             this.messageType = 'success';
