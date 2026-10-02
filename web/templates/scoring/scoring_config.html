@@ -10,10 +10,10 @@
         <p>
             <strong>Weighted Scoring:</strong>
         </p>
-        <code class="code-block">Total = scaled_service + scaled_inject + scaled_orange + SLA + adjustments + red + recovery + black</code>
+        <code class="code-block">Total = scaled_service + scaled_inject + scaled_orange + SLA + adjustments + red + recovery</code>
         <p class="text-muted text-sm mt-5">
             Each category's raw score is scaled based on its weight and raw maximum so categories contribute their target proportion of the total.
-            SLA violations, point adjustments, red team deductions, and black team adjustments are added directly (not scaled).
+            SLA violations, point adjustments, red team deductions, and incident recovery points are added directly (not scaled).
         </p>
         <c-form>
             {% csrf_token %}

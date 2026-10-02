@@ -10,7 +10,9 @@
                        parent_label="Competition" />
         <c-fieldset heading="Cleanup" class="mb-20">
             <p class="help-text mb-10">
-                Deactivates Discord links and clears queued announcements. Competition must be stopped first.
+                Deactivates team members' Discord links, deletes every team's Discord category and channels, removes
+                synced roles from members no longer linked, removes student-helper and Room Judge roles, and clears the
+                schedule, the Quotient box list and queued announcements. Competition must be stopped first.
             </p>
             <c-link href="#"
                     variant="danger"
@@ -64,7 +66,7 @@
             },
 
             cleanupCompetition() {
-                if (confirm('Cleanup the competition?\n\nThis will:\n\u2022 Deactivate all team Discord links\n\u2022 Clear queued announcements\n\nCompetition must be stopped first.')) {
+                if (confirm('Cleanup the competition?\n\nThis will:\n\u2022 Deactivate team members\' Discord links\n\u2022 Delete every team\'s Discord category and channels\n\u2022 Remove synced roles from members no longer linked\n\u2022 Remove student-helper and Room Judge roles\n\u2022 Clear the schedule, the Quotient box list and queued announcements\n\nCompetition must be stopped first.')) {
                     this.doAction('cleanup_competition');
                 }
             },

@@ -230,7 +230,7 @@
 
             if (input.files) {
                 if (input.files.length > 20) {
-                    alert('Maximum 20 screenshots allowed. Only the first 20 will be uploaded.');
+                    alert('Maximum 20 screenshots per submission. Choose 20 or fewer: the form won\'t submit with more.');
                 }
 
                 Array.from(input.files).slice(0, 20).forEach((file, index) => {
