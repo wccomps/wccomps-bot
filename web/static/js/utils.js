@@ -141,7 +141,8 @@ function streamMixin(url) {
 
             this.loading = false;
             if (!this.message) this.progressTotal = 0;
-            setTimeout(() => { this.message = ''; }, 5000);
+            // A failure stays until the next action: it says what didn't happen
+            if (this.messageType === 'success') setTimeout(() => { this.message = ''; }, 5000);
         },
     };
 }

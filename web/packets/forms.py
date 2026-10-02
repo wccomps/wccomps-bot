@@ -6,7 +6,6 @@ class PacketUploadForm(forms.Form):
     notes = forms.CharField(required=False)
     send_via_email = forms.BooleanField(required=False)
     web_access_enabled = forms.BooleanField(required=False)
-    event = forms.IntegerField(required=False)
     team_extras = forms.CharField(required=False)
     packet_file = forms.FileField()
 

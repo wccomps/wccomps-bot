@@ -28,12 +28,11 @@ def validate_team_account(user_data: AuthentikUser, expected_username: str) -> t
 
 
 def reset_team_password(team_number: int) -> tuple[str | None, str]:
-    """Give a team account a new random password and record it for credential and packet emails.
+    """Give a team account a new random password and record it on the team's school info for packet emails.
 
-    The password is stored on the team's assignments for events not yet finalized, which is where
-    those emails read it. Returns (password, "") on success, (None, error) otherwise.
+    Returns (password, "") on success, (None, error) otherwise.
     """
-    from registration.models import EventTeamAssignment
+    from team.models import SchoolInfo
 
     from .authentik_manager import AuthentikManager
 
@@ -41,9 +40,7 @@ def reset_team_password(team_number: int) -> tuple[str | None, str]:
     success, error = AuthentikManager().reset_blueteam_password(team_number, password)
     if not success:
         return None, error
-    EventTeamAssignment.objects.filter(team__team_number=team_number, event__is_finalized=False).update(
-        password_generated=password
-    )
+    SchoolInfo.objects.filter(team__team_number=team_number).update(password=password)
     return password, ""
 
 
