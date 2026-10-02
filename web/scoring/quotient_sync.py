@@ -25,20 +25,17 @@ class BoxData(TypedDict):
     services: list[ServiceData]
 
 
-def clear_quotient_metadata() -> None:
-    QuotientMetadataCache.objects.all().delete()
-
-
 def sync_quotient_metadata(user: User | None = None) -> QuotientMetadataCache:
     """Sync the box, service and IP metadata behind the scoring form dropdowns from Quotient.
 
-    Raises ValueError if Quotient is unreachable, after clearing the cached metadata so it can't go stale.
+    Raises ValueError if Quotient is unreachable. The last synced metadata stays: one failed fetch mid-competition
+    must not empty the red-team and incident dropdowns. Competition cleanup deletes it between events.
     """
     client = QuotientClient()
-    infrastructure = client.get_infrastructure()
+    # A sync is an explicit fetch; the client's 5-minute cache is for page renders
+    infrastructure = client.get_infrastructure(force_refresh=True)
 
     if not infrastructure:
-        clear_quotient_metadata()
         raise ValueError("Failed to retrieve infrastructure from Quotient")
 
     boxes_data: list[BoxData] = []
@@ -90,11 +87,11 @@ def sync_service_scores(user: User | None = None) -> dict[str, int]:
     """Sync every team's aggregate ServiceScore and per-service ServiceDetail records from Quotient."""
     client = QuotientClient()
 
-    export_data = client.get_service_export()
+    export_data = client.get_service_export(force_refresh=True)
     if not export_data:
         return {"teams_created": 0, "teams_updated": 0, "total": 0, "details_synced": 0}
 
-    uptimes_data = client.get_uptimes()
+    uptimes_data = client.get_uptimes(force_refresh=True)
     uptimes_by_team: dict[int, dict[str, float]] = {}
     if uptimes_data:
         for tu in uptimes_data:
