@@ -208,7 +208,7 @@ class TestSendScorecardEmail:
         mock_email = MagicMock()
         mock_email_cls.return_value = mock_email
 
-        ctx = {"event_name": "Test Event", "school_name": "Test School"}
+        ctx = {"school_name": "Test School"}
         result = _send_scorecard_email(["a@test.com", "b@test.com"], ctx, 1, b"pdf-bytes")
 
         assert result is True
@@ -226,7 +226,7 @@ class TestSendScorecardEmail:
         mock_email.send.side_effect = Exception("SMTP error")
         mock_email_cls.return_value = mock_email
 
-        ctx = {"event_name": "Test Event", "school_name": "Test School"}
+        ctx = {"school_name": "Test School"}
         result = _send_scorecard_email(["a@test.com"], ctx, 1, b"pdf-bytes")
 
         assert result is False

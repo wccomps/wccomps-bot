@@ -1,6 +1,5 @@
-{% autoescape off %}Your score card for {{ event_name }} is ready!
+{% autoescape off %}Your score card is ready!
 
-Event: {{ event_name }}
 Date: {{ event_date|date:"F d, Y" }}
 School: {{ school_name }}
 Team Number: {{ team_number }}
@@ -16,7 +15,7 @@ Score Summary:
 Total Score: {{ total_score }}
 Rank: {{ rank }} of {{ total_teams }}
 
-Thank you for participating in {{ event_name }}!
+Thank you for participating!
 
 ---
 WCComps Competition{% endautoescape %}

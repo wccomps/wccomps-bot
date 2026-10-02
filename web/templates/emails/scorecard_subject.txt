@@ -1,1 +1,1 @@
-{% autoescape off %}WCComps Score Card - {{ event_name }} - {{ school_name }}{% endautoescape %}
+{% autoescape off %}WCComps Score Card - {{ school_name }}{% endautoescape %}
