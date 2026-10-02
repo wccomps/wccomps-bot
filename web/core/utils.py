@@ -2,7 +2,7 @@ import ipaddress
 from collections.abc import Callable
 from datetime import datetime
 from typing import TypedDict
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib import messages
 from django.core.paginator import Page, Paginator
@@ -26,10 +26,18 @@ def client_ip(request: HttpRequest) -> str:
         return request.META.get("REMOTE_ADDR") or "0.0.0.0"  # noqa: S104 - an address value, not a bind
 
 
+class UnknownTimezoneError(ValueError):
+    """A schedule time named a timezone that zoneinfo doesn't know."""
+
+
 def parse_datetime_to_utc(datetime_str: str, tz_name: str = "America/Los_Angeles") -> datetime:
     """Parse a YYYY-MM-DDTHH:MM string in timezone tz_name and convert to UTC; raises ValueError."""
     dt = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M")
-    local_time = datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, tzinfo=ZoneInfo(tz_name))
+    try:
+        zone = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError, ValueError:
+        raise UnknownTimezoneError(f"Unknown timezone: {tz_name}") from None
+    local_time = datetime(dt.year, dt.month, dt.day, dt.hour, dt.minute, tzinfo=zone)
     return local_time.astimezone(ZoneInfo("UTC"))
 
 

@@ -15,7 +15,7 @@ from bot.permissions import permission_check
 from bot.utils import ConfirmView, log_to_ops_channel, team_chat_channel
 from core.authentik_utils import parse_team_range, reset_team_password
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
-from core.utils import parse_datetime_to_utc
+from core.utils import UnknownTimezoneError, parse_datetime_to_utc
 from team.models import MAX_TEAMS, Team, team_username
 
 logger = logging.getLogger(__name__)
@@ -195,20 +195,20 @@ class AdminCompetitionCog(commands.Cog):
         """Set competition start time for automatic application enabling."""
         try:
             start_time = parse_datetime_to_utc(datetime_str, timezone_name)
+        except UnknownTimezoneError as e:
+            await interaction.response.send_message(str(e), ephemeral=True)
+            return
         except ValueError:
             await interaction.response.send_message(
                 "Invalid datetime format. Use: YYYY-MM-DDTHH:MM (e.g., 2025-01-15T09:00)",
                 ephemeral=True,
             )
             return
-        except Exception as e:
-            await interaction.response.send_message(
-                f"Error parsing timezone: {e}",
-                ephemeral=True,
-            )
-            return
 
         config = await sync_to_async(CompetitionConfig.get_config)()
+        if error := config.schedule_error(start=start_time):
+            await interaction.response.send_message(error, ephemeral=True)
+            return
 
         config.competition_start_time = start_time
         await config.asave(update_fields=["competition_start_time"])
@@ -266,20 +266,20 @@ class AdminCompetitionCog(commands.Cog):
         """Set competition end time for automatic application disabling."""
         try:
             end_time = parse_datetime_to_utc(datetime_str, timezone_name)
+        except UnknownTimezoneError as e:
+            await interaction.response.send_message(str(e), ephemeral=True)
+            return
         except ValueError:
             await interaction.response.send_message(
                 "Invalid datetime format. Use: YYYY-MM-DDTHH:MM (e.g., 2025-01-15T17:00)",
                 ephemeral=True,
             )
             return
-        except Exception as e:
-            await interaction.response.send_message(
-                f"Error parsing timezone: {e}",
-                ephemeral=True,
-            )
-            return
 
         config = await sync_to_async(CompetitionConfig.get_config)()
+        if error := config.schedule_error(end=end_time):
+            await interaction.response.send_message(error, ephemeral=True)
+            return
 
         config.competition_end_time = end_time
         await config.asave(update_fields=["competition_end_time"])
