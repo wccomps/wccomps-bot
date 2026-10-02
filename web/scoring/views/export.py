@@ -92,11 +92,7 @@ def _build_email_context(score: Standing, total_teams: int) -> dict[str, object]
 
     from team.models import SchoolInfo
 
-    from ..models import QuotientMetadataCache
-
     team = score.team
-    metadata = QuotientMetadataCache.objects.first()
-    event_name = metadata.event_name if metadata else "Competition"
 
     try:
         school_info = team.school_info
@@ -105,7 +101,6 @@ def _build_email_context(score: Standing, total_teams: int) -> dict[str, object]
         school_name = team.team_name
 
     return {
-        "event_name": event_name,
         "event_date": timezone.now(),
         "school_name": school_name,
         "team_number": team.team_number,
