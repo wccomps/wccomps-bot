@@ -13,10 +13,10 @@ from django.conf import settings
 from bot.competition_actions import run_competition_cleanup
 from bot.permissions import permission_check
 from bot.utils import ConfirmView, log_to_ops_channel, team_chat_channel
-from core.authentik_utils import parse_team_range, reset_team_password
+from core.authentik_utils import parse_team_range, reset_team_credentials
 from core.models import AuditLog, CompetitionConfig, QueuedAnnouncement
 from core.utils import parse_datetime_to_utc
-from team.models import MAX_TEAMS, Team, team_username
+from team.models import Team, active_team_numbers, team_username
 
 logger = logging.getLogger(__name__)
 
@@ -44,21 +44,22 @@ class AdminCompetitionCog(commands.Cog):
 
         Args:
             team_numbers: Optional comma-separated team numbers or ranges (e.g., "1,3,5-10")
-                         If not provided, resets every team account.
+                         If not provided, resets every active team's account.
         """
 
         if not settings.AUTHENTIK_TOKEN:
             await interaction.response.send_message("Error: AUTHENTIK_TOKEN not configured in settings", ephemeral=True)
             return
 
-        # Resetting every team requires confirmation
+        # Resetting every active team requires confirmation
         if not team_numbers:
-            view = ConfirmView(confirm_label=f"Confirm Reset All {MAX_TEAMS} Teams")
+            active = await sync_to_async(active_team_numbers)()
+            view = ConfirmView(confirm_label=f"Confirm Reset All {len(active)} Active Teams")
             await interaction.response.send_message(
-                f"⚠️ **WARNING: You are about to reset passwords for ALL {MAX_TEAMS} blue team accounts.**\n\n"
+                f"⚠️ **WARNING: You are about to reset passwords for ALL {len(active)} active team accounts.**\n\n"
                 "This will:\n"
-                f"• Generate new random passwords for team01-team{MAX_TEAMS:02d}\n"
-                "• Invalidate all current passwords\n\n"
+                "• Generate new random passwords for them\n"
+                "• Invalidate all current passwords and sign out their sessions\n\n"
                 "Are you sure you want to continue?",
                 view=view,
                 ephemeral=True,
@@ -69,7 +70,7 @@ class AdminCompetitionCog(commands.Cog):
             if not view.confirmed:
                 return
 
-            await interaction.followup.send(f"Resetting all {MAX_TEAMS} team passwords...", ephemeral=True)
+            await interaction.followup.send(f"Resetting all {len(active)} active team passwords...", ephemeral=True)
         else:
             await interaction.response.defer(ephemeral=True)
 
@@ -80,16 +81,19 @@ class AdminCompetitionCog(commands.Cog):
                 await interaction.followup.send(f"Error: {e}", ephemeral=True)
                 return
         else:
-            teams = list(range(1, MAX_TEAMS + 1))
+            teams = active
 
         # Only successful resets go in the CSV: a failed one leaves the old password in place.
         password_list = []
         failed_resets = []
+        sessions_failed = []
         for team_num in teams:
             username = team_username(team_num)
-            password, error = await sync_to_async(reset_team_password)(team_num)
+            password, error, sessions_revoked = await sync_to_async(reset_team_credentials)(team_num)
             if password:
                 password_list.append((team_num, username, password))
+                if not sessions_revoked:
+                    sessions_failed.append(username)
             else:
                 failed_resets.append((username, error))
 
@@ -103,11 +107,12 @@ class AdminCompetitionCog(commands.Cog):
                 "total_users": total,
                 "success_count": len(password_list),
                 "failed_resets": len(failed_resets),
-                "team_numbers": team_numbers or "all",
+                "sessions_failed": sessions_failed,
+                "team_numbers": team_numbers or "all active",
             },
         )
 
-        teams_msg = f"teams {team_numbers}" if team_numbers else f"all {MAX_TEAMS} accounts"
+        teams_msg = f"teams {team_numbers}" if team_numbers else f"all {total} active team accounts"
         await log_to_ops_channel(
             self.bot,
             f"BlueTeam Password Reset by {interaction.user.mention}\n"
@@ -118,6 +123,8 @@ class AdminCompetitionCog(commands.Cog):
 
         result_msg = f"Password reset complete\n• Success: {len(password_list)}/{total}\n"
         result_msg += "".join(f"• Failed {username}: {error}\n" for username, error in failed_resets)
+        if sessions_failed:
+            result_msg += f"• Could not revoke sessions for {', '.join(sessions_failed)}\n"
         if not password_list:
             await interaction.followup.send(result_msg, ephemeral=True)
             return

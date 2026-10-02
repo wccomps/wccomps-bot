@@ -18,6 +18,11 @@ def team_username(team_number: int) -> str:
     return f"team{team_number:02d}"
 
 
+def active_team_numbers() -> list[int]:
+    """Numbers of the teams competing in the current event, in order."""
+    return list(Team.objects.filter(is_active=True).order_by("team_number").values_list("team_number", flat=True))
+
+
 def default_team_name(team_number: int) -> str:
     """A team's name until someone gives it one; the school CSV import resets every team to it."""
     return f"BlueTeam{team_number:02d}"

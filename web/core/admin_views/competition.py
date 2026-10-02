@@ -14,13 +14,13 @@ from scoring.quotient_sync import sync_quotient_metadata
 
 from core.admin_views.readiness import action_readiness_check, action_readiness_fix
 from core.authentik_manager import AuthentikManager
-from core.authentik_utils import reset_team_password
+from core.authentik_utils import reset_team_credentials
 from core.discord_tasks import CleanupCompetition, LogToChannel
 from core.forms import ActionForm, AppSlugForm, ResetPasswordsForm, SetMaxMembersForm, SetTimeForm
 from core.models import AuditLog, CompetitionConfig, DiscordTask
 from core.services.competition import CompetitionRunResult, run_competition
 from core.utils import ndjson_progress as _progress
-from team.models import MAX_TEAMS, team_username
+from team.models import active_team_numbers, team_username
 
 from ..auth_utils import has_permission, require_permission
 from ..utils import parse_datetime_to_utc
@@ -286,16 +286,19 @@ def _action_reset_passwords(request: HttpRequest, config: CompetitionConfig, aut
         error_msg = "; ".join(str(e) for errors in form.errors.values() for e in errors)
         return JsonResponse({"error": error_msg}, status=400)
 
-    team_numbers = form.cleaned_data["team_numbers"] or list(range(1, MAX_TEAMS + 1))
+    team_numbers = form.cleaned_data["team_numbers"] or active_team_numbers()
 
     password_list = []
     failed_resets = []
+    sessions_failed = []
 
     for team_num in team_numbers:
         username = team_username(team_num)
-        password, error = reset_team_password(team_num)
+        password, error, sessions_revoked = reset_team_credentials(team_num)
         if password:
             password_list.append((team_num, username, password))
+            if not sessions_revoked:
+                sessions_failed.append(username)
         else:
             failed_resets.append((username, error))
 
@@ -316,14 +319,18 @@ def _action_reset_passwords(request: HttpRequest, config: CompetitionConfig, aut
             "total_users": len(team_numbers),
             "success_count": len(password_list),
             "failed_count": len(failed_resets),
-            "team_numbers": form.cleaned_data.get("team_numbers", "") or "all",
+            "sessions_failed": sessions_failed,
+            "team_numbers": form.cleaned_data.get("team_numbers", "") or "all active",
         },
     )
 
+    message = f"Reset {len(password_list)}/{len(team_numbers)} passwords"
+    if sessions_failed:
+        message += f"; could not revoke sessions for {', '.join(sessions_failed)}"
     return JsonResponse(
         {
             "success": True,
-            "message": f"Reset {len(password_list)}/{len(team_numbers)} passwords",
+            "message": message,
             "csv": csv_content,
         }
     )

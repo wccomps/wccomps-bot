@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from core.models import AuditLog, CompetitionConfig
 from core.services.competition import run_competition, run_competition_to_completion
-from team.models import MAX_TEAMS
+from team.models import MAX_TEAMS, Team
 
 pytestmark = pytest.mark.django_db
 
@@ -27,6 +27,16 @@ def authentik() -> Iterator[MagicMock]:
     ):
         manager.refresh = refresh
         yield manager
+
+
+ACTIVE_TEAMS = [1, 2, 3]
+
+
+@pytest.fixture(autouse=True)
+def teams() -> None:
+    """Three teams competing, two left over from an earlier event."""
+    for number in range(1, 6):
+        Team.objects.create(team_number=number, team_name=f"Team {number}", is_active=number in ACTIVE_TEAMS)
 
 
 @pytest.fixture
@@ -49,14 +59,32 @@ def test_start_enables_apps_and_accounts_refreshes_groups_and_audits(authentik, 
 
     assert result.success
     assert result.apps_ok == ["scoring", "netbird"]
-    assert result.accounts_ok == MAX_TEAMS
-    assert authentik.toggle_user.call_count == MAX_TEAMS
+    assert result.accounts_ok == result.accounts_total == len(ACTIVE_TEAMS)
     authentik.refresh.assert_called_once()
     config.refresh_from_db()
     assert config.applications_enabled
     assert config.competition_start_time is None
     assert config.competition_end_time is not None
     assert AuditLog.objects.get(action="competition_started").admin_user == "timer"
+
+
+def test_start_enables_only_the_active_teams_accounts(authentik, config):
+    """Inactive teams' accounts keep their groups between events; enabling them would let them in."""
+    run_competition_to_completion(True, "timer")
+
+    enabled = [c.args[0] for c in authentik.toggle_user.call_args_list]
+    assert enabled == ["team01", "team02", "team03"]
+    assert all(c.kwargs == {"is_active": True} for c in authentik.toggle_user.call_args_list)
+
+
+def test_stop_disables_every_team_account(authentik, config):
+    """Including inactive teams' accounts, so one left enabled is closed too."""
+    CompetitionConfig.objects.filter(pk=1).update(applications_enabled=True)
+
+    result = run_competition_to_completion(False, "timer")
+
+    assert authentik.toggle_user.call_count == result.accounts_total == MAX_TEAMS
+    assert "Accounts disabled: 50/50" in result.summary()
 
 
 def test_stop_clears_only_the_end_time(authentik, config):
@@ -88,7 +116,7 @@ def test_schedule_edited_during_a_run_survives(authentik, config):
 
 def test_progress_counts_every_step(authentik, config):
     steps = list(run_competition(True, "web:admin"))
-    total = 2 + MAX_TEAMS + 2  # apps, accounts, group refresh, Quotient sync
+    total = 2 + len(ACTIVE_TEAMS) + 2  # apps, accounts, group refresh, Quotient sync
     assert [s.current for s in steps] == list(range(1, total + 1))
     assert {s.total for s in steps} == {total}
 
