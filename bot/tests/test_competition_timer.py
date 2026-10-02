@@ -173,3 +173,62 @@ async def test_loop_waits_for_ready_and_stops_with_the_bot() -> None:
             await asyncio.sleep(0.1)
             work.assert_not_awaited()
     assert not timer.check_loop.is_running()
+
+
+def _run(failed_accounts: int) -> CompetitionRunResult:
+    result = CompetitionRunResult(enable=True, controlled_apps=["scoring"], apps_ok=["scoring"], accounts_total=3)
+    result.accounts_ok, result.accounts_failed = 3 - failed_accounts, failed_accounts
+    return result
+
+
+async def _start_due() -> None:
+    await CompetitionConfig.objects.aupdate_or_create(
+        pk=1,
+        defaults={"competition_start_time": timezone.now() - timedelta(minutes=1), "applications_enabled": False},
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("runs", "expected_note"),
+    [
+        ([1, 0], "Completed on attempt 2."),
+        ([2, 2, 1, 1], "Still incomplete after 4 attempts: run Start again from the competition page."),
+    ],
+)
+async def test_an_incomplete_auto_start_is_retried_up_to_three_times(runs, expected_note) -> None:
+    """Authentik timing out at 16:00 used to leave some accounts disabled until someone noticed."""
+    await _start_due()
+    timer = CompetitionTimer(AsyncMock(spec=discord.Client))
+    with (
+        patch("bot.competition_timer.run_competition", new=AsyncMock(side_effect=[_run(n) for n in runs])) as start,
+        patch("bot.competition_timer.asyncio.sleep", new_callable=AsyncMock) as sleep,
+        patch("bot.competition_timer.record_heartbeat") as beat,
+        patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock) as ops,
+        patch("bot.competition_timer.update_status_channel", new_callable=AsyncMock),
+    ):
+        await timer._check_competition_times()
+
+    assert start.await_count == len(runs)
+    assert sleep.await_count == beat.call_count == len(runs) - 1
+    ops.assert_awaited_once()
+    assert ops.await_args.args[1].endswith(expected_note)
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_a_complete_auto_start_runs_once() -> None:
+    await _start_due()
+    timer = CompetitionTimer(AsyncMock(spec=discord.Client))
+    with (
+        patch("bot.competition_timer.run_competition", new=AsyncMock(return_value=_run(0))) as start,
+        patch("bot.competition_timer.asyncio.sleep", new_callable=AsyncMock) as sleep,
+        patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock) as ops,
+        patch("bot.competition_timer.update_status_channel", new_callable=AsyncMock),
+    ):
+        await timer._check_competition_times()
+
+    start.assert_awaited_once()
+    sleep.assert_not_awaited()
+    assert "attempt" not in ops.await_args.args[1]

@@ -38,6 +38,11 @@ class CompetitionRunResult:
     def success(self) -> bool:
         return self.error is None
 
+    @property
+    def has_failures(self) -> bool:
+        """Some app binding or team account didn't change: the run finished, but not completely."""
+        return bool(self.apps_failed) or self.accounts_failed > 0
+
     def summary(self) -> str:
         if self.error:
             return self.error

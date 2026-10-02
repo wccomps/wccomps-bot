@@ -1,5 +1,6 @@
 """Competition timer background task to enable/disable applications at scheduled times."""
 
+import asyncio
 import contextlib
 import logging
 
@@ -12,6 +13,11 @@ from bot.utils import log_to_ops_channel, recycle_db_connection
 from core.models import CompetitionConfig
 
 logger = logging.getLogger(__name__)
+
+# A start or stop that left some apps or accounts unchanged (Authentik timing out, say) is run again; the
+# toggles are idempotent, so a re-run only repeats what already worked.
+RETRIES = 3
+RETRY_DELAY_SECONDS = 15
 
 
 class CompetitionTimer(commands.Cog):
@@ -60,8 +66,22 @@ class CompetitionTimer(commands.Cog):
             action, done = ("Start", "Started") if enable else ("Stop", "Stopped")
             logger.info(f"Competition {action.lower()} time reached")
             result = await run_competition(enable, actor="timer")
+            attempts = 1
+            while result.success and result.has_failures and attempts <= RETRIES:
+                logger.warning(f"Competition auto-{action.lower()} incomplete; retrying ({attempts}/{RETRIES})")
+                # Each attempt can take a while; keep the liveness probe from restarting the bot mid-run
+                record_heartbeat("timer", self.bot)
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
+                result = await run_competition(enable, actor="timer")
+                attempts += 1
             if result.success:
                 result_msg = f"**Competition Auto-{done}!**\n\n{result.summary()}"
+                if result.has_failures:
+                    result_msg += (
+                        f"\n\nStill incomplete after {attempts} attempts: run {action} again from the competition page."
+                    )
+                elif attempts > 1:
+                    result_msg += f"\n\nCompleted on attempt {attempts}."
             else:
                 result_msg = f"**Competition Auto-{action} Failed:** {result.error}"
                 # A run that errors leaves the state unchanged, so the next check runs it again; report it once.
