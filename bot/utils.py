@@ -17,7 +17,25 @@ logger = logging.getLogger(__name__)
 
 THREAD_AUTO_ARCHIVE_MINUTES: Final[Literal[10080]] = 10080  # 7 days
 DISCORD_EMBED_FIELD_CHAR_LIMIT = 1024
+DISCORD_EMBED_DESCRIPTION_CHAR_LIMIT = 4096
 DISCORD_MESSAGE_CHAR_LIMIT = 2000
+
+
+def fit(text: str, limit: int) -> str:
+    """text cut to Discord's limit, marked with an ellipsis; Discord rejects the whole message otherwise."""
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def split_message(text: str, limit: int = DISCORD_MESSAGE_CHAR_LIMIT) -> list[str]:
+    """text in Discord-sized messages, broken at line ends where possible, so nothing is lost."""
+    chunks = []
+    while len(text) > limit:
+        cut = text.rfind("\n", 0, limit)
+        if cut <= 0:
+            cut = limit
+        chunks.append(text[:cut])
+        text = text[cut:].lstrip("\n")
+    return [*chunks, text] if text or not chunks else chunks
 
 
 async def log_to_ops_channel(bot: discord.Client, message: str, embed: discord.Embed | None = None) -> None:
@@ -32,8 +50,7 @@ async def log_to_ops_channel(bot: discord.Client, message: str, embed: discord.E
             logger.error(f"Operations channel {channel_id} not found")
             return
 
-        if len(message) > DISCORD_MESSAGE_CHAR_LIMIT:
-            message = message[: DISCORD_MESSAGE_CHAR_LIMIT - 1] + "…"
+        message = fit(message, DISCORD_MESSAGE_CHAR_LIMIT)
         # Type guard: only TextChannel and Thread have send()
         if isinstance(channel, (discord.TextChannel, discord.Thread)):
             if embed:

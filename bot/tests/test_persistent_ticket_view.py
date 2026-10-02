@@ -38,3 +38,29 @@ async def test_registered_view_finds_the_ticket_from_the_posted_embed(db: Any) -
     interaction.message.embeds = [await sync_to_async(format_ticket_embed)(ticket)]
 
     assert await TicketActionView(ticket_id=0)._get_ticket_id_from_interaction(interaction) == ticket.id
+
+
+async def test_ops_can_cancel_a_claimed_ticket_from_the_thread(db: Any) -> None:
+    """The thread's Cancel button must pass staff, as /tickets cancel does; teams can cancel only open ones."""
+    from unittest.mock import AsyncMock, patch
+
+    team = await Team.objects.acreate(team_number=23, team_name="Team 23")
+    category = await TicketCategory.objects.acreate(pk=92, display_name="Box", sort_order=92)
+    ticket = await Ticket.objects.acreate(
+        ticket_number="T023-001", team=team, category=category, title="Box", status="claimed"
+    )
+    ticket = await Ticket.objects.select_related("team", "assigned_to").aget(pk=ticket.pk)
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.user.id = 4242
+    interaction.message.embeds = [await sync_to_async(format_ticket_embed)(ticket)]
+    interaction.response = AsyncMock()
+    view = TicketActionView(ticket_id=0)
+
+    with (
+        patch("bot.permissions.has_permission", AsyncMock(return_value=True)),
+        patch("bot.permissions.linked_team_member", AsyncMock(return_value=None)),
+    ):
+        await view.cancel_button.callback(interaction)
+
+    await ticket.arefresh_from_db()
+    assert ticket.status == "cancelled"

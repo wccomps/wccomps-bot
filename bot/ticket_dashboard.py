@@ -5,7 +5,7 @@ import logging
 import discord
 from asgiref.sync import sync_to_async
 
-from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT
+from bot.utils import DISCORD_EMBED_DESCRIPTION_CHAR_LIMIT, DISCORD_EMBED_FIELD_CHAR_LIMIT, fit
 from core.tickets_config import TicketCategoryConfig, get_category_config
 from ticketing.models import Ticket
 
@@ -27,7 +27,7 @@ def format_ticket_embed(ticket: Ticket) -> discord.Embed:
 
     embed = discord.Embed(
         title=f"Ticket {ticket.ticket_number}: {ticket.title}",
-        description=ticket.description,
+        description=fit(ticket.description, DISCORD_EMBED_DESCRIPTION_CHAR_LIMIT),
         color=get_ticket_color(ticket.status),
         timestamp=ticket.created_at,
     )
@@ -221,7 +221,7 @@ class TicketActionView(discord.ui.View):
     async def cancel_button(
         self, interaction: discord.Interaction, button: discord.ui.Button[TicketActionView]
     ) -> None:
-        """Cancel an unclaimed ticket."""
+        """Cancel a ticket: teams their own open ones, ticketing staff claimed ones too."""
 
         from bot.permissions import has_permission, linked_team_member
 
@@ -255,7 +255,7 @@ class TicketActionView(discord.ui.View):
 
         from ticketing.lifecycle import acancel_ticket
 
-        cancelled, error = await acancel_ticket(ticket_id=ticket.id, actor_username=str(interaction.user))
+        cancelled, error = await acancel_ticket(ticket_id=ticket.id, actor_username=str(interaction.user), staff=is_ops)
         if error or cancelled is None:
             await interaction.response.send_message(error or "Failed to cancel ticket.", ephemeral=True)
             return
