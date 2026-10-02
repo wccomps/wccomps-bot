@@ -46,10 +46,10 @@ def validate_link_token(url_token: str | None, session_token: str | None, userna
             success=False,
             error_template="link_error.html",
             error_context={
-                "error": "Security verification failed",
+                "error": "This link wasn't opened in this browser",
                 "message": (
-                    "The linking request could not be verified. This may be a CSRF attack attempt. "
-                    "Please start the linking process again with /link in Discord."
+                    "Each team member links their own Discord account: run /link in Discord yourself and finish "
+                    "in the browser it opens. A link copied from a teammate won't work."
                 ),
             },
         )
