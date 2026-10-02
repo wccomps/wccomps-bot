@@ -134,8 +134,7 @@
     </div>
     <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('teamDetail', () => ({
-                ...toastMixin(),
+        Alpine.data('teamDetail', () => compose(toastMixin(), {
                 loading: false,
                 newPassword: '',
 

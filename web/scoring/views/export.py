@@ -4,7 +4,7 @@ from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
 from django.views.decorators.http import require_POST
 
 from core.auth_utils import require_permission
-from core.utils import ndjson_progress
+from core.utils import ndjson_progress, run_detached
 
 from ..calculator import Standing, compute_standings, get_leaderboard, get_standing
 from .leaderboard import build_scorecard_context
@@ -243,7 +243,7 @@ def email_scorecards(request: HttpRequest) -> HttpResponse:
 def stream_email_scorecards(request: HttpRequest) -> StreamingHttpResponse:
     """Stream scorecard email sending progress as NDJSON."""
     return StreamingHttpResponse(
-        _stream_email_scorecards(request),
+        run_detached(_stream_email_scorecards(request)),
         content_type="application/x-ndjson",
     )
 

@@ -20,6 +20,7 @@ from core.forms import ActionForm, AppSlugForm, ResetPasswordsForm, SetMaxMember
 from core.models import AuditLog, CompetitionConfig, DiscordTask
 from core.services.competition import CompetitionRunResult, run_competition
 from core.utils import ndjson_progress as _progress
+from core.utils import run_detached
 from team.models import active_team_numbers, team_username
 
 from ..auth_utils import has_permission, require_permission
@@ -233,14 +234,16 @@ def _stream_competition_run(enable: bool, authentik_username: str) -> Iterator[s
 def _action_start_competition(
     request: HttpRequest, config: CompetitionConfig, authentik_username: str
 ) -> StreamingHttpResponse:
-    return StreamingHttpResponse(_stream_competition_run(True, authentik_username), content_type="application/x-ndjson")
+    return StreamingHttpResponse(
+        run_detached(_stream_competition_run(True, authentik_username)), content_type="application/x-ndjson"
+    )
 
 
 def _action_stop_competition(
     request: HttpRequest, config: CompetitionConfig, authentik_username: str
 ) -> StreamingHttpResponse:
     return StreamingHttpResponse(
-        _stream_competition_run(False, authentik_username), content_type="application/x-ndjson"
+        run_detached(_stream_competition_run(False, authentik_username)), content_type="application/x-ndjson"
     )
 
 

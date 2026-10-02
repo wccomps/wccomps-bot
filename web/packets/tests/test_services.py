@@ -160,3 +160,79 @@ class PacketDistributionServiceTestCase(TestCase):
         self.packet.refresh_from_db()
         self.assertEqual(self.packet.status, "completed")
         self.assertIsNotNone(self.packet.actual_distribution_time)
+
+
+class PacketCompletesItselfTestCase(TestCase):
+    """The last successful send completes the packet, whoever is (or isn't) watching the stream."""
+
+    def setUp(self):
+        self.service = PacketDistributionService()
+        self.packet = Packet.objects.create(
+            title="Packet",
+            file_data=b"x",
+            filename="p.pdf",
+            mime_type="application/pdf",
+            file_size=1,
+            uploaded_by="gold",
+            status="distributing",
+            send_via_email=True,
+        )
+        self.dists = []
+        for i in (1, 2):
+            team = Team.objects.create(team_number=i, team_name=f"Team {i}", is_active=True)
+            SchoolInfo.objects.create(team=team, school_name=f"S{i}", contact_email=f"t{i}@example.com", password="pw")
+            self.dists.append(PacketDistribution.objects.create(packet=self.packet, team=team))
+
+    @patch("packets.services.EmailMultiAlternatives")
+    def test_last_send_completes_the_packet(self, _email):
+        self.service.send_packet_email(self.dists[0])
+        self.packet.refresh_from_db()
+        self.assertEqual(self.packet.status, "distributing")
+
+        self.service.send_packet_email(self.dists[1])
+        self.packet.refresh_from_db()
+        self.assertEqual(self.packet.status, "completed")
+
+    @patch("packets.services.EmailMultiAlternatives")
+    def test_a_failed_team_keeps_it_distributing(self, _email):
+        self.dists[0].mark_as_failed("bounced")
+
+        self.service.send_packet_email(self.dists[1])
+
+        self.packet.refresh_from_db()
+        self.assertEqual(self.packet.status, "distributing")
+
+    @patch("packets.services.EmailMultiAlternatives")
+    def test_a_cancelled_packet_stays_cancelled(self, _email):
+        Packet.objects.filter(pk=self.packet.pk).update(status="cancelled")
+        self.dists[0].mark_as_sent("t1@example.com")
+
+        self.service.send_packet_email(self.dists[1])
+
+        self.packet.refresh_from_db()
+        self.assertEqual(self.packet.status, "cancelled")
+
+    def test_migration_completes_packets_whose_emails_all_went_out(self):
+        from importlib import import_module
+
+        from django.apps import apps
+
+        migration = import_module("packets.migrations.0007_complete_finished_packets")
+        for dist in self.dists:
+            dist.mark_as_sent("x@example.com")
+        unfinished = Packet.objects.create(
+            title="Other",
+            file_data=b"x",
+            filename="o.pdf",
+            mime_type="application/pdf",
+            file_size=1,
+            uploaded_by="gold",
+            status="distributing",
+        )
+        PacketDistribution.objects.create(packet=unfinished, team=Team.objects.get(team_number=1))
+
+        migration.complete_finished_packets(apps, None)
+
+        self.packet.refresh_from_db()
+        unfinished.refresh_from_db()
+        self.assertEqual((self.packet.status, unfinished.status), ("completed", "distributing"))

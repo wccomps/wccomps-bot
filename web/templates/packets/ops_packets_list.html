@@ -67,13 +67,7 @@
                     </div>
                 </div>
                 <c-progress_bar />
-                <template x-if="message">
-                    <div x-transition class="mt-10">
-                        <c-alert :variant="messageType">
-                            <span x-text="message"></span>
-                        </c-alert>
-                    </div>
-                </template>
+                <c-toast />
                 <div class="d-flex gap-10 items-end mt-15 flex-wrap">
                     <c-form_field label="Test Email" id="test-team">
                         <select id="test-team" x-ref="testTeam" class="vTextField">
@@ -147,8 +141,7 @@
     {% if active_packet %}
         <script>
         document.addEventListener('alpine:init', () => {
-            Alpine.data('packetAdmin', () => ({
-                ...streamMixin('{% url "packet_action" active_packet.id %}'),
+            Alpine.data('packetAdmin', () => compose(streamMixin('{% url "packet_action" active_packet.id %}'), {
 
                 distributePacket() {
                     if (confirm('Distribute this packet to all teams now?')) this.doStreamAction('distribute');

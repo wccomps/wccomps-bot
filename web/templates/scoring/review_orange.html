@@ -6,8 +6,7 @@
 {% block scoring_content %}
     <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('orangeBulkSelect', () => ({
-            ...bulkSelectMixin('check-id'),
+        Alpine.data('orangeBulkSelect', () => compose(bulkSelectMixin('check-id'), {
             init() { this.initBulkSelect(); },
             submitBulk() {
                 if (this.submitting) return;

@@ -56,13 +56,7 @@
             </div>
         </div>
         <c-progress_bar class="mt-10 mb-10" />
-        <template x-if="message">
-            <div x-transition class="mb-10">
-                <c-alert :variant="messageType">
-                    <span x-text="message"></span>
-                </c-alert>
-            </div>
-        </template>
+        <c-toast />
         <c-fieldset heading="Distribution Status">
             {% if distributions %}
                 <c-table aria_label="Distribution status by team">
@@ -184,8 +178,7 @@
     </div>
     <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('packetAdmin', () => ({
-            ...streamMixin('{% url "packet_action" packet.id %}'),
+        Alpine.data('packetAdmin', () => compose(streamMixin('{% url "packet_action" packet.id %}'), {
 
             distributePacket() {
                 if (confirm('Distribute this packet to all teams now?')) this.doStreamAction('distribute');

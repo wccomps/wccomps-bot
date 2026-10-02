@@ -70,9 +70,7 @@
     </div>
     <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('emailScorecards', () => ({
-            ...toastMixin(),
-            ...progressMixin(),
+        Alpine.data('emailScorecards', () => compose(toastMixin(), progressMixin(), {
             loading: false,
             showWarning: true,
             showForm: true,

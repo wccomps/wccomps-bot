@@ -34,8 +34,7 @@
     </div>
     <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('competitionDanger', () => ({
-            ...toastMixin(),
+        Alpine.data('competitionDanger', () => compose(toastMixin(), {
             loading: false,
             get disabledClass() { return this.loading ? 'disabled' : ''; },
             get notLoading() { return !this.loading; },
