@@ -1,7 +1,7 @@
 import logging
 import secrets
 
-from team.models import MAX_TEAMS
+from team.models import MAX_TEAMS, team_username
 
 from .authentik_manager import AuthentikUser
 
@@ -45,6 +45,20 @@ def reset_team_password(team_number: int) -> tuple[str | None, str]:
         password_generated=password
     )
     return password, ""
+
+
+def reset_team_credentials(team_number: int) -> tuple[str | None, str, bool]:
+    """Reset a team account's password, then revoke its sessions so nobody stays signed in on the old one.
+
+    Returns (password, error, sessions_revoked); password is None when the reset failed.
+    """
+    from .authentik_manager import AuthentikManager
+
+    password, error = reset_team_password(team_number)
+    if not password:
+        return None, error, False
+    revoked, _, _ = AuthentikManager().revoke_user_sessions(team_username(team_number))
+    return password, "", revoked
 
 
 def generate_blueteam_password() -> str:

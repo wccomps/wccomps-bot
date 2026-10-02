@@ -10,7 +10,7 @@ from django.urls import reverse
 from registration.models import Event, EventTeamAssignment, Season, TeamRegistration
 
 from core.authentik_manager import AuthentikManager
-from core.authentik_utils import reset_team_password
+from core.authentik_utils import reset_team_credentials, reset_team_password
 from core.models import DiscordTask
 from team.models import DiscordLink, Team
 
@@ -89,3 +89,43 @@ def test_web_unlink_queues_a_role_sync_for_the_member(admin_user, action):
     task = DiscordTask.objects.get(task_type="sync_member_roles")
     assert task.payload == {"discord_id": 4242}
     assert not DiscordLink.objects.filter(discord_id=4242, is_active=True).exists()
+
+
+def test_reset_team_credentials_revokes_the_accounts_sessions():
+    with (
+        patch("core.authentik_utils.reset_team_password", return_value=("pw", "")),
+        patch("core.authentik_manager.AuthentikManager") as manager,
+    ):
+        manager.return_value.revoke_user_sessions.return_value = (True, None, 2)
+        assert reset_team_credentials(7) == ("pw", "", True)
+
+    manager.return_value.revoke_user_sessions.assert_called_once_with("team07")
+
+
+def test_reset_team_credentials_skips_sessions_when_the_reset_fails():
+    with (
+        patch("core.authentik_utils.reset_team_password", return_value=(None, "HTTP 500")),
+        patch("core.authentik_manager.AuthentikManager") as manager,
+    ):
+        assert reset_team_credentials(7) == (None, "HTTP 500", False)
+
+    manager.return_value.revoke_user_sessions.assert_not_called()
+
+
+def test_web_bulk_reset_defaults_to_the_active_teams(admin_user):
+    """Inactive teams' accounts aren't competing; new passwords for them would only be handed out."""
+    for number in range(1, 5):
+        Team.objects.create(team_number=number, team_name=f"Team {number}", is_active=number <= 2)
+    client = Client()
+    client.force_login(admin_user)
+
+    with patch(
+        "core.admin_views.competition.reset_team_credentials",
+        side_effect=lambda n: (f"pw-{n}", "", n != 2),
+    ) as reset:
+        response = client.post(reverse("admin_competition_action"), {"action": "reset_passwords", "team_numbers": ""})
+
+    assert [c.args[0] for c in reset.call_args_list] == [1, 2]
+    body = response.json()
+    assert body["csv"].splitlines()[1:] == ["team01,pw-1", "team02,pw-2"]
+    assert body["message"] == "Reset 2/2 passwords; could not revoke sessions for team02"

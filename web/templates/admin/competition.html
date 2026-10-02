@@ -285,14 +285,14 @@
             <form @submit.prevent="resetPasswords">
                 <c-form_field label="Team Numbers"
                               id="team_numbers"
-                              help_text="Leave empty to reset all 50 teams. Generates new passwords and revokes sessions.">
+                              help_text="Leave empty to reset every active team. Generates new passwords and revokes sessions.">
                     <input type="text"
                            name="team_numbers"
                            id="team_numbers"
                            :value="teamNumbers"
                            @input="setField"
                            data-field="teamNumbers"
-                           placeholder="1,3,5-10 (empty = all)"
+                           placeholder="1,3,5-10 (empty = all active)"
                            class="vTextField">
                 </c-form_field>
                 <c-button_row class="mt-10">
@@ -455,7 +455,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         resetPasswords() {
-            const teamDesc = this.teamNumbers ? `teams ${this.teamNumbers}` : 'all 50 teams';
+            const teamDesc = this.teamNumbers ? `teams ${this.teamNumbers}` : 'every active team';
             if (confirm(`Reset passwords for ${teamDesc}?\n\nThis will generate new passwords and revoke existing sessions.`)) {
                 this.doAction('reset_passwords', { team_numbers: this.teamNumbers });
             }
