@@ -47,3 +47,32 @@ def test_polled_list_is_not_the_polling_element(ticketing_support_user, tickets,
     tag = re.search(rf'<div[^>]*id="{list_id}"[^>]*>', html)
     assert tag and "hx-get" not in tag.group(0)
     assert f'hx-select="#{list_id}"' in html
+
+
+def _with_staff_history(ticket):
+    from django.contrib.auth.models import User
+
+    from ticketing.models import TicketHistory
+
+    staff = User.objects.create(username="staff-volunteer")
+    TicketHistory.objects.create(
+        ticket=ticket, action="verified", actor=staff, details={"approval_notes": "staff-only note"}
+    )
+
+
+def test_team_poll_carries_no_history(blue_team_user, tickets):
+    """History holds staff notes, points and usernames; the team page never shows it, so the poll mustn't send it."""
+    _with_staff_history(tickets[0])
+
+    content = _client(blue_team_user).get(reverse("ticket_detail_dynamic", args=["T001-001"])).content
+
+    assert b"staff-volunteer" not in content
+    assert b"staff-only note" not in content
+
+
+def test_staff_poll_carries_history(ticketing_support_user, tickets):
+    _with_staff_history(tickets[0])
+
+    content = _client(ticketing_support_user).get(reverse("ticket_detail_dynamic", args=["T001-001"])).content
+
+    assert b"staff-volunteer" in content

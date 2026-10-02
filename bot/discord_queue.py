@@ -17,7 +17,7 @@ from bot.heartbeat import record as record_heartbeat
 from bot.role_sync import competition_guild
 from bot.thread_creator import publish_new_ticket
 from bot.ticket_dashboard import trigger_dashboard
-from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection, team_chat_channel
+from bot.utils import DISCORD_EMBED_FIELD_CHAR_LIMIT, recycle_db_connection, split_message, team_chat_channel
 from core.discord_tasks import (
     PAYLOAD_TYPES,
     AddUserToThread,
@@ -315,7 +315,9 @@ class DiscordQueueProcessor:
             author_display = comment.author.username or "Unknown"
         message_content = f"**{author_display}**\n{comment.comment_text}"
 
-        message = await thread.send(message_content)
+        # A web comment has no length limit; send all of it, in as many messages as it takes
+        messages = [await thread.send(part) for part in split_message(message_content)]
+        message = messages[0]
 
         @sync_to_async
         def save_message_id() -> None:

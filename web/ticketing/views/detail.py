@@ -41,16 +41,21 @@ def _can_access(user: User, ticket: Ticket) -> bool:
     return team is not None and ticket.team_id == team.id
 
 
+def _is_ops(user: User) -> bool:
+    """Ticketing staff, who see a ticket's history; teams see only its comments."""
+    return (
+        has_permission(user, "ticketing_support")
+        or has_permission(user, "ticketing_admin")
+        or has_permission(user, "admin")
+    )
+
+
 def ticket_detail(request: HttpRequest, ticket_number: str) -> HttpResponse:
     """Unified ticket detail view for both team members and ops staff."""
     user = cast(User, request.user)
     authentik_username = user.username
 
-    is_ops = (
-        has_permission(user, "ticketing_support")
-        or has_permission(user, "ticketing_admin")
-        or has_permission(user, "admin")
-    )
+    is_ops = _is_ops(user)
     team = get_user_team(user)
     is_ticketing_admin = has_permission(user, "ticketing_admin")
     is_ticketing_support = has_permission(user, "ticketing_support")
@@ -178,7 +183,8 @@ def ticket_detail_dynamic(request: HttpRequest, ticket_number: str) -> HttpRespo
         return HttpResponse("Access denied", status=403)
 
     comments = TicketComment.objects.filter(ticket=ticket).order_by("posted_at")
-    history = TicketHistory.objects.filter(ticket=ticket).order_by("-timestamp")[:20]
+    # History holds staff notes, points and usernames; the team's own poll must not carry it
+    history = TicketHistory.objects.filter(ticket=ticket).order_by("-timestamp")[:20] if _is_ops(user) else []
 
     return render(
         request,
