@@ -1,4 +1,4 @@
-Hello Team {{ team.team_number }},
+{% autoescape off %}Hello Team {{ team.team_number }},
 
 A new team packet is available: {{ packet.title }}
 
@@ -21,4 +21,4 @@ Please review this packet before the competition begins.
 If you have any questions, please contact the competition organizers.
 
 ---
-Western Cyber Competitions
+Western Cyber Competitions{% endautoescape %}
