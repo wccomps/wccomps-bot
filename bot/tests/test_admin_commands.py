@@ -85,9 +85,9 @@ class TestAdminCommands:
         """Test /admin reset-blueteam-passwords - verifies password reset flow."""
         mock_interaction.user.id = mock_admin_user._discord_id
 
-        reset = MagicMock(side_effect=lambda n: (f"pw-{n}", ""))
+        reset = MagicMock(side_effect=lambda n: (f"pw-{n}", "", n != 2))
         callback = AdminCompetitionCog.admin_reset_blueteam_passwords.callback
-        with patch_globals(callback, {"reset_team_password": reset, "settings": MagicMock(AUTHENTIK_TOKEN="t")}):
+        with patch_globals(callback, {"reset_team_credentials": reset, "settings": MagicMock(AUTHENTIK_TOKEN="t")}):
             cog = AdminCompetitionCog(mock_bot)
             await cog.admin_reset_blueteam_passwords.callback(cog, mock_interaction, team_numbers="1-3")
 
@@ -96,6 +96,7 @@ class TestAdminCommands:
         call_args = mock_interaction.followup.send.call_args
         csv_text = call_args.kwargs["file"].fp.getvalue().decode()
         assert csv_text.splitlines()[1:] == ["team01,pw-1", "team02,pw-2", "team03,pw-3"]
+        assert "Could not revoke sessions for team02" in call_args.args[0]
 
     async def test_reset_blueteam_passwords_api_failure(
         self,
@@ -106,12 +107,12 @@ class TestAdminCommands:
         """Test /admin reset-blueteam-passwords handles API failures."""
         mock_interaction.user.id = mock_admin_user._discord_id
 
-        results = {1: ("pw-1", ""), 2: (None, "HTTP 500"), 3: ("pw-3", "")}
+        results = {1: ("pw-1", "", True), 2: (None, "HTTP 500", False), 3: ("pw-3", "", True)}
         callback = AdminCompetitionCog.admin_reset_blueteam_passwords.callback
         with patch_globals(
             callback,
             {
-                "reset_team_password": MagicMock(side_effect=lambda n: results[n]),
+                "reset_team_credentials": MagicMock(side_effect=lambda n: results[n]),
                 "settings": MagicMock(AUTHENTIK_TOKEN="t"),
             },
         ):

@@ -11,7 +11,6 @@ from django.contrib.auth.models import User
 from django.http import HttpRequest, HttpResponse, HttpResponseBase, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
-from registration.models import Event
 
 from core.auth_utils import get_user_team, require_permission
 from team.models import Team
@@ -167,8 +166,7 @@ def _parse_team_extras_csv(csv_text: str) -> dict[str, dict[str, str]]:
 @require_http_methods(["GET", "POST"])
 @require_permission("gold_team")
 def upload_packet(request: HttpRequest) -> HttpResponse:
-    events = Event.objects.all()
-    form_context = {"events": events, "nav_active": "packets"}
+    form_context = {"nav_active": "packets"}
 
     if request.method == "POST":
         form = PacketUploadForm(request.POST, request.FILES)
@@ -181,21 +179,12 @@ def upload_packet(request: HttpRequest) -> HttpResponse:
         notes = form.cleaned_data["notes"]
         send_via_email = form.cleaned_data["send_via_email"]
         web_access_enabled = form.cleaned_data["web_access_enabled"]
-        event_id = form.cleaned_data["event"]
         team_extras_csv = form.cleaned_data["team_extras"]
         uploaded_file = form.cleaned_data["packet_file"]
 
         file_data = uploaded_file.read()
         filename = (uploaded_file.name or "unnamed")[:255]
         mime_type = uploaded_file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
-
-        event = None
-        if event_id:
-            try:
-                event = Event.objects.get(id=event_id)
-            except Event.DoesNotExist:
-                messages.error(request, "Selected event not found.")
-                return render(request, "packets/ops_upload_packet.html", form_context)
 
         team_extras: dict[str, dict[str, str]] = {}
         if team_extras_csv:
@@ -215,7 +204,6 @@ def upload_packet(request: HttpRequest) -> HttpResponse:
             web_access_enabled=web_access_enabled,
             uploaded_by=request.user.username,
             notes=notes,
-            event=event,
             team_extras=team_extras,
         )
 

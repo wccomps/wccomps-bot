@@ -5,7 +5,7 @@ from collections.abc import Generator
 from dataclasses import dataclass, field
 
 from core.models import AuditLog, CompetitionConfig
-from team.models import MAX_TEAMS, team_username
+from team.models import MAX_TEAMS, active_team_numbers, team_username
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ class CompetitionRunResult:
     controlled_apps: list[str] = field(default_factory=list)
     apps_ok: list[str] = field(default_factory=list)
     apps_failed: list[tuple[str, str | None]] = field(default_factory=list)
+    accounts_total: int = 0
     accounts_ok: int = 0
     accounts_failed: int = 0
     quotient_synced: bool | None = None
@@ -45,7 +46,7 @@ class CompetitionRunResult:
         if self.apps_ok:
             lines.append(f"✓ {', '.join(self.apps_ok)}")
         lines.extend(f"✗ {app}: {error}" for app, error in self.apps_failed)
-        accounts = f"Accounts {verb}: {self.accounts_ok}/{MAX_TEAMS}"
+        accounts = f"Accounts {verb}: {self.accounts_ok}/{self.accounts_total}"
         if self.accounts_failed:
             accounts += f" ({self.accounts_failed} failed)"
         lines.append(accounts)
@@ -57,10 +58,10 @@ class CompetitionRunResult:
 def run_competition(enable: bool, actor: str) -> Generator[CompetitionStep, None, CompetitionRunResult]:
     """Start (enable=True) or stop the competition, yielding progress; the one implementation.
 
-    Toggles each controlled application's BlueTeam binding and the team01..teamNN accounts,
-    refreshes stored groups so permissions follow at once, syncs Quotient metadata on start,
-    then records the new state and an audit entry. Blocking (Authentik HTTP): async callers
-    run it in a thread.
+    Toggles each controlled application's BlueTeam binding and the team accounts (start enables the
+    active teams' accounts; stop disables every team account), refreshes stored groups so permissions
+    follow at once, syncs Quotient metadata on start, then records the new state and an audit entry.
+    Blocking (Authentik HTTP): async callers run it in a thread.
     """
     from scoring.quotient_sync import sync_quotient_metadata
 
@@ -74,7 +75,11 @@ def run_competition(enable: bool, actor: str) -> Generator[CompetitionStep, None
         return result
 
     verb = "Enabled" if enable else "Disabled"
-    total = len(result.controlled_apps) + MAX_TEAMS + 1 + (1 if enable else 0)
+    # Inactive teams' accounts stay in their groups between events, so start must not enable them. Stop
+    # disables every team account, closing any that was left enabled.
+    numbers = active_team_numbers() if enable else list(range(1, MAX_TEAMS + 1))
+    result.accounts_total = len(numbers)
+    total = len(result.controlled_apps) + len(numbers) + 1 + (1 if enable else 0)
     step = 0
     manager = AuthentikManager()
 
@@ -88,7 +93,7 @@ def run_competition(enable: bool, actor: str) -> Generator[CompetitionStep, None
             result.apps_failed.append((slug, error))
             yield CompetitionStep(f"Failed {slug}: {error}", step, total, ok=False)
 
-    for number in range(1, MAX_TEAMS + 1):
+    for number in numbers:
         username = team_username(number)
         ok, _ = manager.toggle_user(username, is_active=enable)
         step += 1

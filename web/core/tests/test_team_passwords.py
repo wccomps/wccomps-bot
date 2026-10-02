@@ -1,61 +1,44 @@
 """Team password resets, and what unlinking a team member tells Discord."""
 
-from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
-from registration.models import Event, EventTeamAssignment, Season, TeamRegistration
 
 from core.authentik_manager import AuthentikManager
-from core.authentik_utils import reset_team_password
+from core.authentik_utils import reset_team_credentials, reset_team_password
 from core.models import DiscordTask
-from team.models import DiscordLink, Team
+from team.models import DiscordLink, SchoolInfo, Team
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def assignments() -> tuple[EventTeamAssignment, EventTeamAssignment]:
+def school_info() -> SchoolInfo:
     team = Team.objects.create(team_number=7, team_name="Team 07")
-    season = Season.objects.create(name="2026", year=2026)
-    registration = TeamRegistration.objects.create(school_name="School")
-
-    def assign(name: str, finalized: bool) -> EventTeamAssignment:
-        event = Event.objects.create(
-            season=season, name=name, event_type="invitational", date=date(2026, 10, 3), is_finalized=finalized
-        )
-        return EventTeamAssignment.objects.create(
-            event=event, registration=registration, team=team, password_generated="old"
-        )
-
-    return assign("Upcoming", finalized=False), assign("Past", finalized=True)
+    return SchoolInfo.objects.create(team=team, school_name="School", contact_email="c@example.com", password="old")
 
 
-def test_reset_records_the_new_password_for_unfinished_events(assignments):
-    upcoming, past = assignments
+def test_reset_records_the_new_password_on_the_school_info(school_info):
     with patch("core.authentik_manager.AuthentikManager") as manager:
         manager.return_value.reset_blueteam_password.return_value = (True, "")
         password, error = reset_team_password(7)
 
     assert password and error == ""
     manager.return_value.reset_blueteam_password.assert_called_once_with(7, password)
-    upcoming.refresh_from_db()
-    past.refresh_from_db()
-    assert upcoming.password_generated == password
-    assert past.password_generated == "old"
+    school_info.refresh_from_db()
+    assert school_info.password == password
 
 
-def test_failed_reset_records_nothing(assignments):
-    upcoming, _ = assignments
+def test_failed_reset_records_nothing(school_info):
     with patch("core.authentik_manager.AuthentikManager") as manager:
         manager.return_value.reset_blueteam_password.return_value = (False, "HTTP 500")
         assert reset_team_password(7) == (None, "HTTP 500")
 
-    upcoming.refresh_from_db()
-    assert upcoming.password_generated == "old"
+    school_info.refresh_from_db()
+    assert school_info.password == "old"
 
 
 def test_authentik_reset_leaves_the_account_disabled():
@@ -89,3 +72,43 @@ def test_web_unlink_queues_a_role_sync_for_the_member(admin_user, action):
     task = DiscordTask.objects.get(task_type="sync_member_roles")
     assert task.payload == {"discord_id": 4242}
     assert not DiscordLink.objects.filter(discord_id=4242, is_active=True).exists()
+
+
+def test_reset_team_credentials_revokes_the_accounts_sessions():
+    with (
+        patch("core.authentik_utils.reset_team_password", return_value=("pw", "")),
+        patch("core.authentik_manager.AuthentikManager") as manager,
+    ):
+        manager.return_value.revoke_user_sessions.return_value = (True, None, 2)
+        assert reset_team_credentials(7) == ("pw", "", True)
+
+    manager.return_value.revoke_user_sessions.assert_called_once_with("team07")
+
+
+def test_reset_team_credentials_skips_sessions_when_the_reset_fails():
+    with (
+        patch("core.authentik_utils.reset_team_password", return_value=(None, "HTTP 500")),
+        patch("core.authentik_manager.AuthentikManager") as manager,
+    ):
+        assert reset_team_credentials(7) == (None, "HTTP 500", False)
+
+    manager.return_value.revoke_user_sessions.assert_not_called()
+
+
+def test_web_bulk_reset_defaults_to_the_active_teams(admin_user):
+    """Inactive teams' accounts aren't competing; new passwords for them would only be handed out."""
+    for number in range(1, 5):
+        Team.objects.create(team_number=number, team_name=f"Team {number}", is_active=number <= 2)
+    client = Client()
+    client.force_login(admin_user)
+
+    with patch(
+        "core.admin_views.competition.reset_team_credentials",
+        side_effect=lambda n: (f"pw-{n}", "", n != 2),
+    ) as reset:
+        response = client.post(reverse("admin_competition_action"), {"action": "reset_passwords", "team_numbers": ""})
+
+    assert [c.args[0] for c in reset.call_args_list] == [1, 2]
+    body = response.json()
+    assert body["csv"].splitlines()[1:] == ["team01,pw-1", "team02,pw-2"]
+    assert body["message"] == "Reset 2/2 passwords; could not revoke sessions for team02"

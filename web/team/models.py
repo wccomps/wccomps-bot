@@ -18,6 +18,11 @@ def team_username(team_number: int) -> str:
     return f"team{team_number:02d}"
 
 
+def active_team_numbers() -> list[int]:
+    """Numbers of the teams competing in the current event, in order."""
+    return list(Team.objects.filter(is_active=True).order_by("team_number").values_list("team_number", flat=True))
+
+
 def default_team_name(team_number: int) -> str:
     """A team's name until someone gives it one; the school CSV import resets every team to it."""
     return f"BlueTeam{team_number:02d}"
@@ -270,6 +275,9 @@ class SchoolInfo(models.Model):
     contact_email = models.EmailField()
     secondary_email = models.EmailField(blank=True)
     notes = models.TextField(blank=True)
+    # The team account's password for this competition, set on the first packet send and sent in packets.
+    # The school list import replaces every row, so the next competition gets a new one.
+    password = models.CharField(max_length=100, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
