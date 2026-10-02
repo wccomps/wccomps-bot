@@ -23,7 +23,7 @@ from core.utils import ndjson_progress as _progress
 from team.models import active_team_numbers, team_username
 
 from ..auth_utils import has_permission, require_permission
-from ..utils import parse_datetime_to_utc
+from ..utils import UnknownTimezoneError, parse_datetime_to_utc
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,8 @@ def _action_set_start_time(request: HttpRequest, config: CompetitionConfig, auth
 
     try:
         start_time = parse_datetime_to_utc(datetime_str, tz_name)
+        if error := config.schedule_error(start=start_time):
+            return JsonResponse({"error": error}, status=400)
 
         config.competition_start_time = start_time
         config.save()
@@ -123,6 +125,8 @@ def _action_set_start_time(request: HttpRequest, config: CompetitionConfig, auth
         )
 
         return JsonResponse({"success": True, "message": f"Start time set to {start_time.isoformat()}"})
+    except UnknownTimezoneError as e:
+        return JsonResponse({"error": str(e)}, status=400)
     except ValueError:
         return JsonResponse({"error": "Invalid datetime format"}, status=400)
 
@@ -137,6 +141,8 @@ def _action_set_end_time(request: HttpRequest, config: CompetitionConfig, authen
 
     try:
         end_time = parse_datetime_to_utc(datetime_str, tz_name)
+        if error := config.schedule_error(end=end_time):
+            return JsonResponse({"error": error}, status=400)
 
         config.competition_end_time = end_time
         config.save()
@@ -150,6 +156,8 @@ def _action_set_end_time(request: HttpRequest, config: CompetitionConfig, authen
         )
 
         return JsonResponse({"success": True, "message": f"End time set to {end_time.isoformat()}"})
+    except UnknownTimezoneError as e:
+        return JsonResponse({"error": str(e)}, status=400)
     except ValueError:
         return JsonResponse({"error": "Invalid datetime format"}, status=400)
 
@@ -169,36 +177,38 @@ def _action_set_schedule(request: HttpRequest, config: CompetitionConfig, authen
     end_tz = form.cleaned_data.get("end_timezone") or "America/Los_Angeles"
 
     try:
-        details: dict[str, str] = {}
-
-        if start_dt:
-            start_time = parse_datetime_to_utc(start_dt, start_tz)
-            config.competition_start_time = start_time
-            details["start_time"] = start_time.isoformat()
-
-        if end_dt:
-            end_time = parse_datetime_to_utc(end_dt, end_tz)
-            config.competition_end_time = end_time
-            details["end_time"] = end_time.isoformat()
-
-        config.save()
-
-        AuditLog.objects.create(
-            action="competition_schedule_set",
-            admin_user=authentik_username,
-            target_entity="competition_config",
-            target_id=config.pk,
-            details={**details, "controlled_apps": config.controlled_applications},
-        )
-
-        parts = [
-            f"start={details['start_time']}" if "start_time" in details else "",
-            f"end={details['end_time']}" if "end_time" in details else "",
-        ]
-        msg = "Schedule updated: " + ", ".join(p for p in parts if p)
-        return JsonResponse({"success": True, "message": msg})
+        start_time = parse_datetime_to_utc(start_dt, start_tz) if start_dt else None
+        end_time = parse_datetime_to_utc(end_dt, end_tz) if end_dt else None
+    except UnknownTimezoneError as e:
+        return JsonResponse({"error": str(e)}, status=400)
     except ValueError:
         return JsonResponse({"error": "Invalid datetime format"}, status=400)
+    if error := config.schedule_error(start_time, end_time):
+        return JsonResponse({"error": error}, status=400)
+
+    details: dict[str, str] = {}
+    if start_time:
+        config.competition_start_time = start_time
+        details["start_time"] = start_time.isoformat()
+    if end_time:
+        config.competition_end_time = end_time
+        details["end_time"] = end_time.isoformat()
+    config.save()
+
+    AuditLog.objects.create(
+        action="competition_schedule_set",
+        admin_user=authentik_username,
+        target_entity="competition_config",
+        target_id=config.pk,
+        details={**details, "controlled_apps": config.controlled_applications},
+    )
+
+    parts = [
+        f"start={details['start_time']}" if "start_time" in details else "",
+        f"end={details['end_time']}" if "end_time" in details else "",
+    ]
+    msg = "Schedule updated: " + ", ".join(p for p in parts if p)
+    return JsonResponse({"success": True, "message": msg})
 
 
 def _stream_competition_run(enable: bool, authentik_username: str) -> Iterator[str]:

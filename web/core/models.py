@@ -1,4 +1,5 @@
 from dataclasses import asdict, fields
+from datetime import datetime
 
 from django.contrib.auth.models import User
 from django.db import models
@@ -174,6 +175,17 @@ class CompetitionConfig(models.Model):
         if self.competition_start_time:
             return f"Competition starts at {self.competition_start_time} (enabled={self.applications_enabled})"
         return "Competition not scheduled"
+
+    def schedule_error(self, start: datetime | None = None, end: datetime | None = None) -> str | None:
+        """Why the schedule would be unusable after setting start and/or end (keeping the stored other), or None.
+
+        With the end at or before the start, should_enable_applications is never true: nothing starts.
+        """
+        start = start or self.competition_start_time
+        end = end or self.competition_end_time
+        if start and end and end <= start:
+            return "The end time must be after the start time"
+        return None
 
     def should_enable_applications(self) -> bool:
         if not self.competition_start_time:

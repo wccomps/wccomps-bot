@@ -64,7 +64,7 @@ class CompetitionTimer(commands.Cog):
                 result_msg = f"**Competition Auto-{done}!**\n\n{result.summary()}"
             else:
                 result_msg = f"**Competition Auto-{action} Failed:** {result.error}"
-                # A failed run is retried every minute until it works; say so once, not every minute.
+                # A run that errors leaves the state unchanged, so the next check runs it again; report it once.
                 if result_msg == self._last_failure:
                     return
                 self._last_failure = result_msg
