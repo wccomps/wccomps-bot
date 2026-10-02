@@ -2,10 +2,20 @@
  * WCComps shared Alpine.js mixins and utility functions.
  *
  * Loaded globally in base_site.html before Alpine.js initializes.
- * Mixins are spread into Alpine.data() blocks: { ...toastMixin(), ... }
+ * Combine mixins with a component's own fields using compose(): Alpine.data('x', () => compose(toastMixin(), { ... })).
  */
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
+
+/**
+ * Merge objects into one, keeping getters live. Spreading ({ ...toastMixin() }) calls each getter once
+ * and copies the result, so alertClass, hasProgress, allSelected... never changed again.
+ */
+function compose(...parts) {
+    const merged = {};
+    for (const part of parts) Object.defineProperties(merged, Object.getOwnPropertyDescriptors(part));
+    return merged;
+}
 
 // Tell the server this browser's timezone so it shows times in it and reads date/time
 // inputs in it (core.middleware.UserTimezoneMiddleware). Times are stored in UTC.
@@ -103,9 +113,7 @@ function progressMixin() {
  * @param {string} url — POST endpoint (rendered by Django template tag).
  */
 function streamMixin(url) {
-    return {
-        ...toastMixin(),
-        ...progressMixin(),
+    return compose(toastMixin(), progressMixin(), {
         loading: false,
         get notLoading() { return !this.loading; },
         get disabledClass() { return this.loading ? 'disabled' : ''; },
@@ -144,7 +152,7 @@ function streamMixin(url) {
             // A failure stays until the next action: it says what didn't happen
             if (this.messageType === 'success') setTimeout(() => { this.message = ''; }, 5000);
         },
-    };
+    });
 }
 
 /**

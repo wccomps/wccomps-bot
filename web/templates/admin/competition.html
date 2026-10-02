@@ -337,8 +337,7 @@ document.addEventListener('alpine:init', () => {
         };
     });
 
-    Alpine.data('competitionAdmin', () => ({
-        ...streamMixin('{% url "admin_competition_action" %}'),
+    Alpine.data('competitionAdmin', () => compose(streamMixin('{% url "admin_competition_action" %}'), {
         maxMembers: {{ config.max_team_members }},
         apps: [{% for app in config.controlled_applications %}'{{ app }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
         newApp: '',

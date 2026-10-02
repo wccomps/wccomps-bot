@@ -96,8 +96,7 @@
     </div>
     <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('teamsAdmin', () => ({
-                ...toastMixin(),
+        Alpine.data('teamsAdmin', () => compose(toastMixin(), {
                 loading: false,
                 bulkTeamNumbers: '',
                 bulkActionType: 'activate',

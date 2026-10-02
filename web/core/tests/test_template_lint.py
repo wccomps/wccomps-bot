@@ -282,6 +282,46 @@ class TestNoXModel:
             )
 
 
+class TestMixinsComposedNotSpread:
+    """Spreading a mixin ({ ...toastMixin() }) calls its getters once and copies the values, so alertClass,
+    hasProgress and allSelected never changed again. compose() (static/js/utils.js) keeps them live."""
+
+    SPREAD_RE = re.compile(r"\.\.\.\w+Mixin\(")
+
+    def test_no_mixin_spread(self) -> None:
+        violations = []
+        for path in get_all_template_files():
+            content = path.read_text()
+            for match in self.SPREAD_RE.finditer(content):
+                line = content[: match.start()].count("\n") + 1
+                violations.append(f"  - {path.relative_to(TEMPLATES_DIR)}:{line}")
+        if violations:
+            pytest.fail("Combine mixins with compose(mixin(), {...}), not spread:\n" + "\n".join(violations))
+
+
+class TestNoServerSideAlertVariant:
+    """A cotton :prop is evaluated by Django once, at render; an Alpine variable there never takes effect.
+
+    <c-alert :variant="messageType"> rendered every message green (the variant fell back to info), failures
+    included. Messages that change in the browser use <c-toast />, whose class Alpine binds.
+    """
+
+    ALERT_VARIANT_RE = re.compile(r"<c-alert\b[^>]*\s:variant=")
+
+    def test_no_c_alert_with_a_dynamic_variant(self) -> None:
+        violations = []
+        for path in get_all_template_files():
+            content = path.read_text()
+            for match in self.ALERT_VARIANT_RE.finditer(content):
+                line = content[: match.start()].count("\n") + 1
+                violations.append(f"  - {path.relative_to(TEMPLATES_DIR)}:{line}")
+        if violations:
+            pytest.fail(
+                "Use <c-toast /> for messages Alpine sets; c-alert's :variant is fixed at render:\n"
+                + "\n".join(violations)
+            )
+
+
 # ---------------------------------------------------------------------------
 # 6. Missing {{ attrs }} → silent attribute dropping
 # ---------------------------------------------------------------------------

@@ -6,8 +6,7 @@
 {% block red_content %}
     <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('redFindingsBulkSelect', () => ({
-            ...bulkSelectMixin('finding-id'),
+        Alpine.data('redFindingsBulkSelect', () => compose(bulkSelectMixin('finding-id'), {
             init() { this.initBulkSelect(); },
             submitBulk() {
                 if (this.submitting) return;
