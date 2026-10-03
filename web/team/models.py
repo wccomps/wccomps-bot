@@ -277,7 +277,11 @@ class SchoolInfo(models.Model):
     notes = models.TextField(blank=True)
     # The team account's password for this competition, set on the first packet send and sent in packets.
     # The school list import replaces every row, so the next competition gets a new one.
-    password = models.CharField(max_length=100, blank=True)
+    password = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="The team account's current Authentik password, sent in packets. Change it with Reset team.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
