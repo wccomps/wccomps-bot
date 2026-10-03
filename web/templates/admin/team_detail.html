@@ -81,7 +81,7 @@
                 <template x-if="newPassword">
                     <c-action_box heading="New Password" variant="warning" class="mt-20">
                         <code class="text-lg" x-text="newPassword"></code>
-                        <p class="help-text mt-10">Copy it now: it's also stored for packet emails, and a packet resend sends it.</p>
+                        <p class="help-text mt-10">Copy it now. If the team has school info, it's also stored there, and packet resends send it.</p>
                     </c-action_box>
                 </template>
             </c-module>
@@ -181,7 +181,7 @@
                 },
 
                 async resetPassword() {
-                    if (!confirm('Reset this team\'s password?\n\nThis will:\n- Generate a new password and set it in Authentik\n- Sign out every session on the team account\n\nDiscord links are kept. Anyone using the old password must use the new one.')) {
+                    if (!confirm('Reset this team\'s password?\n\nThis will:\n- Generate a new password and set it in Authentik\n- End the team account\'s Authentik sessions\n\nDiscord links are kept. Anyone using the old password must use the new one.')) {
                         return;
                     }
 

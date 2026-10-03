@@ -82,7 +82,7 @@ def link_initiate(request: HttpRequest) -> HttpResponse:
             },
         )
 
-    # Store token in session for CSRF protection
+    # The callback only completes in a browser that came through here (core.services.linking)
     request.session["pending_link_token"] = link_token.token
     request.session["pending_link_discord_id"] = link_token.discord_id
 
@@ -296,7 +296,7 @@ def school_info_edit(request: HttpRequest, team_number: int) -> HttpResponse:
 
         from team.forms import active_event, assign_school_to_event
 
-        # A team edited in by hand joins the active event like an imported one, so packets can reach it
+        # A team edited in by hand joins the active event like an imported one (the registration event page)
         join_event = active_event()
         if join_event and join_event.team_assignments.filter(team=team).exists():
             join_event = None

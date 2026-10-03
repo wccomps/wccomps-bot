@@ -30,7 +30,8 @@ def validate_team_account(user_data: AuthentikUser, expected_username: str) -> t
 def reset_team_password(team_number: int) -> tuple[str | None, str]:
     """Give a team account a new random password and record it on the team's school info for packet emails.
 
-    Returns (password, "") on success, (None, error) otherwise.
+    A team with no school info gets the new password in Authentik only. Returns (password, "") on success,
+    (None, error) otherwise.
     """
     from team.models import SchoolInfo
 
@@ -45,7 +46,7 @@ def reset_team_password(team_number: int) -> tuple[str | None, str]:
 
 
 def reset_team_credentials(team_number: int) -> tuple[str | None, str, bool]:
-    """Reset a team account's password, then revoke its sessions so nobody stays signed in on the old one.
+    """Reset a team account's password, then ask Authentik to end the account's sessions.
 
     Returns (password, error, sessions_revoked); password is None when the reset failed.
     """

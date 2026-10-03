@@ -5,7 +5,12 @@ import logging
 import discord
 from asgiref.sync import sync_to_async
 
-from bot.utils import DISCORD_EMBED_DESCRIPTION_CHAR_LIMIT, DISCORD_EMBED_FIELD_CHAR_LIMIT, fit
+from bot.utils import (
+    DISCORD_EMBED_DESCRIPTION_CHAR_LIMIT,
+    DISCORD_EMBED_FIELD_CHAR_LIMIT,
+    DISCORD_EMBED_TITLE_CHAR_LIMIT,
+    fit,
+)
 from core.tickets_config import TicketCategoryConfig, get_category_config
 from ticketing.models import Ticket
 
@@ -26,7 +31,7 @@ def format_ticket_embed(ticket: Ticket) -> discord.Embed:
     cat_info = get_category_config(ticket.category_id) or {}
 
     embed = discord.Embed(
-        title=f"Ticket {ticket.ticket_number}: {ticket.title}",
+        title=fit(f"Ticket {ticket.ticket_number}: {ticket.title}", DISCORD_EMBED_TITLE_CHAR_LIMIT),
         description=fit(ticket.description, DISCORD_EMBED_DESCRIPTION_CHAR_LIMIT),
         color=get_ticket_color(ticket.status),
         timestamp=ticket.created_at,

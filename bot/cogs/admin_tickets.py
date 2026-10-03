@@ -424,7 +424,7 @@ class AdminTicketsCog(commands.Cog):
         history_count = await TicketHistory.objects.acount()
         teams_to_reset = await Team.objects.filter(ticket_counter__gt=0).acount()
 
-        # With no tickets, the counters can still be left over from the last event; reset those too
+        # Counters can be left with no tickets (data wiped before the wipe also reset them); reset those too
         if ticket_count == 0 and teams_to_reset == 0:
             await interaction.response.send_message("No tickets or ticket counters to clear", ephemeral=True)
             return

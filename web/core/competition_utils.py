@@ -16,7 +16,8 @@ from ticketing.models import Ticket, TicketAttachment, TicketComment, TicketHist
 
 
 def wipe_competition_data() -> dict[str, int]:
-    """Wipe competition data for a fresh start, returning deleted counts by model.
+    """Wipe competition data for a fresh start, returning deleted counts by model plus TeamTicketCounter, the
+    number of team ticket counters reset.
 
     Preserves teams, orange checks (reusable rubrics), AuditLog, BotState, DiscordTask and LinkToken/LinkAttempt.
     Each team's ticket counter is reset with its tickets, so the next event's numbering starts at T0NN-001.

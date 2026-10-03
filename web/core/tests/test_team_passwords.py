@@ -131,7 +131,7 @@ def test_team_page_password_reset_keeps_discord_links(admin_user):
     body = response.json()
     assert body == {
         "success": True,
-        "message": "New password set in Authentik; signed out its sessions",
+        "message": "New password set in Authentik; asked Authentik to end its sessions",
         "password": "New-Pass-9!",
     }
     assert DiscordLink.objects.filter(discord_id=4343, is_active=True).exists()

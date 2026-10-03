@@ -51,7 +51,6 @@ class AdminCompetitionCog(commands.Cog):
             await interaction.response.send_message("Error: AUTHENTIK_TOKEN not configured in settings", ephemeral=True)
             return
 
-        # Resetting every active team requires confirmation
         if not team_numbers:
             active = await sync_to_async(active_team_numbers)()
             view = ConfirmView(confirm_label=f"Confirm Reset All {len(active)} Active Teams")
@@ -59,7 +58,7 @@ class AdminCompetitionCog(commands.Cog):
                 f"⚠️ **WARNING: You are about to reset passwords for ALL {len(active)} active team accounts.**\n\n"
                 "This will:\n"
                 "• Generate new random passwords for them\n"
-                "• Invalidate all current passwords and sign out their sessions\n\n"
+                "• Invalidate all current passwords and end their Authentik sessions\n\n"
                 "Are you sure you want to continue?",
                 view=view,
                 ephemeral=True,

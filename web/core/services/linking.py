@@ -48,8 +48,9 @@ def validate_link_token(url_token: str | None, session_token: str | None, userna
             error_context={
                 "error": "This link wasn't opened in this browser",
                 "message": (
-                    "Each team member links their own Discord account: run /link in Discord yourself and finish "
-                    "in the browser it opens. A link copied from a teammate won't work."
+                    "This page was opened in a different browser from the one that started the link. Each team "
+                    "member runs /link in Discord and finishes in the browser it opens, without copying the "
+                    "address from another browser."
                 ),
             },
         )

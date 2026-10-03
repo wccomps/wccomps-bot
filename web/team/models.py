@@ -275,8 +275,8 @@ class SchoolInfo(models.Model):
     contact_email = models.EmailField()
     secondary_email = models.EmailField(blank=True)
     notes = models.TextField(blank=True)
-    # The team account's password for this competition, set on the first packet send and sent in packets.
-    # The school list import replaces every row, so the next competition gets a new one.
+    # The team account's password for this competition, sent in packets. Set by every password reset and by the
+    # first packet send; the school list import replaces every row, so the next competition gets a new one.
     password = models.CharField(
         max_length=100,
         blank=True,

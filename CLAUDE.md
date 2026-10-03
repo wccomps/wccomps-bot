@@ -59,6 +59,8 @@ the unparenthesized form is used intentionally throughout.
 ### Streaming Progress Pattern
 - Use `StreamingHttpResponse` + NDJSON + Alpine.js for long operations
 - Use `core.utils.ndjson_progress()` helper for progress lines
+- Wrap any stream that changes data in `core.utils.run_detached()`, so it finishes even when the browser
+  or proxy disconnects (read-only streams don't need it)
 
 ### Team Model
 - `MAX_TEAMS = 50` defined in `team/models.py`

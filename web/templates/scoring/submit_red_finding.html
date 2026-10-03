@@ -424,7 +424,7 @@
                 const fileCount = input.files.length;
 
                 if (fileCount > 20) {
-                    alert('Maximum 20 screenshots per submission. Choose 20 or fewer: the form won\'t submit with more.');
+                    alert('Maximum 20 screenshots per submission. Choose 20 or fewer: a submission with more is rejected.');
                 }
 
                 Array.from(input.files).slice(0, 20).forEach((file, index) => {
