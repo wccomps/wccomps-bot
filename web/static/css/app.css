@@ -107,6 +107,14 @@ nav[role="navigation"] {
     padding-top: 0;
 }
 
+/* Portal pages put their breadcrumb bar inside #content, hence no top padding above. Django admin pages
+   (body.app-<label>, body.dashboard) draw it above #content, so they keep Django's top padding; without it
+   the heading and the Add button sit against the breadcrumb bar. */
+body[class*="app-"] #content,
+body.dashboard #content {
+    padding-top: 20px;
+}
+
 #content > .breadcrumbs {
     margin-left: -40px;
     margin-right: -40px;
