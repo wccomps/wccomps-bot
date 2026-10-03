@@ -101,7 +101,8 @@ class SchoolInfoAdmin(admin.ModelAdmin[SchoolInfo]):
     ]
     search_fields = ["school_name", "contact_email", "team__team_name"]
     # password mirrors the team account's Authentik password for packet emails; editing it here would change
-    # only this copy, so it's set solely by reset_team_password (Reset team, or the first packet send)
+    # only this copy, so it's set solely by reset_team_password (Reset Password or Reset Team on the team's page, or
+    # the first packet send)
     readonly_fields = ["created_at", "updated_at", "updated_by", "password"]
     ordering = ["team__team_number"]
     actions = ["export_as_csv", "import_from_csv"]
