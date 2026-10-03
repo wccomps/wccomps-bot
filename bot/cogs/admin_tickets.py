@@ -424,8 +424,9 @@ class AdminTicketsCog(commands.Cog):
         history_count = await TicketHistory.objects.acount()
         teams_to_reset = await Team.objects.filter(ticket_counter__gt=0).acount()
 
-        if ticket_count == 0:
-            await interaction.response.send_message("No tickets to clear", ephemeral=True)
+        # With no tickets, the counters can still be left over from the last event; reset those too
+        if ticket_count == 0 and teams_to_reset == 0:
+            await interaction.response.send_message("No tickets or ticket counters to clear", ephemeral=True)
             return
 
         view = ConfirmView(confirm_label="Confirm Delete")
