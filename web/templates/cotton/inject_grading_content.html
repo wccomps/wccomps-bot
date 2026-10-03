@@ -34,6 +34,9 @@
                                        min="0"
                                        step="0.01"
                                        placeholder>
+                                <input type="hidden"
+                                       name="loaded_team_{{ item.team.team_number }}"
+                                       value="{% if item.points is not None %}{{ item.points }}{% endif %}">
                             </td>
                             <td>
                                 {% if item.grade %}

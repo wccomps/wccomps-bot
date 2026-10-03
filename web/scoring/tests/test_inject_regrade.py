@@ -57,3 +57,52 @@ def test_out_of_range_points_save_nothing_and_say_why(grading, bad):
     assert "Nothing saved" in response.content.decode()
     assert InjectScore.objects.get(team__team_number=1).points_awarded == Decimal("10")
     assert InjectScore.objects.get(team__team_number=2).points_awarded == Decimal("7")
+
+
+def _save_from_page(client, loaded, posted):
+    """Post the grading form as a browser does: each team's field plus the value it loaded with."""
+    data = {"inject_id": "1"}
+    for n in posted:
+        data[f"points_team_{n}"] = posted[n]
+        data[f"loaded_team_{n}"] = loaded.get(n, "")
+    return client.post(reverse("scoring:inject_grading") + "?inject=1", data, follow=True)
+
+
+def test_a_stale_page_leaves_a_newer_grade_alone(grading):
+    """Grader A loaded team 2 = 7; grader B has since saved 15; A changes only team 1."""
+    InjectScore.objects.filter(team__team_number=2).update(points_awarded=Decimal("15"))
+
+    _save_from_page(grading, loaded={"1": "10", "2": "7"}, posted={"1": "12", "2": "7"})
+
+    assert InjectScore.objects.get(team__team_number=1).points_awarded == Decimal("12")
+    assert InjectScore.objects.get(team__team_number=2).points_awarded == Decimal("15")
+
+
+def test_a_field_the_grader_changed_is_saved_even_if_someone_else_changed_it_too(grading):
+    InjectScore.objects.filter(team__team_number=2).update(points_awarded=Decimal("15"))
+
+    _save_from_page(grading, loaded={"1": "10", "2": "7"}, posted={"1": "10", "2": "9"})
+
+    assert InjectScore.objects.get(team__team_number=2).points_awarded == Decimal("9")
+
+
+def test_a_first_grade_saved_by_someone_else_meanwhile_is_updated_not_a_500(grading):
+    """Two graders saving a team's first grade: the second's lookup missed a row the first just created."""
+    from scoring.views import injects
+
+    team = Team.objects.create(team_number=3, team_name="Team 3", is_active=True)
+    InjectScore.objects.create(team=team, inject_id="1", inject_name="Firewall policy", points_awarded=Decimal("4"))
+    real_select_for_update = InjectScore.objects.select_for_update
+
+    class LookupMissesTeam3:
+        def filter(self, **kwargs):
+            return [g for g in real_select_for_update().filter(**kwargs) if g.team_id != team.id]
+
+        def get_or_create(self, **kwargs):
+            return real_select_for_update().get_or_create(**kwargs)
+
+    with patch.object(injects.InjectScore.objects, "select_for_update", return_value=LookupMissesTeam3()):
+        response = _save_from_page(grading, loaded={"3": ""}, posted={"3": "6"})
+
+    assert response.status_code == 200
+    assert InjectScore.objects.get(team=team).points_awarded == Decimal("6")
