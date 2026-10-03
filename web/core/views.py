@@ -16,7 +16,7 @@ from core.services.linking import (
     store_discord_id_in_authentik,
     validate_link_token,
 )
-from team.models import DiscordLink, LinkToken, SchoolInfo, Team
+from team.models import LinkToken, SchoolInfo, Team
 
 from .auth_utils import (
     get_authentik_groups,
@@ -460,44 +460,6 @@ def school_info_import(request: HttpRequest) -> HttpResponse:
             **permissions,
         },
     )
-
-
-@require_permission("gold_team")
-def ops_group_role_mappings(request: HttpRequest) -> HttpResponse:
-    """View team membership status and linked users."""
-    teams = Team.objects.filter(is_active=True).order_by("team_number")
-
-    team_status = []
-    for team in teams:
-        links = DiscordLink.objects.filter(team=team, is_active=True).select_related("team")
-
-        members = [
-            {
-                "discord_id": link.discord_id,
-                "discord_username": link.discord_username or "Unknown",
-                "authentik_username": link.user.username,
-            }
-            for link in links
-        ]
-
-        team_status.append(
-            {
-                "team": team,
-                "current_count": len(members),
-                "max_count": team.max_members,
-                "members": members,
-                "is_full": len(members) >= team.max_members,
-            }
-        )
-
-    from django.contrib.admin.sites import site
-
-    context = {
-        **site.each_context(request),
-        "team_status": team_status,
-        "title": "Team Mappings",
-    }
-    return render(request, "ops_group_role_mappings.html", context)
 
 
 def livez(request: HttpRequest) -> HttpResponse:

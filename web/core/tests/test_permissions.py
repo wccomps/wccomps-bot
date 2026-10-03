@@ -57,43 +57,6 @@ class TestOpsSchoolInfoPermissions:
         assert not _check_access_denied(response), f"{user_fixture} should have access"
 
 
-class TestGroupRoleMappingsPermissions:
-    """Test permissions for Group Role Mappings view (/ops/group-role-mappings/)."""
-
-    def test_unauthenticated_redirects_to_login(self, unauthenticated_client):
-        """Unauthenticated users should be redirected to login."""
-        response = unauthenticated_client.get(reverse("ops_group_role_mappings"))
-        assert response.status_code == 302
-        assert "/accounts/" in response.url or "login" in response.url
-
-    @pytest.mark.parametrize(
-        "user_fixture",
-        [
-            "blue_team_user",
-            "red_team_user",
-            "white_team_user",
-            "orange_team_user",
-        ],
-    )
-    def test_unauthorized_roles_denied(self, user_fixture, request):
-        """Non-gold/admin users should be denied access to group role mappings."""
-        user = request.getfixturevalue(user_fixture)
-        client = Client()
-        client.force_login(user)
-        response = client.get(reverse("ops_group_role_mappings"))
-        assert _check_access_denied(response), f"{user_fixture} should be denied access"
-
-    @pytest.mark.parametrize("user_fixture", ["gold_team_user", "admin_user"])
-    def test_authorized_roles_allowed(self, user_fixture, request):
-        """Gold team and admin users should access group role mappings."""
-        user = request.getfixturevalue(user_fixture)
-        client = Client()
-        client.force_login(user)
-        response = client.get(reverse("ops_group_role_mappings"))
-        assert response.status_code == 200
-        assert not _check_access_denied(response), f"{user_fixture} should have access"
-
-
 class TestTicketViewsPermissions:
     """Test permissions for ticketing views."""
 

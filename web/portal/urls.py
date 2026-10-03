@@ -31,11 +31,6 @@ urlpatterns = [
         views.school_info_edit,
         name="school_info_edit",
     ),
-    path(
-        "ops/group-role-mappings/",
-        views.ops_group_role_mappings,
-        name="ops_group_role_mappings",
-    ),
     # Leaderboard (standalone primary nav section)
     path("leaderboard/", leaderboard, name="leaderboard_page"),
     path("leaderboard/team/<int:team_number>/", scorecard, name="leaderboard_scorecard"),
