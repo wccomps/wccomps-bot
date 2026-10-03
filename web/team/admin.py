@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse
+from django.template.loader import render_to_string
+from django.utils.html import format_html
 
 from .models import (
     DiscordLink,
@@ -10,6 +12,12 @@ from .models import (
     SchoolInfo,
     Team,
 )
+
+
+def _password_reset_button(team: Team) -> str:
+    if team._state.adding:  # the add page has no team yet
+        return "-"
+    return render_to_string("admin/includes/team_password_reset.html", {"team_number": team.team_number})
 
 
 @admin.register(Team)
@@ -25,7 +33,11 @@ class TeamAdmin(admin.ModelAdmin[Team]):
     list_filter = ["is_active", "created_at"]
     search_fields = ["team_name", "authentik_group"]
     ordering = ["team_number"]
-    readonly_fields = ["created_at", "updated_at", "ticket_counter"]
+    readonly_fields = ["created_at", "updated_at", "ticket_counter", "password_reset"]
+
+    @admin.display(description="Password")
+    def password_reset(self, obj: Team) -> str:
+        return _password_reset_button(obj)
 
     @admin.display(description="Members")
     def member_count(self, obj: Team) -> int:
@@ -102,9 +114,16 @@ class SchoolInfoAdmin(admin.ModelAdmin[SchoolInfo]):
     search_fields = ["school_name", "contact_email", "team__team_name"]
     # password mirrors the team account's Authentik password for packet emails; editing it here would change
     # only this copy, so it's set solely by reset_team_password
-    readonly_fields = ["created_at", "updated_at", "updated_by", "password"]
+    exclude = ["password"]
+    readonly_fields = ["created_at", "updated_at", "updated_by", "password_with_reset"]
     ordering = ["team__team_number"]
     actions = ["export_as_csv", "import_from_csv"]
+
+    @admin.display(description="Password")
+    def password_with_reset(self, obj: SchoolInfo) -> str:
+        if obj._state.adding:
+            return "-"
+        return format_html("<p>{}</p>{}", obj.password or "Not set yet", _password_reset_button(obj.team))
 
     @admin.action(description="Export as CSV")
     def export_as_csv(self, request: HttpRequest, queryset: QuerySet[SchoolInfo]) -> HttpResponse:

@@ -39,3 +39,18 @@ def test_admin_save_leaves_the_stored_password_alone():
     assert response.status_code == 302
     info.refresh_from_db()
     assert info.password == "Real-Pass-1!"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("path", ["/admin/team/team/add/", "/admin/team/schoolinfo/add/"])
+def test_add_pages_render_without_a_reset_button(path):
+    admin = User.objects.create(username="adminadd", is_staff=True, is_superuser=True)
+    UserGroups.objects.update_or_create(user=admin, defaults={"groups": ["WCComps_Discord_Admin"], "authentik_id": "x"})
+    client = Client()
+    client.force_login(admin)
+
+    response = client.get(path)
+
+    assert response.status_code == 200
+    assert b"Reset Password" not in response.content
+    assert b'name="password"' not in response.content
