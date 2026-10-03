@@ -16,26 +16,6 @@
 {% endblock nav-sidebar %}
 {% block content %}
     <div id="content-main">
-        {% if is_gold_team or is_admin %}
-            <div class="app-operations module">
-                <table>
-                    <caption>
-                        <a href="#" class="section" title="Operations tools">Operations</a>
-                    </caption>
-                    <tr class="model-teammappings">
-                        <th scope="row" id="operations-teammappings">
-                            <a href="{% url 'ops_group_role_mappings' %}">Team mappings</a>
-                        </th>
-                        <td></td>
-                        <td>
-                            <a href="{% url 'ops_group_role_mappings' %}"
-                               class="viewlink"
-                               aria-describedby="operations-teammappings">{% translate "View" %}</a>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-        {% endif %}
         {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
     </div>
 {% endblock content %}

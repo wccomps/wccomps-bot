@@ -45,7 +45,6 @@ PAGES_WITH_TABLES = {
     "admin_team_detail",
     "admin_categories",
     "school_info",
-    "ops_group_role_mappings",
     "leaderboard_page",
     "scoring:red_team_scores",
     "scoring:red_team_findings",

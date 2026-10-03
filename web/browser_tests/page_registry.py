@@ -96,11 +96,6 @@ PAGES: list[PageDef] = [
         allowed_roles=["gold_team", "admin"],
         denied_roles=["blue_team", "red_team", "ticketing_support", "unauthenticated"],
     ),
-    PageDef(
-        url_name="ops_group_role_mappings",
-        allowed_roles=["gold_team", "admin"],
-        denied_roles=["blue_team", "red_team", "ticketing_support", "unauthenticated"],
-    ),
     # =========================================================================
     # Scoring — Leaderboard & Config
     # =========================================================================
