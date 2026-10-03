@@ -1,0 +1,69 @@
+"""The team page's Reset Password shows the new password and keeps it on screen."""
+
+from unittest.mock import patch
+
+import pytest
+from django.urls import reverse
+
+from .conftest import _create_role_user, create_session_context
+
+pytestmark = [pytest.mark.browser, pytest.mark.django_db(transaction=True)]
+
+
+def test_reset_password_shows_the_new_password_without_reloading(live_server, pw_browser):
+    from team.models import Team
+
+    Team.objects.create(team_number=8, team_name="Team 08", is_active=True)
+    user = _create_role_user("admin", None)
+    context = create_session_context(pw_browser, live_server, user)
+    page = context.new_page()
+    page.on("dialog", lambda dialog: dialog.accept())
+
+    try:
+        with patch("core.admin_views.teams.reset_team_credentials", return_value=("New-Pass-9!", "", True)):
+            page.goto(live_server.url + reverse("admin_team_detail", args=[8]))
+            with page.expect_response(lambda r: r.url.endswith("/action/")):
+                page.get_by_role("button", name="Reset Password").click()
+            page.get_by_text("New-Pass-9!").wait_for()
+            page.wait_for_timeout(4000)
+            assert page.get_by_text("New-Pass-9!").is_visible(), (
+                "the password must stay up (Reset Team reloads after 3s)"
+            )
+    finally:
+        context.close()
+
+
+def test_reset_team_keeps_the_password_up_and_hides_the_unlinked_members(live_server, pw_browser):
+    from django.contrib.auth.models import User
+
+    from team.models import DiscordLink, Team
+
+    team = Team.objects.create(team_number=8, team_name="Team 08", is_active=True)
+    member = User.objects.create(username="member08c")
+    DiscordLink.objects.create(
+        user=member, discord_id=4444, discord_username="memberdiscord", team=team, is_active=True
+    )
+    user = _create_role_user("admin", None)
+    context = create_session_context(pw_browser, live_server, user)
+    page = context.new_page()
+    page.on("dialog", lambda dialog: dialog.accept())
+
+    try:
+        with (
+            patch("core.admin_views.teams.reset_team_password", return_value=("Team-Pass-7!", "")),
+            patch("core.admin_views.teams.AuthentikManager") as manager,
+        ):
+            manager.return_value.revoke_user_sessions.return_value = (True, None, 1)
+            page.goto(live_server.url + reverse("admin_team_detail", args=[8]))
+            assert page.get_by_text("memberdiscord").is_visible()
+            with page.expect_response(lambda r: r.url.endswith("/action/")):
+                page.get_by_role("button", name="Reset Team").click()
+            page.get_by_text("Team-Pass-7!").wait_for()
+            page.wait_for_timeout(4000)
+            assert page.get_by_text("Team-Pass-7!").is_visible(), (
+                "Reset Team used to reload after 3s, wiping the password"
+            )
+            assert not page.get_by_text("memberdiscord").is_visible()
+            assert page.get_by_text("All members were unlinked").is_visible()
+    finally:
+        context.close()
