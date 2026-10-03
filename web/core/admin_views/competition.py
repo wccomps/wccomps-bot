@@ -270,6 +270,7 @@ def _action_wipe_competition(request: HttpRequest, config: CompetitionConfig, au
     config.competition_end_time = None
     config.save()
 
+    counters_reset = counts.pop("TeamTicketCounter")
     deleted_items = {k: v for k, v in counts.items() if v > 0}
     total_deleted = sum(counts.values())
 
@@ -279,11 +280,17 @@ def _action_wipe_competition(request: HttpRequest, config: CompetitionConfig, au
         admin_user=authentik_username,
         target_entity="competition",
         target_id=0,
-        details={"deleted_counts": deleted_items, "total_deleted": total_deleted},
+        details={
+            "deleted_counts": deleted_items,
+            "total_deleted": total_deleted,
+            "ticket_counters_reset": counters_reset,
+        },
     )
 
     summary_parts = [f"{v} {k}" for k, v in deleted_items.items()]
     summary = ", ".join(summary_parts) if summary_parts else "No data to delete"
+    if counters_reset:
+        summary += f"; {counters_reset} team ticket counters reset"
 
     return JsonResponse(
         {

@@ -114,3 +114,15 @@ def test_start_finishes_after_the_browser_disconnects(admin_client):
     assert first["step"] == "Enabled scoring"
     assert [c.args[0] for c in manager.toggle_user.call_args_list] == ["team01", "team02", "team03"]
     assert CompetitionConfig.get_config().applications_enabled
+
+
+def test_wipe_resets_ticket_counters_and_says_so(admin_client):
+    from team.models import Team
+
+    CompetitionConfig.objects.update_or_create(pk=1, defaults={"applications_enabled": False})
+    Team.objects.create(team_number=9, team_name="Team 9", ticket_counter=85)
+
+    response = _post(admin_client, "wipe_competition")
+
+    assert response.json()["message"].endswith("; 1 team ticket counters reset")
+    assert Team.objects.get(team_number=9).ticket_counter == 0

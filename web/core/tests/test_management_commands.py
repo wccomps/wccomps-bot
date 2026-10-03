@@ -78,7 +78,7 @@ class TestWipeCompetitionData:
     @pytest.fixture
     def populated_database(self):
         """Create test data in the database."""
-        team = Team.objects.create(team_number=1, team_name="Test Team")
+        team = Team.objects.create(team_number=1, team_name="Test Team", ticket_counter=34)
         ticket = Ticket.objects.create(
             ticket_number="T001-001",
             team=team,
@@ -122,6 +122,8 @@ class TestWipeCompetitionData:
         assert Ticket.objects.count() == 0
         assert TicketHistory.objects.count() == 0
         assert DiscordLink.objects.count() == 0  # Blue team links deleted
+        # Numbering restarts with the tickets: the next event's first ticket is T001-001, not T001-035
+        assert Team.objects.get().ticket_counter == 0
 
         # Static config preserved (as documented in wipe_competition_data)
         assert Team.objects.count() == 1  # Teams are static config
