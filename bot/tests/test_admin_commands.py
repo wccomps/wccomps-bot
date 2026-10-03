@@ -528,7 +528,32 @@ class TestAdminCommands:
         # Should send message about no tickets
         mock_interaction.response.send_message.assert_called_once()
         call_args = mock_interaction.response.send_message.call_args
-        assert "No tickets to clear" in call_args.args[0]
+        assert "No tickets or ticket counters to clear" in call_args.args[0]
+
+    async def test_admin_clear_tickets_resets_leftover_counters_with_no_tickets(
+        self, mock_interaction: Any, mock_admin_user: Any, mock_bot: Any
+    ) -> None:
+        """A wipe used to delete the tickets but keep the counters; /tickets clear must still reset them."""
+        from team.models import Team
+
+        mock_interaction.user.id = mock_admin_user._discord_id
+        await Team.objects.acreate(team_number=9, team_name="Team 9", ticket_counter=85)
+        original_send = mock_interaction.response.send_message
+
+        async def confirm(*args, **kwargs):
+            if "view" in kwargs:
+                kwargs["view"].confirmed = True
+                kwargs["view"].wait = AsyncMock()
+            return await original_send(*args, **kwargs)
+
+        mock_interaction.response.send_message = confirm
+        callback = AdminTicketsCog.admin_ticket_clear.callback
+        with patch_globals(callback, {"log_to_ops_channel": AsyncMock()}):
+            cog = AdminTicketsCog(mock_bot)
+            await cog.admin_ticket_clear.callback(cog, mock_interaction)
+
+        assert (await Team.objects.aget(team_number=9)).ticket_counter == 0
+        assert "Reset 1 team counters" in mock_interaction.edit_original_response.call_args.kwargs["content"]
 
     async def test_activate_teams(self, mock_interaction: Any, mock_admin_user: Any, mock_bot: Any) -> None:
         """Test /teams activate command."""
