@@ -280,7 +280,10 @@ class SchoolInfo(models.Model):
     password = models.CharField(
         max_length=100,
         blank=True,
-        help_text="The team account's current Authentik password, sent in packets. Change it with Reset team.",
+        help_text=(
+            "The team account's current Authentik password, sent in packets. "
+            "Change it with Reset Password on the team's page."
+        ),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
