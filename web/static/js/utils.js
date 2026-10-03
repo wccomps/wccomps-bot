@@ -8,8 +8,8 @@
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
 /**
- * Merge objects into one, keeping getters live. Spreading ({ ...toastMixin() }) calls each getter once
- * and copies the result, so alertClass, hasProgress, allSelected... never changed again.
+ * Merge objects into one, keeping getters live: object spread evaluates each getter once and copies
+ * the value, this copies the property descriptors.
  */
 function compose(...parts) {
     const merged = {};

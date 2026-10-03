@@ -130,7 +130,7 @@ class TestLinkCallback:
         session.save()
         response = client.get(f"/auth/link-callback?token={token.token}")
         assert response.status_code == 200
-        assert b"run /link in Discord yourself" in response.content
+        assert b"opened in a different browser" in response.content
 
     def test_successful_team_link(self, blue_team_user):
         """Successful team account linking creates DiscordLink and tasks."""
@@ -274,7 +274,7 @@ class TestLinkHijackProtection:
             client.get(f"/auth/link-callback?token={attacker_token.token}"),
             client.post("/auth/link-callback", {"token": attacker_token.token}),
         ):
-            assert b"run /link in Discord yourself" in response.content
+            assert b"opened in a different browser" in response.content
         assert not DiscordLink.objects.filter(discord_id=attacker_token.discord_id).exists()
 
     def test_opening_a_shared_link_only_shows_confirmation(self, gold_team_user, attacker_token):

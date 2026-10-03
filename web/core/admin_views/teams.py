@@ -204,7 +204,7 @@ def admin_team_action(request: HttpRequest, team_number: int) -> HttpResponse:
         if password is None:
             return JsonResponse({"success": False, "message": f"Password reset failed: {error}"})
         message = "New password set in Authentik"
-        message += "; signed out its sessions" if sessions_revoked else "; could not revoke its sessions"
+        message += "; asked Authentik to end its sessions" if sessions_revoked else "; could not end its sessions"
         return JsonResponse({"success": True, "message": message, "password": password})
 
     elif action == "recreate_channels":

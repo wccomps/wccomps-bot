@@ -5,8 +5,8 @@ import os
 bind = "0.0.0.0:8000"
 # Default 4. Each keeps one database connection open (CONN_MAX_AGE); mind Postgres max_connections
 workers = int(os.environ.get("GUNICORN_WORKERS", "4"))
-# Sync workers are killed after this long on one request. Streamed operations (competition
-# start/stop: ~60 Authentik calls; packet and scorecard emailing) must finish inside it.
+# Sync workers are killed after this long on one request. Streamed operations run in their own thread
+# (core.utils.run_detached), so they finish even if the browser leaves; with it attached, this caps the request.
 timeout = 300
 # Load Django once in the master, before forking, instead of in every worker on its first request:
 # a new pod's cold workers took seconds per request (and CPU from each other) while already in service.

@@ -114,3 +114,20 @@ async def test_ticket_reply_fits_a_long_description_and_still_opens_the_thread(m
     field = next(f for f in embed.fields if f.name == "Description")
     assert len(field.value) == 1024
     publish.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_thread_embed_fits_a_long_title() -> None:
+    from bot.ticket_dashboard import format_ticket_embed
+    from team.models import Team
+    from ticketing.models import Ticket, TicketCategory
+
+    team = await Team.objects.acreate(team_number=6, team_name="Team 06")
+    category = await TicketCategory.objects.acreate(pk=96, display_name="Other", sort_order=96)
+    ticket = await Ticket.objects.acreate(ticket_number="T006-001", team=team, category=category, title="t" * 255)
+    ticket = await Ticket.objects.select_related("team", "assigned_to").aget(pk=ticket.pk)
+
+    embed = await sync_to_async(format_ticket_embed)(ticket)
+
+    assert embed.title is not None and len(embed.title) == 256
