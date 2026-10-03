@@ -129,3 +129,12 @@ def test_no_controlled_apps_changes_nothing(authentik, config):
     assert result.error == "No controlled applications configured"
     authentik.toggle_user.assert_not_called()
     assert not AuditLog.objects.exists()
+
+
+def test_on_step_runs_after_every_step(authentik, config):
+    """The bot beats its liveness heartbeat from here, so a slow Authentik run isn't restarted midway."""
+    beats = []
+
+    run_competition_to_completion(True, "timer", on_step=lambda: beats.append(1))
+
+    assert len(beats) == 2 + len(ACTIVE_TEAMS) + 2  # apps, accounts, group refresh, Quotient sync

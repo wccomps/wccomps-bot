@@ -396,13 +396,13 @@ document.addEventListener('alpine:init', () => {
         },
 
         startCompetition() {
-            if (confirm('Start the competition?\n\nThis will enable all controlled applications and team accounts.')) {
+            if (confirm('Start the competition?\n\nThis will open the controlled applications to BlueTeam and enable the active teams\' accounts.')) {
                 this.doStreamAction('start_competition');
             }
         },
 
         stopCompetition() {
-            if (confirm('Stop the competition?\n\nThis will disable all applications and team accounts.\nYou can restart later.')) {
+            if (confirm('Stop the competition?\n\nThis will close the controlled applications to BlueTeam and disable every team account.\nYou can restart later.')) {
                 this.doStreamAction('stop_competition');
             }
         },

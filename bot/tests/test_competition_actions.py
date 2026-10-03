@@ -16,7 +16,7 @@ async def test_runs_the_shared_service(enable: bool) -> None:
         result = await run_competition(enable, actor="discord:admin")
 
     assert result is done
-    service.assert_called_once_with(enable, "discord:admin")
+    service.assert_called_once_with(enable, "discord:admin", None)
 
 
 @pytest.mark.asyncio
@@ -29,7 +29,7 @@ async def test_a_connection_broken_between_runs_does_not_fail_the_next() -> None
 
     from core.models import CompetitionConfig
 
-    def read_config_and_backend(enable: bool, actor: str) -> int:
+    def read_config_and_backend(enable: bool, actor: str, on_step=None) -> int:
         CompetitionConfig.get_config()
         with connection.cursor() as cursor:
             cursor.execute("select pg_backend_pid()")

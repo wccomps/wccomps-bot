@@ -61,7 +61,9 @@ class TestCompetitionTimer:
             ):
                 await timer._check_competition_times()
 
-            mock_start.assert_called_once_with(True, actor="timer")
+            mock_start.assert_called_once()
+            assert mock_start.call_args.args == (True,)
+            assert mock_start.call_args.kwargs["actor"] == "timer"
 
     async def test_check_competition_times_exception_handling(self) -> None:
         """Test _check_competition_times handles exceptions."""
@@ -188,6 +190,24 @@ async def _start_due() -> None:
     )
 
 
+def _fake_runs(failures: list[int], stop_by_hand_after: int | None = None):
+    """Stand-in for run_competition: records the state like the real run and beats once per attempt."""
+    calls = iter(failures)
+    attempt = 0
+
+    async def run(enable: bool, actor: str, on_step=None) -> CompetitionRunResult:
+        nonlocal attempt
+        attempt += 1
+        await CompetitionConfig.objects.filter(pk=1).aupdate(applications_enabled=enable)
+        if on_step:
+            on_step()
+        if stop_by_hand_after == attempt:
+            await CompetitionConfig.objects.filter(pk=1).aupdate(applications_enabled=not enable)
+        return _run(next(calls))
+
+    return run
+
+
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
@@ -198,11 +218,11 @@ async def _start_due() -> None:
     ],
 )
 async def test_an_incomplete_auto_start_is_retried_up_to_three_times(runs, expected_note) -> None:
-    """Authentik timing out at 16:00 used to leave some accounts disabled until someone noticed."""
+    """A partial start (Authentik timing out at 16:00) is run again, a bounded number of times."""
     await _start_due()
     timer = CompetitionTimer(AsyncMock(spec=discord.Client))
     with (
-        patch("bot.competition_timer.run_competition", new=AsyncMock(side_effect=[_run(n) for n in runs])) as start,
+        patch("bot.competition_timer.run_competition", new=AsyncMock(side_effect=_fake_runs(runs))) as start,
         patch("bot.competition_timer.asyncio.sleep", new_callable=AsyncMock) as sleep,
         patch("bot.competition_timer.record_heartbeat") as beat,
         patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock) as ops,
@@ -211,9 +231,34 @@ async def test_an_incomplete_auto_start_is_retried_up_to_three_times(runs, expec
         await timer._check_competition_times()
 
     assert start.await_count == len(runs)
-    assert sleep.await_count == beat.call_count == len(runs) - 1
+    assert sleep.await_count == len(runs) - 1
+    # Every attempt passes a step callback that beats the timer's heartbeat
+    assert beat.call_count == len(runs)
     ops.assert_awaited_once()
     assert ops.await_args.args[1].endswith(expected_note)
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_a_stop_by_hand_during_the_retry_wait_is_not_undone() -> None:
+    """The next attempt would re-enable everything an operator had just stopped."""
+    await _start_due()
+    timer = CompetitionTimer(AsyncMock(spec=discord.Client))
+    with (
+        patch(
+            "bot.competition_timer.run_competition",
+            new=AsyncMock(side_effect=_fake_runs([2, 2, 2, 2], stop_by_hand_after=1)),
+        ) as start,
+        patch("bot.competition_timer.asyncio.sleep", new_callable=AsyncMock),
+        patch("bot.competition_timer.record_heartbeat"),
+        patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock) as ops,
+        patch("bot.competition_timer.update_status_channel", new_callable=AsyncMock),
+    ):
+        await timer._check_competition_times()
+
+    assert start.await_count == 1
+    assert not (await CompetitionConfig.objects.aget(pk=1)).applications_enabled
+    assert ops.await_args.args[1].endswith("retries stopped: the competition was stopped by hand.")
 
 
 @pytest.mark.asyncio
@@ -222,7 +267,7 @@ async def test_a_complete_auto_start_runs_once() -> None:
     await _start_due()
     timer = CompetitionTimer(AsyncMock(spec=discord.Client))
     with (
-        patch("bot.competition_timer.run_competition", new=AsyncMock(return_value=_run(0))) as start,
+        patch("bot.competition_timer.run_competition", new=AsyncMock(side_effect=_fake_runs([0]))) as start,
         patch("bot.competition_timer.asyncio.sleep", new_callable=AsyncMock) as sleep,
         patch("bot.competition_timer.log_to_ops_channel", new_callable=AsyncMock) as ops,
         patch("bot.competition_timer.update_status_channel", new_callable=AsyncMock),

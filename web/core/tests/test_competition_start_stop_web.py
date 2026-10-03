@@ -126,3 +126,28 @@ def test_wipe_resets_ticket_counters_and_says_so(admin_client):
 
     assert response.json()["message"].endswith("; 1 team ticket counters reset")
     assert Team.objects.get(team_number=9).ticket_counter == 0
+
+
+def test_a_partial_start_is_reported_incomplete_not_success(admin_client):
+    """Success made the page reload after 2 s, hiding which apps or accounts didn't change."""
+    from team.models import Team
+
+    Team.objects.create(team_number=1, team_name="Team 1", is_active=True)
+    CompetitionConfig.objects.update_or_create(pk=1, defaults={"controlled_applications": ["scoring"]})
+    manager = MagicMock()
+    manager.enable_application.return_value = (False, "HTTP 502")
+    manager.toggle_user.return_value = (True, "")
+
+    with (
+        patch("core.authentik_manager.AuthentikManager", return_value=manager),
+        patch("core.services.user_groups.refresh_user_groups"),
+        patch("scoring.quotient_sync.sync_quotient_metadata"),
+    ):
+        response = _post(admin_client, "start_competition")
+        done = [json.loads(line) for line in b"".join(response.streaming_content).decode().splitlines()][-1]
+
+    assert done["success"] is False
+    assert done["message"].startswith("Incomplete: run Start again.")
+    assert "✗ scoring: HTTP 502" in done["message"]
+    log = DiscordTask.objects.get(task_type="log_to_channel").payload["message"]
+    assert log.startswith("**Competition Started (incomplete)**")

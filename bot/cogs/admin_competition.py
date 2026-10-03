@@ -344,9 +344,15 @@ class AdminCompetitionCog(commands.Cog):
             return
 
         verb = "Started" if enable else "Stopped"
-        await log_to_ops_channel(self.bot, f"**Competition {verb}** by {interaction.user.mention}\n{result.summary()}")
+        incomplete = " (incomplete)" if result.has_failures else ""
+        await log_to_ops_channel(
+            self.bot, f"**Competition {verb}{incomplete}** by {interaction.user.mention}\n{result.summary()}"
+        )
         await update_status_channel(self.bot)
-        await interaction.followup.send(f"**Competition {verb}!**\n\n{result.summary()}", ephemeral=True)
+        note = f"\n\nIncomplete: run {'start' if enable else 'stop'}-competition again." if result.has_failures else ""
+        await interaction.followup.send(
+            f"**Competition {verb}{incomplete}!**\n\n{result.summary()}{note}", ephemeral=True
+        )
 
     @competition_group.command(
         name="cleanup-competition",
