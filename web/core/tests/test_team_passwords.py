@@ -112,3 +112,39 @@ def test_web_bulk_reset_defaults_to_the_active_teams(admin_user):
     body = response.json()
     assert body["csv"].splitlines()[1:] == ["team01,pw-1", "team02,pw-2"]
     assert body["message"] == "Reset 2/2 passwords; could not revoke sessions for team02"
+
+
+def test_team_page_password_reset_keeps_discord_links(admin_user):
+    """Reset Password changes only the password; Reset Team is the one that unlinks members."""
+    from core.models import AuditLog
+
+    team = Team.objects.create(team_number=8, team_name="Team 08")
+    member = User.objects.create(username="member08b")
+    DiscordLink.objects.create(user=member, discord_id=4343, discord_username="m", team=team, is_active=True)
+    client = Client()
+    client.force_login(admin_user)
+
+    with patch("core.admin_views.teams.reset_team_credentials", return_value=("New-Pass-9!", "", True)) as reset:
+        response = client.post(reverse("admin_team_action", args=[8]), {"action": "reset_password"})
+
+    reset.assert_called_once_with(8)
+    body = response.json()
+    assert body == {
+        "success": True,
+        "message": "New password set in Authentik; signed out its sessions",
+        "password": "New-Pass-9!",
+    }
+    assert DiscordLink.objects.filter(discord_id=4343, is_active=True).exists()
+    assert not DiscordTask.objects.filter(task_type="sync_member_roles").exists()
+    assert AuditLog.objects.get(action="team_password_reset").details["sessions_revoked"] is True
+
+
+def test_team_page_password_reset_reports_a_failure(admin_user):
+    Team.objects.create(team_number=8, team_name="Team 08")
+    client = Client()
+    client.force_login(admin_user)
+
+    with patch("core.admin_views.teams.reset_team_credentials", return_value=(None, "HTTP 500", False)):
+        body = client.post(reverse("admin_team_action", args=[8]), {"action": "reset_password"}).json()
+
+    assert body == {"success": False, "message": "Password reset failed: HTTP 500"}

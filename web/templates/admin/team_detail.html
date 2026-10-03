@@ -65,6 +65,9 @@
                             Activate Team
                         </c-button>
                     {% endif %}
+                    <c-button variant="warning" @click="resetPassword" ::disabled="loading">
+                        Reset Password
+                    </c-button>
                     <c-button variant="danger" @click="resetTeam" ::disabled="loading">
                         Reset Team
                     </c-button>
@@ -78,6 +81,7 @@
                 <template x-if="newPassword">
                     <c-action_box heading="New Password" variant="warning" class="mt-20">
                         <code class="text-lg" x-text="newPassword"></code>
+                        <p class="help-text mt-10">Copy it now: it's also stored for packet emails, and a packet resend sends it.</p>
                     </c-action_box>
                 </template>
             </c-module>
@@ -86,8 +90,9 @@
             <c-slot name="title">
                 Linked Members ({{ members|length }})
             </c-slot>
+            <p x-show="membersUnlinked" class="help-text">All members were unlinked. Each one runs /link again to rejoin.</p>
             {% if members %}
-                <c-table id="members_list" class="w-full" aria_label="Team members">
+                <c-table id="members_list" class="w-full" aria_label="Team members" x-show="membersShown">
                     <c-slot name="headers">
                         <tr>
                             <c-table_header sortable="false">
@@ -137,6 +142,8 @@
         Alpine.data('teamDetail', () => compose(toastMixin(), {
                 loading: false,
                 newPassword: '',
+                membersUnlinked: false,
+                get membersShown() { return !this.membersUnlinked; },
 
                 async teamAction(e) {
                     const action = e.currentTarget.dataset.action;
@@ -173,6 +180,29 @@
                     setTimeout(() => this.message = '', 5000);
                 },
 
+                async resetPassword() {
+                    if (!confirm('Reset this team\'s password?\n\nThis will:\n- Generate a new password and set it in Authentik\n- Sign out every session on the team account\n\nDiscord links are kept. Anyone using the old password must use the new one.')) {
+                        return;
+                    }
+
+                    this.loading = true;
+                    this.message = '';
+                    this.newPassword = '';
+
+                    try {
+                        const result = await wcPost('{% url "admin_team_action" team.team_number %}', { action: 'reset_password' });
+                        this.message = result.message || result.error || 'Password reset failed';
+                        this.messageType = result.success ? 'success' : 'error';
+                        // No reload: the new password stays on screen until you leave the page
+                        if (result.password) this.newPassword = result.password;
+                    } catch (e) {
+                        this.message = 'Request failed: ' + e.message;
+                        this.messageType = 'error';
+                    }
+
+                    this.loading = false;
+                },
+
                 async resetTeam() {
                     if (!confirm('Reset this team? This will:\n- Unlink all members\n- Generate a new Authentik password\n- Revoke all active sessions\n\nThis cannot be undone.')) {
                         return;
@@ -190,7 +220,8 @@
                             if (result.password) {
                                 this.newPassword = result.password;
                             }
-                            setTimeout(() => location.reload(), 3000);
+                            // Update in place: a reload would wipe the new password before anyone copied it
+                            this.membersUnlinked = true;
                         } else {
                             this.message = result.error || result.message || 'Reset failed';
                             this.messageType = 'error';
