@@ -1,7 +1,7 @@
 """Competition configuration services, and starting and stopping the competition."""
 
 import logging
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 
 from core.models import AuditLog, CompetitionConfig
@@ -149,8 +149,10 @@ def run_competition(enable: bool, actor: str) -> Generator[CompetitionStep, None
     return result
 
 
-def run_competition_to_completion(enable: bool, actor: str) -> CompetitionRunResult:
-    """run_competition for callers that don't show progress."""
+def run_competition_to_completion(
+    enable: bool, actor: str, on_step: Callable[[], None] | None = None
+) -> CompetitionRunResult:
+    """run_competition for callers that don't show progress; on_step runs after each step (a liveness beat)."""
     steps = run_competition(enable, actor)
     while True:
         try:
@@ -158,3 +160,5 @@ def run_competition_to_completion(enable: bool, actor: str) -> CompetitionRunRes
         except StopIteration as done:
             result: CompetitionRunResult = done.value
             return result
+        if on_step:
+            on_step()

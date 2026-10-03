@@ -65,18 +65,30 @@ class CompetitionTimer(commands.Cog):
             enable = should_start
             action, done = ("Start", "Started") if enable else ("Stop", "Stopped")
             logger.info(f"Competition {action.lower()} time reached")
-            result = await run_competition(enable, actor="timer")
+
+            # A run can take minutes when Authentik is slow: beat after every step so liveness doesn't restart
+            # the bot mid-run (the timer's budget is 300 s)
+            def beat() -> None:
+                record_heartbeat("timer", self.bot)
+
+            result = await run_competition(enable, actor="timer", on_step=beat)
             attempts = 1
+            superseded = False
             while result.success and result.has_failures and attempts <= RETRIES:
                 logger.warning(f"Competition auto-{action.lower()} incomplete; retrying ({attempts}/{RETRIES})")
-                # Each attempt can take a while; keep the liveness probe from restarting the bot mid-run
-                record_heartbeat("timer", self.bot)
                 await asyncio.sleep(RETRY_DELAY_SECONDS)
-                result = await run_competition(enable, actor="timer")
+                # Someone may have started or stopped it by hand meanwhile; don't undo that
+                if await sync_to_async(lambda: CompetitionConfig.get_config().applications_enabled)() != enable:
+                    superseded = True
+                    break
+                result = await run_competition(enable, actor="timer", on_step=beat)
                 attempts += 1
             if result.success:
                 result_msg = f"**Competition Auto-{done}!**\n\n{result.summary()}"
-                if result.has_failures:
+                if superseded:
+                    changed = "stopped" if enable else "started"
+                    result_msg += f"\n\nIncomplete, and retries stopped: the competition was {changed} by hand."
+                elif result.has_failures:
                     result_msg += (
                         f"\n\nStill incomplete after {attempts} attempts: run {action} again from the competition page."
                     )

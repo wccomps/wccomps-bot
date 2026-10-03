@@ -225,10 +225,18 @@ def _stream_competition_run(enable: bool, authentik_username: str) -> Iterator[s
 
     if result.success:
         verb = "Started" if enable else "Stopped"
+        incomplete = " (incomplete)" if result.has_failures else ""
         DiscordTask.enqueue(
-            LogToChannel(message=f"**Competition {verb}** by {authentik_username} (web)\n{result.summary()}")
+            LogToChannel(
+                message=f"**Competition {verb}{incomplete}** by {authentik_username} (web)\n{result.summary()}"
+            )
         )
-    yield json.dumps({"done": True, "success": result.success, "message": result.summary()}) + "\n"
+    # A partial run is not a success: report it as a failure so the page keeps the ✗ lines up instead of reloading
+    message = result.summary()
+    if result.success and result.has_failures:
+        message = f"Incomplete: run {'Start' if enable else 'Stop'} again.\n{message}"
+    complete = result.success and not result.has_failures
+    yield json.dumps({"done": True, "success": complete, "message": message}) + "\n"
 
 
 def _action_start_competition(

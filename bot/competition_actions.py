@@ -2,6 +2,7 @@
 
 import logging
 import re
+from collections.abc import Callable
 
 import discord
 from asgiref.sync import sync_to_async
@@ -17,20 +18,20 @@ from team.models import MAX_TEAMS, DiscordLink, Team
 logger = logging.getLogger(__name__)
 
 
-async def run_competition(enable: bool, actor: str) -> CompetitionRunResult:
+async def run_competition(enable: bool, actor: str, on_step: Callable[[], None] | None = None) -> CompetitionRunResult:
     """Start (enable=True) or stop the competition via the shared service, off the event loop.
 
     Not thread_sensitive: the run makes dozens of Authentik calls and would otherwise hold the
     single thread every other sync_to_async call in the bot waits on.
     """
-    return await sync_to_async(_run_and_close, thread_sensitive=False)(enable, actor)
+    return await sync_to_async(_run_and_close, thread_sensitive=False)(enable, actor, on_step)
 
 
-def _run_and_close(enable: bool, actor: str) -> CompetitionRunResult:
+def _run_and_close(enable: bool, actor: str, on_step: Callable[[], None] | None) -> CompetitionRunResult:
     # A pool thread keeps its DB connection, and recycle_db_connection only reaches the bot's main ORM
     # thread; close it so a connection broken between runs can't fail the next start or stop.
     try:
-        return run_competition_to_completion(enable, actor)
+        return run_competition_to_completion(enable, actor, on_step)
     finally:
         connection.close()
 
