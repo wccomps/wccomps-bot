@@ -409,6 +409,8 @@ class InjectGradingForm(forms.Form):
                 self.fields[f"points_team_{num}"] = forms.DecimalField(
                     required=False, min_value=0, max_digits=10, decimal_places=2
                 )
+                # What the page showed when it loaded: a field the grader didn't change is left alone
+                self.fields[f"loaded_team_{num}"] = forms.DecimalField(required=False, max_digits=10, decimal_places=2)
 
 
 class SaveInjectFeedbackForm(forms.Form):

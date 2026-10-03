@@ -61,13 +61,28 @@ def inject_grading(request: HttpRequest) -> HttpResponse:
                     points_value = grading_form.cleaned_data.get(f"points_team_{team.team_number}")
                     if points_value is None:
                         continue
+                    # The form posts every team's points as the page loaded them. A field this grader didn't
+                    # change must not overwrite a grade someone else saved since (a stale page)
+                    if (
+                        f"loaded_team_{team.team_number}" in request.POST
+                        and points_value == grading_form.cleaned_data.get(f"loaded_team_{team.team_number}")
+                    ):
+                        continue
                     grade = current.get(team.id)
-                    # The form posts every team's points: rewriting unchanged ones would overwrite another
-                    # grader's newer value and needlessly restamp graded_by
+                    # Same points as stored: nothing to restamp or send back for review
                     if grade and grade.points_awarded == points_value:
                         continue
                     if grade is None:
-                        grade = InjectScore(team=team, inject_id=selected_inject_id)
+                        # get_or_create: another grader may be saving this team's first grade right now
+                        grade, _ = InjectScore.objects.select_for_update().get_or_create(
+                            team=team,
+                            inject_id=selected_inject_id,
+                            defaults={
+                                "inject_name": selected_inject.title,
+                                "points_awarded": points_value,
+                                "graded_by": user,
+                            },
+                        )
                     grade.inject_name = selected_inject.title
                     grade.points_awarded = points_value
                     grade.graded_by = user
